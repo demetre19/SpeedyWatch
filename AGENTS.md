@@ -4,6 +4,7 @@
 
 - This project owns the SpeedyWatch Android app: a YouTube WebView browser with native playback-rate controls, searchable caption transcripts, OpenRouter video summaries and pre-watch question guides, and best-effort DOM ad skipping.
 - Keep source, generated APKs, and verification evidence inside this project boundary. Do not reuse release artifacts or private configuration from sibling Android projects.
+- `README.md` and `logo.png` are the public GitHub landing assets. Keep their feature claims, installation requirements, release metadata, and privacy disclosures aligned with the shipped app.
 
 ## Product Contracts
 
@@ -18,12 +19,15 @@
 - OpenRouter settings dynamically load text-output models from `https://openrouter.ai/api/v1/models`, prefer `inception/mercury-2` when available, and keep Summary One, Summary Two, and Quiz prompts editable. The API key field defaults to masked, exposes a short prefix/suffix check, and has an explicit visibility toggle. Persist the API key only as Android Keystore AES-GCM ciphertext; never log, export, or embed it.
 - The Quiz action uses the active video's transcript to create one modal containing exactly 6, 10, 12, or 20 important pre-watch questions, each with a short description and no answer.
 - The launcher icon is an adaptive dark/red speed, play, and watch mark with a legacy fallback.
+- Public APK delivery uses GitHub Releases in `demetre19/SpeedyWatch`. Each release attaches the rebuilt APK as `SpeedyWatch.apk`; the README's stable latest-download link must remain `https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk`.
+- Until a production signing workflow is added, public APKs are debug-signed and the README and release notes must say so. Do not imply production signing or seamless signer migration.
 
 ## Build and Verification
 
 - Use JDK 17 and the checked-in Gradle 9.4.1 wrapper. On this workstation set `JAVA_HOME=/Volumes/TheHoneyBadger/AndroidTooling/jdks/jdk-17.0.19+10/Contents/Home`, `ANDROID_HOME=/Volumes/TheHoneyBadger/AndroidTooling/android-sdk`, and `ANDROID_SDK_ROOT=$ANDROID_HOME`.
 - Build the debug APK with `./gradlew --no-daemon :app:assembleDebug`.
 - Install with `./gradlew --no-daemon :app:installDebug` while an emulator or phone is connected.
+- Before publishing, calculate the exact APK SHA-256, update the README metadata, upload that same file as the GitHub Release asset, and verify the public latest-download URL resolves successfully.
 - The existing `cmuxPhoneApi36` AVD is the primary local smoke-test profile. Verify that YouTube renders, direct 2.7x entry and 0.1x stepping report matching live media rates, the ad-skipping toggle changes controller state, Settings loads the live OpenRouter catalog with Mercury 2 selected and exposes the masked API-key check and editable Quiz prompt, a captioned `/watch` video supports transcript search, timestamp seek with modal dismissal, readable Summary One and timestamped Summary Two, and Quiz generates exactly the selected 6, 10, 12, or 20 pre-watch questions with descriptions.
 - Run `node --check app/src/main/assets/speedywatch.js` after changing the injected controller, then build and install the APK for behavioral changes.
 - Every meaningful contract, structure, permission, toolchain, or verification change requires a DOX pass in this file and, when the child boundary changes, the workspace parent index.
