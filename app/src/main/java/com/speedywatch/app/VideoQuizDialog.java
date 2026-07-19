@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -90,9 +91,13 @@ final class VideoQuizDialog {
         status = text("Loading subtitles...", 12, MUTED);
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button close = button("Close");
+        ImageButton close = new ImageButton(activity);
+        close.setImageResource(R.drawable.ic_close);
+        close.setContentDescription("Close Video Quiz");
+        close.setPadding(dp(9), dp(9), dp(9), dp(9));
+        close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
+        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
         content.addView(header);
 
         TextView guidance = text(

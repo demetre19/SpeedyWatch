@@ -76,20 +76,35 @@ final class SettingsDialog {
         }
         dialog.show();
         if (window != null) {
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.CENTER);
         }
         refreshModels();
     }
 
     private View buildContent() {
-        LinearLayout content = verticalLayout();
-        content.setPadding(dp(18), dp(14), dp(18), dp(14));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        LinearLayout root = verticalLayout();
+        root.setPadding(dp(18), dp(14), dp(18), dp(14));
+        root.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
 
+        LinearLayout header = horizontalLayout();
         TextView title = text("Settings", 22, Color.WHITE);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
-        content.addView(title);
+        header.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        ImageButton close = new ImageButton(activity);
+        close.setImageResource(R.drawable.ic_close);
+        close.setContentDescription("Close Settings");
+        close.setPadding(dp(9), dp(9), dp(9), dp(9));
+        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setOnClickListener(ignored -> dialog.dismiss());
+        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        root.addView(header);
+
+        LinearLayout content = verticalLayout();
         content.addView(text("OpenRouter", 13, MUTED), matchWrap(dp(2), dp(12)));
 
         content.addView(label("API key"));
@@ -171,7 +186,12 @@ final class SettingsDialog {
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         scroll.addView(content);
-        return scroll;
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+        return root;
     }
 
     private void toggleApiKeyVisibility() {
