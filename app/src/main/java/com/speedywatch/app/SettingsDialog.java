@@ -1,14 +1,22 @@
 package com.speedywatch.app;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.app.Dialog;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
 import android.text.TextWatcher;
 import android.text.method.PasswordTransformationMethod;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,6 +43,7 @@ final class SettingsDialog {
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(180, 180, 180);
+    private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
 
     private final Activity activity;
     private final SpeedyWatchSettings settings;
@@ -186,6 +195,30 @@ final class SettingsDialog {
         actions.addView(save, saveParams);
         content.addView(actions);
 
+        String attributionPrefix = "Brought to you by the team from ";
+        String attributionBrand = "SEO Time Machines";
+        SpannableString attributionText = new SpannableString(attributionPrefix + attributionBrand);
+        attributionText.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                openSeoTimeMachines();
+            }
+
+            @Override
+            public void updateDrawState(TextPaint drawState) {
+                drawState.setColor(Color.rgb(90, 180, 255));
+                drawState.setUnderlineText(true);
+                drawState.setTypeface(Typeface.DEFAULT_BOLD);
+            }
+        }, attributionPrefix.length(), attributionText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        TextView attribution = text("", 13, Color.WHITE);
+        attribution.setText(attributionText);
+        attribution.setGravity(Gravity.CENTER);
+        attribution.setMinHeight(dp(44));
+        attribution.setMovementMethod(LinkMovementMethod.getInstance());
+        attribution.setHighlightColor(Color.TRANSPARENT);
+        content.addView(attribution, matchWrap(dp(12), dp(2)));
+
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         scroll.addView(content);
@@ -195,6 +228,17 @@ final class SettingsDialog {
                 1f
         ));
         return root;
+    }
+
+    private void openSeoTimeMachines() {
+        Uri uri = Uri.parse(SEO_TIME_MACHINES_URL);
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        try {
+            activity.startActivity(intent);
+        } catch (RuntimeException error) {
+            Toast.makeText(activity, "No app can open this link", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void toggleApiKeyVisibility() {

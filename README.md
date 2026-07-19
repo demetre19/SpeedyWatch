@@ -51,10 +51,10 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.3
-Version code: 3
+Version: 0.4
+Version code: 4
 Minimum Android version: Android 10 (API 29)
-SHA-256: 7bcfdb0de9b0630b2bf48531b1cf319382c66f688d6661de81a025f10c8de8e4
+SHA-256: e49a7e6baa064b802635a853ee8b246438766cdf4dc450abf10ae3eca7365582
 Signing: Android debug signing key
 ```
 
@@ -124,3 +124,5 @@ app/build/outputs/apk/debug/app-debug.apk
 ## Project status
 
 SpeedyWatch is an independent project and is not affiliated with or endorsed by YouTube, Google, OpenRouter, or Inception Labs.
+
+Brought to you by the team from [SEO Time Machines](https://seotimemachines.com)
