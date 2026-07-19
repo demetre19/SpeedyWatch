@@ -10,7 +10,7 @@ Android YouTube viewers who want faster, finer playback control and fewer viewin
 
 ## Product Purpose
 
-SpeedyWatch provides a focused in-app YouTube browser with reliable custom playback rates, convenient fullscreen viewing, searchable transcripts, configurable AI summaries, locally saved summary bookmarks, and best-effort ad skipping. Success means users can browse and watch normally, change speed immediately, and return to useful video insights with their original source.
+SpeedyWatch provides a focused in-app YouTube browser with reliable custom playback rates, a foreground display that stays awake, convenient fullscreen viewing, searchable transcripts, configurable AI summaries, locally saved summary bookmarks, and best-effort ad skipping. Success means users can browse and watch normally, change speed immediately, and return to useful video insights with their original source.
 
 ## Brand Personality
 

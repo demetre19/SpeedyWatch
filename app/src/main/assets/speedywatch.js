@@ -10,7 +10,8 @@
         speed: 1,
         adSkipping: true,
         timer: 0,
-        pending: false
+        pending: false,
+        adProcessing: false
     };
 
     const mediaElements = () => Array.from(document.querySelectorAll("video, audio"));
@@ -49,14 +50,19 @@
             "ytd-ad-slot-renderer, ytd-display-ad-renderer, " +
             "ytd-promoted-sparkles-web-renderer, ytd-promoted-video-renderer, " +
             "ytd-in-feed-ad-layout-renderer"
-        ).forEach((node) => node.remove());
+        ).forEach((node) => {
+            const parent = typeof node.closest === "function"
+                ? node.closest("ytd-rich-item-renderer")
+                : null;
+            (parent || node).remove();
+        });
     };
 
     const clickSkipButton = () => {
         const button = document.querySelector(
             ".ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern"
         );
-        if (!button) {
+        if (!button || button.offsetParent === null) {
             return false;
         }
         button.click();
@@ -64,52 +70,60 @@
     };
 
     const skipVideoAd = () => {
-        if (!state.adSkipping || !isAdShowing()) {
+        if (!state.adSkipping || state.adProcessing || !isAdShowing()) {
             return false;
         }
-
-        if (clickSkipButton()) {
-            return true;
-        }
-
-        const player = youtubePlayer();
-        try {
-            if (player && typeof player.skipAd === "function") {
-                player.skipAd();
-                return true;
-            }
-        } catch (_) {
-            // Fall through to the media-element strategy.
-        }
-
-        const video = document.querySelector("video");
-        try {
-            if (video && Number.isFinite(video.duration) && video.duration > 0) {
-                video.currentTime = video.duration;
-                return true;
-            }
-        } catch (_) {
-            // Fall through to the player restart strategy.
-        }
+        state.adProcessing = true;
 
         try {
-            if (player && typeof player.cancelPlayback === "function") {
-                player.cancelPlayback();
-                window.setTimeout(() => {
-                    try {
-                        if (typeof player.playVideo === "function") {
-                            player.playVideo();
+            const player = youtubePlayer();
+
+            try {
+                if (player && typeof player.cancelPlayback === "function") {
+                    player.cancelPlayback();
+                    window.setTimeout(() => {
+                        try {
+                            if (typeof player.playVideo === "function") {
+                                player.playVideo();
+                            }
+                        } catch (_) {
+                            // A later controller tick will recover playback state.
                         }
-                    } catch (_) {
-                        // A later controller tick will recover playback state.
-                    }
-                }, 300);
+                    }, 300);
+                    return true;
+                }
+            } catch (_) {
+                // Fall through to the visible skip-button strategy.
+            }
+
+            if (clickSkipButton()) {
                 return true;
             }
-        } catch (_) {
-            // YouTube private APIs change regularly; the next tick retries safely.
+
+            const video = document.querySelector("video");
+            try {
+                if (video && Number.isFinite(video.duration) && video.duration > 0) {
+                    video.currentTime = video.duration;
+                    return true;
+                }
+            } catch (_) {
+                // Fall through to the player skip API.
+            }
+
+            try {
+                if (player && typeof player.skipAd === "function") {
+                    player.skipAd();
+                    return true;
+                }
+            } catch (_) {
+                // YouTube private APIs change regularly; the next tick retries safely.
+            }
+            return false;
+        } finally {
+            window.setTimeout(() => {
+                state.adProcessing = false;
+            }, 800);
         }
-        return false;
     };
 
     const applySpeed = () => {
@@ -148,7 +162,7 @@
     };
 
     const api = {
-        version: 2,
+        version: 3,
         setSpeed(value) {
             const parsed = Number(value);
             if (!Number.isFinite(parsed)) {
