@@ -33,9 +33,9 @@ SpeedyWatch is a focused Android YouTube browser for people who want faster play
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
-- Create a concise summary or a timestamped summary through OpenRouter.
-- Create **6, 10, 12, or 20** important pre-watch questions with a short description under each question.
-- Edit the Summary One, Summary Two, and Quiz prompts in Settings.
+- Create two independently configurable summaries through OpenRouter.
+- Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
+- Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions.
 
 ## Download and install
 
@@ -50,10 +50,10 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.1
-Version code: 1
+Version: 0.2
+Version code: 2
 Minimum Android version: Android 10 (API 29)
-SHA-256: 2ca24884be1f2f571fed346d486a207dc7453689d35c7c39f63ab6c51a8d9ffe
+SHA-256: e0cc578e87309e36661a2a06b630dbe2aa6fa15e04c6bfee18432bbb1cf8d848
 Signing: Android debug signing key
 ```
 
@@ -76,8 +76,8 @@ The API key is encrypted with Android Keystore AES-GCM before it is stored. The 
 1. Open a captioned YouTube video in SpeedyWatch.
 2. Tap the **YouTube Subs** icon to load the transcript.
 3. Search the transcript or tap a timestamp to seek the video.
-4. Choose **Summary One** for a concise overview.
-5. Choose **Summary Two + Time** for key moments with timestamps.
+4. Choose **Summary One** to use its saved prompt.
+5. Choose **Summary Two** to use its independently saved prompt.
 6. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide.
 
 Transcript availability depends on the captions exposed by YouTube for the selected video.

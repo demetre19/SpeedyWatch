@@ -143,17 +143,19 @@ final class YouTubeSubsDialog {
 
         LinearLayout actions = horizontalLayout();
         summaryOneButton = button("Summary One");
-        summaryTwoButton = button("Summary Two + Time");
+        summaryTwoButton = button("Summary Two");
         transcriptButton = button("Transcript");
         copySummaryButton = button("Copy summary");
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
-        summaryOneButton.setOnClickListener(ignored -> summarize(false));
-        summaryTwoButton.setOnClickListener(ignored -> summarize(true));
+        summaryOneButton.setOnClickListener(ignored ->
+                summarize(settings.getSummaryOnePrompt(), "Summary One"));
+        summaryTwoButton.setOnClickListener(ignored ->
+                summarize(settings.getSummaryTwoPrompt(), "Summary Two"));
         transcriptButton.setOnClickListener(ignored -> showTranscript());
         copySummaryButton.setOnClickListener(ignored -> copySummary());
         addWeighted(actions, summaryOneButton, 1f, 0);
-        addWeighted(actions, summaryTwoButton, 1.35f, dp(6));
+        addWeighted(actions, summaryTwoButton, 1f, dp(6));
         addWeighted(actions, transcriptButton, 1f, dp(6));
         content.addView(actions);
 
@@ -240,9 +242,13 @@ final class YouTubeSubsDialog {
         });
     }
 
-    private void summarize(boolean includeTimestamps) {
+    private void summarize(String prompt, String summaryName) {
         if (entries.isEmpty()) {
             Toast.makeText(activity, "No subtitles found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (prompt == null || prompt.trim().isEmpty()) {
+            Toast.makeText(activity, summaryName + " prompt is empty", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -259,12 +265,10 @@ final class YouTubeSubsDialog {
             return;
         }
 
-        String prompt = includeTimestamps
-                ? settings.getSummaryTwoPrompt() : settings.getSummaryOnePrompt();
-        String userMessage = buildUserMessage(includeTimestamps);
+        String userMessage = buildUserMessage();
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
-        showSummary(includeTimestamps ? "Creating Summary Two..." : "Creating Summary One...");
+        showSummary("Creating " + summaryName + "...");
         status.setText("Sending transcript to " + modelId);
 
         executor.execute(() -> {
@@ -273,7 +277,7 @@ final class YouTubeSubsDialog {
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
                         showSummary(result);
-                        status.setText((includeTimestamps ? "Summary Two" : "Summary One") + " | " + modelId);
+                        status.setText(summaryName + " | " + modelId);
                         summaryOneButton.setEnabled(true);
                         summaryTwoButton.setEnabled(true);
                     }
@@ -293,20 +297,17 @@ final class YouTubeSubsDialog {
         });
     }
 
-    private String buildUserMessage(boolean includeTimestamps) {
+    private String buildUserMessage() {
         StringBuilder transcript = new StringBuilder();
         for (TranscriptEntry entry : entries) {
-            if (includeTimestamps) {
-                transcript.append(entry.timestamp()).append(' ');
-            }
-            transcript.append(entry.text).append('\n');
+            transcript.append(entry.timestamp()).append(' ').append(entry.text).append('\n');
         }
-        if (includeTimestamps) {
-            return "Summarise the following content. Timestamps are included - use them to create a timestamped summary with key moments:\n\n"
-                    + "Source: YouTube Subtitles\nTitle: " + videoTitle + "\nURL: " + videoUrl + "\n\n" + transcript;
-        }
-        return "Summarise the following content:\n\nSource: YouTube Subtitles\nTitle: "
-                + videoTitle + "\nURL: " + videoUrl + "\n\n" + transcript;
+        return "Source: YouTube Subtitles\nTitle: "
+                + videoTitle
+                + "\nURL: "
+                + videoUrl
+                + "\n\nTranscript:\n"
+                + transcript;
     }
 
     private void showSummary(String value) {

@@ -158,17 +158,20 @@ final class SettingsDialog {
 
         content.addView(label("Summary One prompt"));
         summaryOneInput = input(true, 7);
-        summaryOneInput.setText(settings.getSummaryOnePrompt());
+        summaryOneInput.setText(promptFieldValue(
+                settings.getSummaryOnePrompt(), R.string.summary_one_prompt_default));
         content.addView(summaryOneInput, matchWrap(dp(4), dp(14)));
 
         content.addView(label("Summary Two prompt"));
         summaryTwoInput = input(true, 8);
-        summaryTwoInput.setText(settings.getSummaryTwoPrompt());
+        summaryTwoInput.setText(promptFieldValue(
+                settings.getSummaryTwoPrompt(), R.string.summary_two_prompt_default));
         content.addView(summaryTwoInput, matchWrap(dp(4), dp(14)));
 
         content.addView(label("Quiz prompt"));
         quizInput = input(true, 7);
-        quizInput.setText(settings.getQuizPrompt());
+        quizInput.setText(promptFieldValue(
+                settings.getQuizPrompt(), R.string.quiz_prompt_default));
         content.addView(quizInput, matchWrap(dp(4), dp(14)));
 
         LinearLayout actions = horizontalLayout();
@@ -331,19 +334,26 @@ final class SettingsDialog {
         search.requestFocus();
     }
 
+    private String promptFieldValue(String savedPrompt, int defaultResource) {
+        return savedPrompt.trim().isEmpty() ? activity.getString(defaultResource) : savedPrompt;
+    }
+
     private void save() {
         if (selectedModelId == null || selectedModelId.isEmpty()) {
             Toast.makeText(activity, "Choose an OpenRouter model", Toast.LENGTH_SHORT).show();
             return;
         }
+        String summaryOne = summaryOneInput.getText().toString();
+        String summaryTwo = summaryTwoInput.getText().toString();
+        String quiz = quizInput.getText().toString();
+        if (summaryOne.trim().isEmpty() || summaryTwo.trim().isEmpty() || quiz.trim().isEmpty()) {
+            Toast.makeText(activity, "Prompt fields cannot be empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             settings.setApiKey(apiKeyInput.getText().toString());
             settings.setModelId(selectedModelId);
-            settings.setPrompts(
-                    summaryOneInput.getText().toString(),
-                    summaryTwoInput.getText().toString(),
-                    quizInput.getText().toString()
-            );
+            settings.setPrompts(summaryOne, summaryTwo, quiz);
             Toast.makeText(activity, "Settings saved", Toast.LENGTH_SHORT).show();
             dialog.dismiss();
         } catch (GeneralSecurityException error) {

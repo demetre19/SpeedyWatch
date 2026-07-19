@@ -201,6 +201,11 @@ final class VideoQuizDialog {
             Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
+        String prompt = settings.getQuizPrompt();
+        if (prompt.trim().isEmpty()) {
+            Toast.makeText(activity, "Quiz prompt is empty", Toast.LENGTH_LONG).show();
+            return;
+        }
 
         int requestedCount = questionCount;
         createButton.setEnabled(false);
@@ -212,7 +217,7 @@ final class VideoQuizDialog {
                 String result = client.summarize(
                         apiKey,
                         modelId,
-                        settings.getQuizPrompt(),
+                        prompt,
                         userMessage
                 );
                 activity.runOnUiThread(() -> {
@@ -244,15 +249,12 @@ final class VideoQuizDialog {
         for (TranscriptEntry entry : entries) {
             transcript.append(entry.text).append('\n');
         }
-        return "Prepare the viewer before they watch this YouTube video. Return exactly "
-                + requestedCount
-                + " important questions in Markdown. For each item, use a numbered heading for the question, "
-                + "then one short description explaining why the question matters and what the viewer should "
-                + "listen for. Do not answer the questions. Do not include a summary, glossary, introduction, "
-                + "or conclusion. Use only information present in the transcript.\n\nTitle: "
+        return "Source: YouTube Subtitles\nTitle: "
                 + videoTitle
                 + "\nURL: "
                 + videoUrl
+                + "\nRequested question count: "
+                + requestedCount
                 + "\n\nTranscript:\n"
                 + transcript;
     }
