@@ -77,6 +77,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService ioExecutor = Executors.newFixedThreadPool(2);
     private final AtomicLong transcriptRequestCounter = new AtomicLong();
     private SpeedyWatchSettings appSettings;
+    private SavedSummaryStore savedSummaryStore;
     private LinearLayout appRoot;
     private EditText customSpeedInput;
     private View fullscreenView;
@@ -95,6 +96,7 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         appSettings = new SpeedyWatchSettings(this);
+        savedSummaryStore = new SavedSummaryStore(this);
         controllerScript = readAsset("speedywatch.js");
         appRoot = buildUi();
         setContentView(appRoot);
@@ -213,6 +215,11 @@ public final class MainActivity extends Activity {
                 R.drawable.ic_quiz,
                 "Create video quiz",
                 ignored -> showQuiz()
+        ));
+        navigation.addView(makeIconButton(
+                R.drawable.ic_bookmark,
+                "Saved summaries",
+                ignored -> showSavedSummaries()
         ));
         navigation.addView(makeIconButton(
                 R.drawable.ic_settings,
@@ -362,7 +369,6 @@ public final class MainActivity extends Activity {
                 null
         ));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(44), dp(44));
-        params.setMargins(dp(3), 0, dp(3), 0);
         button.setLayoutParams(params);
         button.setOnClickListener(listener);
         return button;
@@ -504,6 +510,14 @@ public final class MainActivity extends Activity {
                 || host.equals("consent.google.com");
     }
 
+    private void showSavedSummaries() {
+        new SavedSummariesDialog(this, savedSummaryStore, url -> {
+            if (SavedSummaryStore.isSupportedSourceUrl(url)) {
+                webView.loadUrl(url);
+            }
+        }).show();
+    }
+
     private void showSettings() {
         new SettingsDialog(this, appSettings, openRouterClient, ioExecutor).show();
     }
@@ -514,7 +528,8 @@ public final class MainActivity extends Activity {
                 transcriptHost(),
                 appSettings,
                 openRouterClient,
-                ioExecutor
+                ioExecutor,
+                savedSummaryStore
         ).show();
     }
 
@@ -1058,6 +1073,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         hideFullscreenView();
         ioExecutor.shutdownNow();
+        savedSummaryStore.close();
         webView.loadUrl("about:blank");
         webView.removeAllViews();
         webView.destroy();

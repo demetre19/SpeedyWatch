@@ -55,6 +55,7 @@ final class YouTubeSubsDialog {
     private final SpeedyWatchSettings settings;
     private final OpenRouterClient client;
     private final ExecutorService executor;
+    private final SavedSummaryStore savedSummaryStore;
     private final List<TranscriptEntry> entries = new ArrayList<>();
 
     private Dialog dialog;
@@ -68,21 +69,26 @@ final class YouTubeSubsDialog {
     private Button summaryTwoButton;
     private Button transcriptButton;
     private Button copySummaryButton;
+    private Button saveSummaryButton;
     private String videoTitle = "YouTube Video";
     private String videoUrl = "";
+    private String currentSummaryText = "";
+    private String currentSummaryLabel = "";
 
     YouTubeSubsDialog(
             Activity activity,
             TranscriptHost host,
             SpeedyWatchSettings settings,
             OpenRouterClient client,
-            ExecutorService executor
+            ExecutorService executor,
+            SavedSummaryStore savedSummaryStore
     ) {
         this.activity = activity;
         this.host = host;
         this.settings = settings;
         this.client = client;
         this.executor = executor;
+        this.savedSummaryStore = savedSummaryStore;
     }
 
     void show() {
@@ -146,6 +152,7 @@ final class YouTubeSubsDialog {
         summaryTwoButton = button("Summary Two");
         transcriptButton = button("Transcript");
         copySummaryButton = button("Copy summary");
+        saveSummaryButton = button("Save summary");
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
         summaryOneButton.setOnClickListener(ignored ->
@@ -154,6 +161,7 @@ final class YouTubeSubsDialog {
                 summarize(settings.getSummaryTwoPrompt(), "Summary Two"));
         transcriptButton.setOnClickListener(ignored -> showTranscript());
         copySummaryButton.setOnClickListener(ignored -> copySummary());
+        saveSummaryButton.setOnClickListener(ignored -> saveSummary());
         addWeighted(actions, summaryOneButton, 1f, 0);
         addWeighted(actions, summaryTwoButton, 1f, dp(6));
         addWeighted(actions, transcriptButton, 1f, dp(6));
@@ -197,11 +205,12 @@ final class YouTubeSubsDialog {
         bodyParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(body, bodyParams);
 
+        LinearLayout summaryActions = horizontalLayout();
         copySummaryButton.setVisibility(View.GONE);
-        content.addView(copySummaryButton, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(42)
-        ));
+        saveSummaryButton.setVisibility(View.GONE);
+        addWeighted(summaryActions, copySummaryButton, 1f, 0);
+        addWeighted(summaryActions, saveSummaryButton, 1f, dp(6));
+        content.addView(summaryActions);
 
         search.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -268,7 +277,9 @@ final class YouTubeSubsDialog {
         String userMessage = buildUserMessage();
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
-        showSummary("Creating " + summaryName + "...");
+        currentSummaryText = "";
+        currentSummaryLabel = "";
+        showSummary("Creating " + summaryName + "...", false);
         status.setText("Sending transcript to " + modelId);
 
         executor.execute(() -> {
@@ -276,7 +287,11 @@ final class YouTubeSubsDialog {
                 String result = client.summarize(apiKey, modelId, prompt, userMessage);
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
-                        showSummary(result);
+                        currentSummaryText = result;
+                        currentSummaryLabel = summaryName;
+                        saveSummaryButton.setText("Save summary");
+                        saveSummaryButton.setEnabled(true);
+                        showSummary(result, true);
                         status.setText(summaryName + " | " + modelId);
                         summaryOneButton.setEnabled(true);
                         summaryTwoButton.setEnabled(true);
@@ -286,7 +301,9 @@ final class YouTubeSubsDialog {
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
                         String message = safeMessage(error, "Summary failed");
-                        showSummary(message);
+                        currentSummaryText = "";
+                        currentSummaryLabel = "";
+                        showSummary(message, false);
                         status.setText("Summary failed");
                         summaryOneButton.setEnabled(true);
                         summaryTwoButton.setEnabled(true);
@@ -310,7 +327,7 @@ final class YouTubeSubsDialog {
                 + transcript;
     }
 
-    private void showSummary(String value) {
+    private void showSummary(String value, boolean actionsAvailable) {
         transcriptList.setVisibility(View.GONE);
         search.setVisibility(View.GONE);
         summaryOutput.setText(MarkdownRenderer.render(
@@ -319,25 +336,46 @@ final class YouTubeSubsDialog {
         ));
         summaryScroll.setVisibility(View.VISIBLE);
         transcriptButton.setVisibility(View.VISIBLE);
-        copySummaryButton.setVisibility(value.startsWith("Creating ") ? View.GONE : View.VISIBLE);
+        copySummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
+        saveSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
     }
 
     private void showTranscript() {
         summaryScroll.setVisibility(View.GONE);
         copySummaryButton.setVisibility(View.GONE);
+        saveSummaryButton.setVisibility(View.GONE);
         transcriptList.setVisibility(View.VISIBLE);
         search.setVisibility(View.VISIBLE);
         status.setText(transcriptAdapter.getCount() + " of " + entries.size() + " subtitles");
     }
 
     private void copySummary() {
-        String value = summaryOutput.getText().toString();
+        String value = currentSummaryText;
         if (value.trim().isEmpty()) {
             return;
         }
         ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("SpeedyWatch summary", value));
         Toast.makeText(activity, "Summary copied", Toast.LENGTH_SHORT).show();
+    }
+
+    private void saveSummary() {
+        if (currentSummaryText.trim().isEmpty() || currentSummaryLabel.trim().isEmpty()) {
+            return;
+        }
+        try {
+            savedSummaryStore.save(
+                    videoTitle,
+                    currentSummaryLabel,
+                    currentSummaryText,
+                    videoUrl
+            );
+            Toast.makeText(activity, "Summary saved", Toast.LENGTH_SHORT).show();
+        } catch (IllegalArgumentException error) {
+            Toast.makeText(activity, safeMessage(error, "Summary could not be saved"), Toast.LENGTH_LONG).show();
+        } catch (RuntimeException error) {
+            Toast.makeText(activity, "Summary could not be saved", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void addWeighted(LinearLayout row, Button button, float weight, int marginStart) {

@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Watch more in less time.</strong><br>
-  Control YouTube playback, search transcripts, create readable summaries, and prepare with focused pre-watch questions.
+  Control YouTube playback, search transcripts, create and save readable summaries, and prepare with focused pre-watch questions.
 </p>
 
 <p align="center">
@@ -34,6 +34,7 @@ SpeedyWatch is a focused Android YouTube browser for people who want faster play
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter.
+- Save summaries locally with their original YouTube URL, then search titles, headings, and body text from the bookmark library.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
 - Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions.
 
@@ -50,14 +51,14 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.2
-Version code: 2
+Version: 0.3
+Version code: 3
 Minimum Android version: Android 10 (API 29)
-SHA-256: e0cc578e87309e36661a2a06b630dbe2aa6fa15e04c6bfee18432bbb1cf8d848
+SHA-256: 7bcfdb0de9b0630b2bf48531b1cf319382c66f688d6661de81a025f10c8de8e4
 Signing: Android debug signing key
 ```
 
-This first public APK is debug-signed. It is installable, but a future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public APK is debug-signed. It is installable, but a future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## OpenRouter setup
 
@@ -78,7 +79,9 @@ The API key is encrypted with Android Keystore AES-GCM before it is stored. The 
 3. Search the transcript or tap a timestamp to seek the video.
 4. Choose **Summary One** to use its saved prompt.
 5. Choose **Summary Two** to use its independently saved prompt.
-6. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide.
+6. Tap **Save summary** to add a generated summary to the local bookmark library.
+7. Use the bookmark icon beside Settings to search saved summaries or reopen their original videos.
+8. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide.
 
 Transcript availability depends on the captions exposed by YouTube for the selected video.
 
@@ -88,6 +91,7 @@ Transcript availability depends on the captions exposed by YouTube for the selec
 - YouTube pages and captions are loaded from YouTube over HTTPS.
 - Your OpenRouter API key remains encrypted in Android app storage.
 - Transcript text is sent to OpenRouter only when you request a summary or quiz.
+- Saved summaries and their source URLs remain in the app-private local database until you delete them.
 - Links outside YouTube open through Android's external app handler.
 
 ## Build from source
