@@ -50,6 +50,7 @@ final class SettingsDialog {
     private final OpenRouterClient client;
     private final ExecutorService executor;
     private final List<OpenRouterClient.Model> models = new ArrayList<>();
+    private final Runnable onSettingsSaved;
 
     private Dialog dialog;
     private EditText apiKeyInput;
@@ -58,6 +59,7 @@ final class SettingsDialog {
     private boolean apiKeyVisible;
     private Button modelButton;
     private TextView modelStatus;
+    private EditText defaultSpeedInput;
     private EditText summaryOneInput;
     private EditText summaryTwoInput;
     private EditText quizInput;
@@ -67,12 +69,14 @@ final class SettingsDialog {
             Activity activity,
             SpeedyWatchSettings settings,
             OpenRouterClient client,
-            ExecutorService executor
+            ExecutorService executor,
+            Runnable onSettingsSaved
     ) {
         this.activity = activity;
         this.settings = settings;
         this.client = client;
         this.executor = executor;
+        this.onSettingsSaved = onSettingsSaved;
     }
 
     void show() {
@@ -114,6 +118,26 @@ final class SettingsDialog {
         root.addView(header);
 
         LinearLayout content = verticalLayout();
+        content.addView(text("Playback", 13, MUTED), matchWrap(dp(2), dp(12)));
+        LinearLayout defaultSpeedRow = horizontalLayout();
+        TextView defaultSpeedLabel = label("Default playback speed");
+        defaultSpeedLabel.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        defaultSpeedRow.addView(defaultSpeedLabel, new LinearLayout.LayoutParams(
+                0,
+                dp(44),
+                1f
+        ));
+        defaultSpeedInput = input(false, 1);
+        defaultSpeedInput.setHint("2.5");
+        defaultSpeedInput.setGravity(Gravity.CENTER);
+        defaultSpeedInput.setSelectAllOnFocus(true);
+        defaultSpeedInput.setInputType(
+                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
+        );
+        defaultSpeedInput.setText(formatSpeed(settings.getDefaultPlaybackSpeed()));
+        defaultSpeedRow.addView(defaultSpeedInput, new LinearLayout.LayoutParams(dp(76), dp(44)));
+        content.addView(defaultSpeedRow, matchWrap(0, dp(12)));
+
         content.addView(text("OpenRouter", 13, MUTED), matchWrap(dp(2), dp(12)));
 
         content.addView(label("API key"));
@@ -382,9 +406,33 @@ final class SettingsDialog {
         return savedPrompt.trim().isEmpty() ? activity.getString(defaultResource) : savedPrompt;
     }
 
+    private Double readDefaultSpeed() {
+        try {
+            double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
+            if (speed < 0.25 || speed > 4.0) {
+                throw new NumberFormatException();
+            }
+            return speed;
+        } catch (NumberFormatException error) {
+            Toast.makeText(activity, "Enter a default speed from 0.25 to 4", Toast.LENGTH_SHORT).show();
+            return null;
+        }
+    }
+
+
     private void save() {
+        Double defaultSpeed = readDefaultSpeed();
+        if (defaultSpeed == null) {
+            return;
+        }
+        settings.setDefaultPlaybackSpeed(defaultSpeed);
+        onSettingsSaved.run();
         if (selectedModelId == null || selectedModelId.isEmpty()) {
-            Toast.makeText(activity, "Choose an OpenRouter model", Toast.LENGTH_SHORT).show();
+            Toast.makeText(
+                    activity,
+                    "Default speed saved; choose an OpenRouter model",
+                    Toast.LENGTH_SHORT
+            ).show();
             return;
         }
         String summaryOne = summaryOneInput.getText().toString();
@@ -403,6 +451,14 @@ final class SettingsDialog {
         } catch (GeneralSecurityException error) {
             Toast.makeText(activity, "API key could not be stored securely", Toast.LENGTH_LONG).show();
         }
+    }
+
+    private static String formatSpeed(double speed) {
+        return speed == Math.rint(speed)
+                ? String.format(java.util.Locale.US, "%.0f", speed)
+                : String.format(java.util.Locale.US, "%.2f", speed)
+                        .replaceAll("0+$", "")
+                        .replaceAll("\\.$", "");
     }
 
     private EditText input(boolean multiline, int lines) {

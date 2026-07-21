@@ -26,11 +26,27 @@ final class SpeedyWatchSettings {
     private static final String SUMMARY_ONE = "summary_one_prompt";
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
+    private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
 
     private final SharedPreferences preferences;
 
     SpeedyWatchSettings(Context context) {
         preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+    }
+
+    double getDefaultPlaybackSpeed() {
+        return Math.max(0.25, Math.min(4.0,
+                Double.longBitsToDouble(preferences.getLong(
+                        DEFAULT_PLAYBACK_SPEED,
+                        Double.doubleToRawLongBits(1.0)
+                ))));
+    }
+
+    void setDefaultPlaybackSpeed(double speed) {
+        double bounded = Math.max(0.25, Math.min(4.0, speed));
+        preferences.edit()
+                .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(bounded))
+                .apply();
     }
 
     synchronized String getApiKey() throws GeneralSecurityException {

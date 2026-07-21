@@ -98,6 +98,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         appSettings = new SpeedyWatchSettings(this);
+        selectedSpeed = appSettings.getDefaultPlaybackSpeed();
         savedSummaryStore = new SavedSummaryStore(this);
         controllerScript = readAsset("speedywatch.js");
         appRoot = buildUi();
@@ -521,7 +522,13 @@ public final class MainActivity extends Activity {
     }
 
     private void showSettings() {
-        new SettingsDialog(this, appSettings, openRouterClient, ioExecutor).show();
+        new SettingsDialog(
+                this,
+                appSettings,
+                openRouterClient,
+                ioExecutor,
+                () -> setSpeed(appSettings.getDefaultPlaybackSpeed())
+        ).show();
     }
 
     private void showYouTubeSubs() {

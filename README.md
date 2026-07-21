@@ -30,6 +30,7 @@ SpeedyWatch is a focused Android YouTube browser for people who want faster play
 - Set playback speed from **0.25x to 4x**.
 - Use common presets, direct decimal entry, or **0.1x** adjustments.
 - Keep the selected speed when YouTube replaces or resets its video player.
+- Choose and persist a custom **default playback speed** in Settings for future app launches.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
