@@ -15,9 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public build: **v0.4**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
-
-> **Android release note:** the public v0.4 APK is the currently verified download. It predates the newest source changes for summary follow-up chat and quiz bookmarking; those Android changes will require a rebuilt release after the configured JDK 17 and Android SDK are available.
+| Current public build: **v0.6**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -54,14 +52,14 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.4
-Version code: 4
+Version: 0.6
+Version code: 6
 Minimum Android version: Android 10 (API 29)
-SHA-256: e49a7e6baa064b802635a853ee8b246438766cdf4dc450abf10ae3eca7365582
+SHA-256: c6bd8f2855db4c3d5587ed8b1f6590f40b076d59abcc352d656258c70e836c8e
 Signing: Android debug signing key
 ```
 
-This public APK is debug-signed. It is installable, but a future switch to a production signing key may require uninstalling this build before installing the newly signed version. The v0.4 APK predates the newest source changes for summary follow-up chat and quiz bookmarking.
+This public APK is debug-signed with APK Signature Scheme v2. The v0.6 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
