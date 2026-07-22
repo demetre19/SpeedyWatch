@@ -4,3 +4,7 @@ build/
 app/build/
 local.properties
 *.iml
+ios/DerivedData/
+ios/LocalSecrets.xcconfig
+ios/*.png
+ios/**/xcuserdata/

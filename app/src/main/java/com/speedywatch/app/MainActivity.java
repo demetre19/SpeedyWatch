@@ -221,7 +221,7 @@ public final class MainActivity extends Activity {
         ));
         navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
-                "Saved summaries",
+                "Saved summaries and quizzes",
                 ignored -> showSavedSummaries()
         ));
         navigation.addView(makeIconButton(
@@ -548,7 +548,8 @@ public final class MainActivity extends Activity {
                 transcriptHost(),
                 appSettings,
                 openRouterClient,
-                ioExecutor
+                ioExecutor,
+                savedSummaryStore
         ).show();
     }
 

@@ -82,16 +82,16 @@ final class SavedSummariesDialog {
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = verticalLayout();
-        TextView title = text("Saved summaries", 21, Color.WHITE);
+        TextView title = text("Saved", 21, Color.WHITE);
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         headerText.addView(title);
-        status = text("Loading saved summaries...", 12, MUTED);
+        status = text("Loading saved items...", 12, MUTED);
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
-        close.setContentDescription("Close saved summaries");
+        close.setContentDescription("Close saved items");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
@@ -100,7 +100,7 @@ final class SavedSummariesDialog {
 
         search = new EditText(activity);
         search.setSingleLine(true);
-        search.setHint("Search headings and summary text...");
+        search.setHint("Search saved content...");
         search.setTextColor(Color.WHITE);
         search.setHintTextColor(Color.rgb(175, 175, 175));
         search.setTextSize(14);
@@ -126,7 +126,7 @@ final class SavedSummariesDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        TextView empty = text("Saved summaries appear here after you tap Save summary.", 14, MUTED);
+        TextView empty = text("Saved summaries and quizzes appear here.", 14, MUTED);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(dp(28), dp(28), dp(28), dp(28));
         body.addView(empty, new FrameLayout.LayoutParams(
@@ -156,8 +156,8 @@ final class SavedSummariesDialog {
             updateStatus();
         } catch (RuntimeException error) {
             adapter.setEntries(new ArrayList<>());
-            status.setText("Saved summaries could not be loaded");
-            Toast.makeText(activity, "Saved summaries could not be loaded", Toast.LENGTH_LONG).show();
+            status.setText("Saved items could not be loaded");
+            Toast.makeText(activity, "Saved items could not be loaded", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -165,8 +165,8 @@ final class SavedSummariesDialog {
         int total = adapter.getTotalCount();
         int visible = adapter.getCount();
         status.setText(visible == total
-                ? total + (total == 1 ? " saved summary" : " saved summaries")
-                : visible + " of " + total + " saved summaries");
+                ? total + (total == 1 ? " saved item" : " saved items")
+                : visible + " of " + total + " saved items");
     }
 
     private void showDetail(SavedSummaryStore.Entry entry) {
@@ -190,7 +190,7 @@ final class SavedSummariesDialog {
 
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
-        close.setContentDescription("Close saved summary");
+        close.setContentDescription("Close saved item");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> detail.dismiss());
@@ -275,20 +275,20 @@ final class SavedSummariesDialog {
 
     private void confirmDelete(SavedSummaryStore.Entry entry, Dialog detail) {
         new AlertDialog.Builder(activity)
-                .setTitle("Delete saved summary?")
-                .setMessage("This removes the saved summary from this device.")
+                .setTitle("Delete saved item?")
+                .setMessage("This removes the saved item from this device.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (confirmation, which) -> {
                     try {
                         if (store.delete(entry.id)) {
                             detail.dismiss();
                             refresh();
-                            Toast.makeText(activity, "Saved summary deleted", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(activity, "Saved item deleted", Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(activity, "Saved summary could not be deleted", Toast.LENGTH_LONG).show();
+                            Toast.makeText(activity, "Saved item could not be deleted", Toast.LENGTH_LONG).show();
                         }
                     } catch (RuntimeException error) {
-                        Toast.makeText(activity, "Saved summary could not be deleted", Toast.LENGTH_LONG).show();
+                        Toast.makeText(activity, "Saved item could not be deleted", Toast.LENGTH_LONG).show();
                     }
                 })
                 .show();

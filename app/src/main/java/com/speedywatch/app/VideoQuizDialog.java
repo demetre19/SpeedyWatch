@@ -35,6 +35,7 @@ final class VideoQuizDialog {
     private final SpeedyWatchSettings settings;
     private final OpenRouterClient client;
     private final ExecutorService executor;
+    private final SavedSummaryStore savedSummaryStore;
     private final List<TranscriptEntry> entries = new ArrayList<>();
     private final List<Button> countButtons = new ArrayList<>();
 
@@ -42,22 +43,27 @@ final class VideoQuizDialog {
     private TextView status;
     private TextView output;
     private Button createButton;
+    private Button saveQuizButton;
     private int questionCount = 10;
     private String videoTitle = "YouTube Video";
     private String videoUrl = "";
+    private String currentQuizText = "";
+    private String currentQuizLabel = "";
 
     VideoQuizDialog(
             Activity activity,
             YouTubeSubsDialog.TranscriptHost host,
             SpeedyWatchSettings settings,
             OpenRouterClient client,
-            ExecutorService executor
+            ExecutorService executor,
+            SavedSummaryStore savedSummaryStore
     ) {
         this.activity = activity;
         this.host = host;
         this.settings = settings;
         this.client = client;
         this.executor = executor;
+        this.savedSummaryStore = savedSummaryStore;
     }
 
     void show() {
@@ -146,6 +152,15 @@ final class VideoQuizDialog {
                 0,
                 1f
         ));
+        saveQuizButton = button("Save quiz");
+        saveQuizButton.setVisibility(View.GONE);
+        saveQuizButton.setOnClickListener(ignored -> saveQuiz());
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        saveParams.setMargins(0, dp(8), 0, 0);
+        content.addView(saveQuizButton, saveParams);
         return content;
     }
 
@@ -208,6 +223,9 @@ final class VideoQuizDialog {
         }
 
         int requestedCount = questionCount;
+        currentQuizText = "";
+        currentQuizLabel = "";
+        saveQuizButton.setVisibility(View.GONE);
         createButton.setEnabled(false);
         status.setText("Creating " + requestedCount + " questions with " + modelId);
         output.setText("Creating your pre-watch questions...");
@@ -226,6 +244,9 @@ final class VideoQuizDialog {
                                 result,
                                 activity.getResources().getDisplayMetrics().density
                         ));
+                        currentQuizText = result;
+                        currentQuizLabel = "Quiz | " + requestedCount + " questions";
+                        saveQuizButton.setVisibility(View.VISIBLE);
                         status.setText(requestedCount + " pre-watch questions | " + modelId);
                         createButton.setEnabled(true);
                     }
@@ -243,6 +264,25 @@ final class VideoQuizDialog {
             }
         });
     }
+    private void saveQuiz() {
+        if (currentQuizText.trim().isEmpty() || currentQuizLabel.trim().isEmpty()) {
+            return;
+        }
+        try {
+            savedSummaryStore.save(
+                    videoTitle,
+                    currentQuizLabel,
+                    currentQuizText,
+                    videoUrl
+            );
+            Toast.makeText(activity, "Quiz saved", Toast.LENGTH_SHORT).show();
+        } catch (IllegalArgumentException error) {
+            Toast.makeText(activity, safeMessage(error, "Quiz could not be saved"), Toast.LENGTH_LONG).show();
+        } catch (RuntimeException error) {
+            Toast.makeText(activity, "Quiz could not be saved", Toast.LENGTH_LONG).show();
+        }
+    }
+
 
     private String buildUserMessage(int requestedCount) {
         StringBuilder transcript = new StringBuilder();
