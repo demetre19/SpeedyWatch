@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public build: **v0.6**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public build: **v0.7**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -52,14 +52,14 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.6
-Version code: 6
+Version: 0.7
+Version code: 7
 Minimum Android version: Android 10 (API 29)
-SHA-256: c6bd8f2855db4c3d5587ed8b1f6590f40b076d59abcc352d656258c70e836c8e
+SHA-256: 4bacd981e70ccaa87e0cd82ae3afcf454c0590caeacfcf99c23615d4de4d4076
 Signing: Android debug signing key
 ```
 
-This public APK is debug-signed with APK Signature Scheme v2. The v0.6 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public APK is debug-signed with APK Signature Scheme v2. The v0.7 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator; the Quiz dialog was also verified to keep Save quiz visible before generation. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
@@ -88,9 +88,9 @@ The API key is encrypted with Android Keystore AES-GCM on Android and stored in 
 2. Tap the **YouTube Subs** icon to load the transcript.
 3. Search the transcript or tap a timestamp to seek the video.
 4. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
-5. Ask follow-up questions using the field beneath the generated summary.
+5. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
 6. Tap **Save summary** to add the original generated summary to the local bookmark library.
-7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide, then tap **Save quiz** to bookmark it.
+7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** stays visible at the bottom and becomes available after the quiz succeeds.
 8. Use the bookmark icon beside Settings to search saved summaries and quizzes or reopen their original videos.
 
 Transcript availability depends on the captions exposed by YouTube for the selected video.

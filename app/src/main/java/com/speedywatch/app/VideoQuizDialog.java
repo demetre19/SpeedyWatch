@@ -153,7 +153,7 @@ final class VideoQuizDialog {
                 1f
         ));
         saveQuizButton = button("Save quiz");
-        saveQuizButton.setVisibility(View.GONE);
+        saveQuizButton.setEnabled(false);
         saveQuizButton.setOnClickListener(ignored -> saveQuiz());
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -225,7 +225,7 @@ final class VideoQuizDialog {
         int requestedCount = questionCount;
         currentQuizText = "";
         currentQuizLabel = "";
-        saveQuizButton.setVisibility(View.GONE);
+        saveQuizButton.setEnabled(false);
         createButton.setEnabled(false);
         status.setText("Creating " + requestedCount + " questions with " + modelId);
         output.setText("Creating your pre-watch questions...");
@@ -246,8 +246,8 @@ final class VideoQuizDialog {
                         ));
                         currentQuizText = result;
                         currentQuizLabel = "Quiz | " + requestedCount + " questions";
-                        saveQuizButton.setVisibility(View.VISIBLE);
-                        status.setText(requestedCount + " pre-watch questions | " + modelId);
+                        saveQuizButton.setEnabled(true);
+                        status.setText(requestedCount + " questions ready | tap Save quiz below");
                         createButton.setEnabled(true);
                     }
                 });
