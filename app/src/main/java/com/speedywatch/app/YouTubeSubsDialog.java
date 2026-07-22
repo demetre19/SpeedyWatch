@@ -72,6 +72,7 @@ final class YouTubeSubsDialog {
     private Button transcriptButton;
     private Button copySummaryButton;
     private Button saveSummaryButton;
+    private TextView chatTitle;
     private LinearLayout chatRow;
     private EditText chatInput;
     private Button sendChatButton;
@@ -210,6 +211,11 @@ final class YouTubeSubsDialog {
         );
         bodyParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(body, bodyParams);
+        chatTitle = text("Continue with a question", 13, Color.WHITE);
+        chatTitle.setTypeface(chatTitle.getTypeface(), android.graphics.Typeface.BOLD);
+        chatTitle.setPadding(0, 0, 0, dp(4));
+        chatTitle.setVisibility(View.GONE);
+        content.addView(chatTitle);
         chatRow = horizontalLayout();
         chatInput = new EditText(activity);
         chatInput.setSingleLine(true);
@@ -328,7 +334,7 @@ final class YouTubeSubsDialog {
                         saveSummaryButton.setText("Save summary");
                         saveSummaryButton.setEnabled(true);
                         showSummary(result, true);
-                        status.setText(summaryName + " | " + modelId);
+                        status.setText(summaryName + " | " + modelId + " | ask below");
                         summaryOneButton.setEnabled(true);
                         summaryTwoButton.setEnabled(true);
                     }
@@ -453,6 +459,7 @@ final class YouTubeSubsDialog {
         ));
         summaryScroll.setVisibility(View.VISIBLE);
         transcriptButton.setVisibility(View.VISIBLE);
+        chatTitle.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         chatRow.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         copySummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         saveSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
@@ -460,6 +467,7 @@ final class YouTubeSubsDialog {
 
     private void showTranscript() {
         summaryScroll.setVisibility(View.GONE);
+        chatTitle.setVisibility(View.GONE);
         chatRow.setVisibility(View.GONE);
         copySummaryButton.setVisibility(View.GONE);
         saveSummaryButton.setVisibility(View.GONE);
