@@ -34,6 +34,16 @@ final class OpenRouterClient {
             return (name + " " + id).toLowerCase(java.util.Locale.US);
         }
     }
+    static final class Message {
+        final String role;
+        final String content;
+
+        Message(String role, String content) {
+            this.role = role;
+            this.content = content;
+        }
+    }
+
 
     List<Model> fetchModels(String apiKey) throws IOException, JSONException {
         HttpURLConnection connection = openConnection(MODELS_URL, "GET", apiKey, 30000);
@@ -70,21 +80,38 @@ final class OpenRouterClient {
             String systemPrompt,
             String userMessage
     ) throws IOException, JSONException {
+        List<Message> messages = new ArrayList<>();
+        messages.add(new Message("system", systemPrompt));
+        messages.add(new Message("user", userMessage));
+        return generate(apiKey, modelId, messages);
+    }
+
+    String generate(
+            String apiKey,
+            String modelId,
+            List<Message> messages
+    ) throws IOException, JSONException {
         if (apiKey == null || apiKey.trim().isEmpty()) {
             throw new IOException("Add an OpenRouter API key in Settings");
         }
         if (modelId == null || modelId.trim().isEmpty()) {
             throw new IOException("Choose an OpenRouter model in Settings");
         }
+        if (messages == null || messages.isEmpty()) {
+            throw new IOException("OpenRouter request has no messages");
+        }
 
         JSONObject body = new JSONObject();
         body.put("model", modelId.trim());
         body.put("max_tokens", 4096);
         body.put("temperature", 0.7);
-        JSONArray messages = new JSONArray();
-        messages.put(new JSONObject().put("role", "system").put("content", systemPrompt));
-        messages.put(new JSONObject().put("role", "user").put("content", userMessage));
-        body.put("messages", messages);
+        JSONArray payloadMessages = new JSONArray();
+        for (Message message : messages) {
+            payloadMessages.put(new JSONObject()
+                    .put("role", message.role)
+                    .put("content", message.content));
+        }
+        body.put("messages", payloadMessages);
 
         HttpURLConnection connection = openConnection(CHAT_URL, "POST", apiKey, 120000);
         try {
@@ -97,11 +124,11 @@ final class OpenRouterClient {
             JSONObject message = choices == null || choices.length() == 0
                     ? null : choices.optJSONObject(0).optJSONObject("message");
             if (message == null) {
-                throw new IOException("OpenRouter returned no summary");
+                throw new IOException("OpenRouter returned no result");
             }
             String content = extractContent(message.opt("content"));
             if (content.trim().isEmpty()) {
-                throw new IOException("OpenRouter returned an empty summary");
+                throw new IOException("OpenRouter returned an empty result");
             }
             return content.trim();
         } finally {

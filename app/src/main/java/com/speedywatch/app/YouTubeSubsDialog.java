@@ -8,6 +8,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.text.InputFilter;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -57,6 +58,7 @@ final class YouTubeSubsDialog {
     private final ExecutorService executor;
     private final SavedSummaryStore savedSummaryStore;
     private final List<TranscriptEntry> entries = new ArrayList<>();
+    private final List<ChatTurn> chatTurns = new ArrayList<>();
 
     private Dialog dialog;
     private TextView status;
@@ -70,10 +72,14 @@ final class YouTubeSubsDialog {
     private Button transcriptButton;
     private Button copySummaryButton;
     private Button saveSummaryButton;
+    private LinearLayout chatRow;
+    private EditText chatInput;
+    private Button sendChatButton;
     private String videoTitle = "YouTube Video";
     private String videoUrl = "";
     private String currentSummaryText = "";
     private String currentSummaryLabel = "";
+    private String currentSummaryPrompt = "";
 
     YouTubeSubsDialog(
             Activity activity,
@@ -204,6 +210,31 @@ final class YouTubeSubsDialog {
         );
         bodyParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(body, bodyParams);
+        chatRow = horizontalLayout();
+        chatInput = new EditText(activity);
+        chatInput.setSingleLine(true);
+        chatInput.setHint("Ask about this video...");
+        chatInput.setTextColor(Color.WHITE);
+        chatInput.setHintTextColor(Color.rgb(175, 175, 175));
+        chatInput.setTextSize(14);
+        chatInput.setPadding(dp(10), 0, dp(10), 0);
+        chatInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2000)});
+        chatInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        chatInput.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        chatInput.setOnEditorActionListener((view, actionId, event) -> {
+            askFollowUp();
+            return true;
+        });
+        chatRow.addView(chatInput, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        sendChatButton = button("Send");
+        sendChatButton.setContentDescription("Send transcript question");
+        sendChatButton.setOnClickListener(ignored -> askFollowUp());
+        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(78), dp(44));
+        sendParams.setMarginStart(dp(6));
+        chatRow.addView(sendChatButton, sendParams);
+        chatRow.setVisibility(View.GONE);
+        content.addView(chatRow);
+
 
         LinearLayout summaryActions = horizontalLayout();
         copySummaryButton.setVisibility(View.GONE);
@@ -279,7 +310,11 @@ final class YouTubeSubsDialog {
         summaryTwoButton.setEnabled(false);
         currentSummaryText = "";
         currentSummaryLabel = "";
-        showSummary("Creating " + summaryName + "...", false);
+        currentSummaryPrompt = "";
+        chatTurns.clear();
+        if (chatInput != null) {
+            chatInput.setText("");
+        }
         status.setText("Sending transcript to " + modelId);
 
         executor.execute(() -> {
@@ -289,6 +324,7 @@ final class YouTubeSubsDialog {
                     if (dialog != null && dialog.isShowing()) {
                         currentSummaryText = result;
                         currentSummaryLabel = summaryName;
+                        currentSummaryPrompt = prompt;
                         saveSummaryButton.setText("Save summary");
                         saveSummaryButton.setEnabled(true);
                         showSummary(result, true);
@@ -314,6 +350,87 @@ final class YouTubeSubsDialog {
         });
     }
 
+    private void askFollowUp() {
+        String question = chatInput.getText().toString().trim();
+        if (question.isEmpty() || currentSummaryText.isEmpty()) {
+            return;
+        }
+        if (currentSummaryPrompt.trim().isEmpty()) {
+            Toast.makeText(activity, currentSummaryLabel + " prompt is empty", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final String apiKey;
+        try {
+            apiKey = settings.getApiKey();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String modelId = settings.getModelId();
+        if (apiKey.trim().isEmpty() || modelId.trim().isEmpty()) {
+            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        List<OpenRouterClient.Message> messages = new ArrayList<>();
+        messages.add(new OpenRouterClient.Message("system", currentSummaryPrompt));
+        messages.add(new OpenRouterClient.Message("user", buildUserMessage()));
+        messages.add(new OpenRouterClient.Message("assistant", currentSummaryText));
+        for (ChatTurn turn : chatTurns) {
+            messages.add(new OpenRouterClient.Message("user", "Question:\n" + turn.question));
+            messages.add(new OpenRouterClient.Message("assistant", turn.answer));
+        }
+        messages.add(new OpenRouterClient.Message("user", "Question:\n" + question));
+        setChatEnabled(false);
+        status.setText("Asking " + modelId + "...");
+        executor.execute(() -> {
+            try {
+                String answer = client.generate(apiKey, modelId, messages);
+                activity.runOnUiThread(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        chatTurns.add(new ChatTurn(question, answer));
+                        chatInput.setText("");
+                        renderConversation();
+                        status.setText(currentSummaryLabel + " chat | " + modelId);
+                        setChatEnabled(true);
+                    }
+                });
+            } catch (Exception error) {
+                activity.runOnUiThread(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        String message = safeMessage(error, "Question failed");
+                        status.setText("Question failed");
+                        setChatEnabled(true);
+                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
+    private void setChatEnabled(boolean enabled) {
+        chatInput.setEnabled(enabled);
+        sendChatButton.setEnabled(enabled);
+        summaryOneButton.setEnabled(enabled);
+        summaryTwoButton.setEnabled(enabled);
+    }
+
+    private void renderConversation() {
+        StringBuilder value = new StringBuilder(currentSummaryText);
+        for (ChatTurn turn : chatTurns) {
+            value.append("\n\n---\n\n**You**\n\n")
+                    .append(turn.question)
+                    .append("\n\n**AI**\n\n")
+                    .append(turn.answer);
+        }
+        summaryOutput.setText(MarkdownRenderer.render(
+                value.toString(),
+                activity.getResources().getDisplayMetrics().density
+        ));
+        summaryScroll.post(() -> summaryScroll.fullScroll(View.FOCUS_DOWN));
+    }
+
     private String buildUserMessage() {
         StringBuilder transcript = new StringBuilder();
         for (TranscriptEntry entry : entries) {
@@ -336,12 +453,14 @@ final class YouTubeSubsDialog {
         ));
         summaryScroll.setVisibility(View.VISIBLE);
         transcriptButton.setVisibility(View.VISIBLE);
+        chatRow.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         copySummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         saveSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
     }
 
     private void showTranscript() {
         summaryScroll.setVisibility(View.GONE);
+        chatRow.setVisibility(View.GONE);
         copySummaryButton.setVisibility(View.GONE);
         saveSummaryButton.setVisibility(View.GONE);
         transcriptList.setVisibility(View.VISIBLE);
@@ -427,6 +546,16 @@ final class YouTubeSubsDialog {
     private static String safeMessage(Exception error, String fallback) {
         String message = error.getMessage();
         return message == null || message.trim().isEmpty() ? fallback : message;
+    }
+
+    private static final class ChatTurn {
+        final String question;
+        final String answer;
+
+        ChatTurn(String question, String answer) {
+            this.question = question;
+            this.answer = answer;
+        }
     }
 
     private final class TranscriptAdapter extends BaseAdapter {

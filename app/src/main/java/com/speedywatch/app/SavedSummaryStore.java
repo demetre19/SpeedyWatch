@@ -73,8 +73,8 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             String sourceUrl
     ) {
         String normalizedTitle = requireText(videoTitle, "Video title");
-        String normalizedLabel = requireText(summaryLabel, "Summary label");
-        String normalizedSummary = requireText(summaryText, "Summary");
+        String normalizedLabel = requireText(summaryLabel, "Saved item label");
+        String normalizedSummary = requireText(summaryText, "Saved item content");
         String normalizedUrl = requireText(sourceUrl, "Source URL");
         if (!isSupportedSourceUrl(normalizedUrl)) {
             throw new IllegalArgumentException("Original YouTube URL is unavailable");
@@ -88,7 +88,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         values.put("source_url", normalizedUrl);
         values.put("created_at", System.currentTimeMillis());
         if (database.insertOrThrow(TABLE, null, values) < 0) {
-            throw new IllegalStateException("Summary could not be saved");
+            throw new IllegalStateException("Item could not be saved");
         }
     }
 
