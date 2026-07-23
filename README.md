@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public build: **v0.10**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.10**, debug-signed; current source build: **v0.11** | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -32,6 +32,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Keep the selected speed when YouTube replaces or resets its video player.
 - Choose and persist a custom **default playback speed** in Settings for future app launches.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
+- On Android, save the current public video as MP3 audio or an MP4 up to the selected resolution. Downloads continue in the background and are written to `Downloads/SpeedyWatch`.
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view.
@@ -50,18 +51,18 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 
 ### [Download SpeedyWatch.apk](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
-Current build:
+Current source build (not yet published):
 
 ```text
 Package: com.speedywatch.app
-Version: 0.10
-Version code: 10
+Version: 0.11
+Version code: 11
 Minimum Android version: Android 10 (API 29)
-SHA-256: 0e19ade1aa5fa827eac4f9d08e0e8947d44c46b9234cf9a0cfc623d19f954136
+SHA-256: 2969646950d52897732dd21dbeda7019064ef5544673ab12deecfea709ea2467
 Signing: Android debug signing key
 ```
 
-This public APK is debug-signed with APK Signature Scheme v2. The v0.10 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator. Settings verified the official GitHub updater status and older-release warning, and the YouTube Subs, Quiz, Saved, Saved detail, and Settings modal spacing was visually verified. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+The local v0.11 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed, and exercised on an Android 16 / API 36 emulator, including real MP3 and H.264/AAC MP4 downloads through the shipping UI. It has not been published as the latest GitHub Release. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
@@ -101,6 +102,7 @@ Transcript availability depends on the captions exposed by YouTube for the selec
 
 - SpeedyWatch does not add analytics or advertising SDKs.
 - YouTube pages and captions are loaded from YouTube over HTTPS.
+- Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
 - Your OpenRouter API key remains in platform-protected storage: Android Keystore-encrypted app storage or iPhone Keychain.
 - Transcript text and any follow-up question you submit are sent to OpenRouter only when you request a summary, follow-up answer, or quiz.
 - Saved summaries, saved quizzes, and their source URLs remain in app-private local storage until you delete them. Follow-up chat history is not saved.
@@ -171,9 +173,15 @@ The shared scheme maps the build setting into the DEBUG test-process environment
 
 `xcodebuild` may print command-line build settings. Keep keyed command output and result bundles private, then remove keyed build artifacts with `rm -rf ios/DerivedData`.
 
+## Open-source notices
+
+The Android app bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp) under the Unlicense and [youtubedl-android](https://github.com/yausername/youtubedl-android) under GNU GPLv3, including its FFmpeg-based media-processing package and transitive components under their respective licenses. The exact bundled yt-dlp release is `2026.07.04`; corresponding upstream source and license text are available from the linked projects. Review those licenses before redistributing a modified APK.
+
 ## Important limitations
 
 - YouTube can change its player, caption endpoints, and page structure without notice.
+- Android downloads depend on a video's public availability and YouTube's current delivery interfaces. Private, deleted, age- or region-restricted, DRM-protected, or otherwise inaccessible media may not download.
+- Download only media you own or have permission and legal authority to save, and follow YouTube's terms and applicable copyright law.
 - Ad skipping is best effort and is not a network-level ad blocker.
 - Videos without accessible captions cannot use transcript, summary, or quiz features.
 - OpenRouter usage may incur charges depending on the selected model and account.

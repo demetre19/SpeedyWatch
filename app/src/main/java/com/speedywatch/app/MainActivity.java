@@ -1,10 +1,12 @@
 package com.speedywatch.app;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -220,6 +222,11 @@ public final class MainActivity extends Activity {
                 ignored -> showQuiz()
         ));
         navigation.addView(makeIconButton(
+                R.drawable.ic_download,
+                "Download video or audio",
+                ignored -> showDownload()
+        ));
+        navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
                 "Saved summaries and quizzes",
                 ignored -> showSavedSummaries()
@@ -371,7 +378,7 @@ public final class MainActivity extends Activity {
                 shape,
                 null
         ));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(44), dp(44));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
         button.setLayoutParams(params);
         button.setOnClickListener(listener);
         return button;
@@ -511,6 +518,15 @@ public final class MainActivity extends Activity {
                 || host.equals("youtu.be")
                 || host.equals("accounts.google.com")
                 || host.equals("consent.google.com");
+    }
+
+    private void showDownload() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4001);
+        }
+        new VideoDownloadDialog(this, ioExecutor, webView.getUrl()).show();
     }
 
     private void showSavedSummaries() {
