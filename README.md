@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.10**, debug-signed; current source build: **v0.11** | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.11**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -51,7 +51,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 
 ### [Download SpeedyWatch.apk](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
-Current source build (not yet published):
+Current public build:
 
 ```text
 Package: com.speedywatch.app
@@ -62,7 +62,7 @@ SHA-256: 2969646950d52897732dd21dbeda7019064ef5544673ab12deecfea709ea2467
 Signing: Android debug signing key
 ```
 
-The local v0.11 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed, and exercised on an Android 16 / API 36 emulator, including real MP3 and H.264/AAC MP4 downloads through the shipping UI. It has not been published as the latest GitHub Release. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.11 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed on a Samsung phone, and exercised on an Android 16 / API 36 emulator, including real MP3 and H.264/AAC MP4 downloads through the shipping UI. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
