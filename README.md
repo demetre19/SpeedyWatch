@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public build: **v0.7**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public build: **v0.10**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -39,6 +39,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original YouTube URL.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
 - Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions.
+- On Android, check the official latest stable GitHub Release from Settings and manually download its APK to the Downloads folder.
 
 ## Android download and install
 
@@ -53,14 +54,14 @@ Current build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.7
-Version code: 7
+Version: 0.10
+Version code: 10
 Minimum Android version: Android 10 (API 29)
-SHA-256: 4bacd981e70ccaa87e0cd82ae3afcf454c0590caeacfcf99c23615d4de4d4076
+SHA-256: 0e19ade1aa5fa827eac4f9d08e0e8947d44c46b9234cf9a0cfc623d19f954136
 Signing: Android debug signing key
 ```
 
-This public APK is debug-signed with APK Signature Scheme v2. The v0.7 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator; the Quiz dialog was also verified to keep Save quiz visible before generation. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public APK is debug-signed with APK Signature Scheme v2. The v0.10 file was integrity-checked, installed, and launched successfully on an Android 16 / API 36 emulator. Settings verified the official GitHub updater status and older-release warning, and the YouTube Subs, Quiz, Saved, Saved detail, and Settings modal spacing was visually verified. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 

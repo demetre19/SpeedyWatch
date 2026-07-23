@@ -136,7 +136,9 @@ final class YouTubeSubsDialog {
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
         content.addView(header);
 
         search = new EditText(activity);
@@ -179,9 +181,14 @@ final class YouTubeSubsDialog {
                 videoUrl
         ));
         addWeighted(actions, summaryOneButton, 1f, 0);
-        addWeighted(actions, summaryTwoButton, 1f, dp(6));
-        addWeighted(actions, transcriptButton, 1f, dp(6));
-        content.addView(actions);
+        addWeighted(actions, summaryTwoButton, 1f, dp(8));
+        addWeighted(actions, transcriptButton, 1f, dp(8));
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionParams.setMargins(0, dp(8), 0, 0);
+        content.addView(actions, actionParams);
 
         FrameLayout body = new FrameLayout(activity);
         transcriptList = new ListView(activity);
@@ -222,7 +229,7 @@ final class YouTubeSubsDialog {
         content.addView(body, bodyParams);
         chatTitle = text("Continue with a question", 13, Color.WHITE);
         chatTitle.setTypeface(chatTitle.getTypeface(), android.graphics.Typeface.BOLD);
-        chatTitle.setPadding(0, 0, 0, dp(4));
+        chatTitle.setPadding(0, 0, 0, dp(8));
         chatTitle.setVisibility(View.GONE);
         content.addView(chatTitle);
         chatRow = horizontalLayout();
@@ -245,7 +252,7 @@ final class YouTubeSubsDialog {
         sendChatButton.setContentDescription("Send transcript question");
         sendChatButton.setOnClickListener(ignored -> askFollowUp());
         LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(78), dp(44));
-        sendParams.setMarginStart(dp(6));
+        sendParams.setMarginStart(dp(8));
         chatRow.addView(sendChatButton, sendParams);
         chatRow.setVisibility(View.GONE);
         content.addView(chatRow);
@@ -255,10 +262,15 @@ final class YouTubeSubsDialog {
         copySummaryButton.setVisibility(View.GONE);
         saveSummaryButton.setVisibility(View.GONE);
         addWeighted(summaryActions, copySummaryButton, 1f, 0);
-        addWeighted(summaryActions, saveSummaryButton, 1f, dp(6));
+        addWeighted(summaryActions, saveSummaryButton, 1f, dp(8));
         shareSummaryButton.setVisibility(View.GONE);
-        addWeighted(summaryActions, shareSummaryButton, 1f, dp(6));
-        content.addView(summaryActions);
+        addWeighted(summaryActions, shareSummaryButton, 1f, dp(8));
+        LinearLayout.LayoutParams summaryActionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        summaryActionParams.setMargins(0, dp(8), 0, 0);
+        content.addView(summaryActions, summaryActionParams);
 
         search.addTextChangedListener(new SimpleTextWatcher() {
             @Override

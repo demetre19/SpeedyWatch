@@ -1,7 +1,11 @@
 package com.speedywatch.app;
 
+import android.app.AlertDialog;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.app.Dialog;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -44,6 +48,9 @@ final class SettingsDialog {
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(180, 180, 180);
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
+    private static final String UPDATE_PREFERENCES = "speedywatch_updates";
+    private static final String UPDATE_LAST_CHECK = "last_check_ms";
+    private static final String UPDATE_LAST_STATUS = "last_status";
 
     private final Activity activity;
     private final SpeedyWatchSettings settings;
@@ -51,6 +58,8 @@ final class SettingsDialog {
     private final ExecutorService executor;
     private final List<OpenRouterClient.Model> models = new ArrayList<>();
     private final Runnable onSettingsSaved;
+    private final String installedVersionName;
+    private final long installedVersionCode;
 
     private Dialog dialog;
     private EditText apiKeyInput;
@@ -64,6 +73,10 @@ final class SettingsDialog {
     private EditText summaryTwoInput;
     private EditText quizInput;
     private String selectedModelId;
+    private TextView updateStatus;
+    private Button checkUpdatesButton;
+    private Button downloadUpdateButton;
+    private boolean updateBusy;
 
     SettingsDialog(
             Activity activity,
@@ -77,6 +90,18 @@ final class SettingsDialog {
         this.client = client;
         this.executor = executor;
         this.onSettingsSaved = onSettingsSaved;
+        try {
+            PackageInfo packageInfo = activity.getPackageManager().getPackageInfo(
+                    activity.getPackageName(),
+                    0
+            );
+            installedVersionName = packageInfo.versionName == null
+                    ? "unknown"
+                    : packageInfo.versionName;
+            installedVersionCode = packageInfo.getLongVersionCode();
+        } catch (PackageManager.NameNotFoundException error) {
+            throw new IllegalStateException("Installed package metadata is unavailable", error);
+        }
     }
 
     void show() {
@@ -93,6 +118,7 @@ final class SettingsDialog {
             window.setGravity(Gravity.CENTER);
         }
         refreshModels();
+        initializeUpdateCheck();
     }
 
     private View buildContent() {
@@ -114,7 +140,9 @@ final class SettingsDialog {
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
         root.addView(header);
 
         LinearLayout content = verticalLayout();
@@ -135,8 +163,40 @@ final class SettingsDialog {
                 InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         defaultSpeedInput.setText(formatSpeed(settings.getDefaultPlaybackSpeed()));
-        defaultSpeedRow.addView(defaultSpeedInput, new LinearLayout.LayoutParams(dp(76), dp(44)));
+        LinearLayout.LayoutParams speedParams = new LinearLayout.LayoutParams(dp(76), dp(44));
+        speedParams.setMarginStart(dp(8));
+        defaultSpeedRow.addView(defaultSpeedInput, speedParams);
         content.addView(defaultSpeedRow, matchWrap(0, dp(12)));
+
+        content.addView(text("Updates", 13, MUTED), matchWrap(dp(2), dp(8)));
+        TextView currentVersion = text(
+                "Current version " + installedVersionName
+                        + " (version code " + installedVersionCode + ")",
+                13,
+                Color.WHITE
+        );
+        content.addView(currentVersion, matchWrap(0, dp(8)));
+        SharedPreferences updatePreferences = updatePreferences();
+        updateStatus = text(
+                updatePreferences.getString(UPDATE_LAST_STATUS, "Not checked yet"),
+                12,
+                MUTED
+        );
+        content.addView(updateStatus);
+        LinearLayout updateActions = horizontalLayout();
+        checkUpdatesButton = button("Check for updates");
+        checkUpdatesButton.setOnClickListener(ignored -> startUpdateCheck(false, true));
+        updateActions.addView(
+                checkUpdatesButton,
+                new LinearLayout.LayoutParams(0, dp(44), 1f)
+        );
+        downloadUpdateButton = button("Download latest APK");
+        downloadUpdateButton.setOnClickListener(ignored -> startUpdateCheck(true, true));
+        LinearLayout.LayoutParams downloadParams =
+                new LinearLayout.LayoutParams(0, dp(44), 1f);
+        downloadParams.setMarginStart(dp(8));
+        updateActions.addView(downloadUpdateButton, downloadParams);
+        content.addView(updateActions, matchWrap(dp(8), dp(14)));
 
         content.addView(text("OpenRouter", 13, MUTED), matchWrap(dp(2), dp(12)));
 
@@ -161,10 +221,10 @@ final class SettingsDialog {
         LinearLayout.LayoutParams visibilityParams = new LinearLayout.LayoutParams(dp(48), dp(48));
         visibilityParams.setMarginStart(dp(8));
         apiKeyRow.addView(apiKeyVisibilityButton, visibilityParams);
-        content.addView(apiKeyRow, matchWrap(dp(4), 0));
+        content.addView(apiKeyRow, matchWrap(dp(8), 0));
 
         apiKeyPreview = text("", 12, MUTED);
-        content.addView(apiKeyPreview, matchWrap(dp(4), dp(10)));
+        content.addView(apiKeyPreview, matchWrap(dp(8), dp(10)));
         apiKeyInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
@@ -178,7 +238,7 @@ final class SettingsDialog {
         modelButton = button(selectedModelId.isEmpty() ? "Loading models..." : selectedModelId);
         modelButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         modelButton.setOnClickListener(ignored -> openModelPicker());
-        content.addView(modelButton, matchWrap(dp(4), 0));
+        content.addView(modelButton, matchWrap(dp(8), 0));
 
         LinearLayout modelActions = horizontalLayout();
         Button refresh = button("Refresh models");
@@ -186,26 +246,29 @@ final class SettingsDialog {
         modelActions.addView(refresh, new LinearLayout.LayoutParams(0, dp(42), 1f));
         modelStatus = text("Live OpenRouter catalog", 12, MUTED);
         modelStatus.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        modelActions.addView(modelStatus, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        content.addView(modelActions, matchWrap(dp(4), dp(14)));
+        LinearLayout.LayoutParams modelStatusParams =
+                new LinearLayout.LayoutParams(0, dp(42), 1f);
+        modelStatusParams.setMarginStart(dp(8));
+        modelActions.addView(modelStatus, modelStatusParams);
+        content.addView(modelActions, matchWrap(dp(8), dp(14)));
 
         content.addView(label("Summary One prompt"));
         summaryOneInput = input(true, 7);
         summaryOneInput.setText(promptFieldValue(
                 settings.getSummaryOnePrompt(), R.string.summary_one_prompt_default));
-        content.addView(summaryOneInput, matchWrap(dp(4), dp(14)));
+        content.addView(summaryOneInput, matchWrap(dp(8), dp(14)));
 
         content.addView(label("Summary Two prompt"));
         summaryTwoInput = input(true, 8);
         summaryTwoInput.setText(promptFieldValue(
                 settings.getSummaryTwoPrompt(), R.string.summary_two_prompt_default));
-        content.addView(summaryTwoInput, matchWrap(dp(4), dp(14)));
+        content.addView(summaryTwoInput, matchWrap(dp(8), dp(14)));
 
         content.addView(label("Quiz prompt"));
         quizInput = input(true, 7);
         quizInput.setText(promptFieldValue(
                 settings.getQuizPrompt(), R.string.quiz_prompt_default));
-        content.addView(quizInput, matchWrap(dp(4), dp(14)));
+        content.addView(quizInput, matchWrap(dp(8), dp(14)));
 
         LinearLayout actions = horizontalLayout();
         Button cancel = button("Cancel");
@@ -252,6 +315,158 @@ final class SettingsDialog {
                 1f
         ));
         return root;
+    }
+
+    private SharedPreferences updatePreferences() {
+        return activity.getSharedPreferences(UPDATE_PREFERENCES, Activity.MODE_PRIVATE);
+    }
+
+    private void initializeUpdateCheck() {
+        long lastCheck = updatePreferences().getLong(UPDATE_LAST_CHECK, 0);
+        if (System.currentTimeMillis() - lastCheck >= GitHubUpdateChecker.AUTO_CHECK_INTERVAL_MS) {
+            startUpdateCheck(false, false);
+        }
+    }
+
+    private void startUpdateCheck(boolean downloadLatest, boolean manual) {
+        if (updateBusy) {
+            if (manual) {
+                Toast.makeText(activity, "An update check is already running", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        updateBusy = true;
+        setUpdateControlsEnabled(false);
+        updateStatus.setText("Checking official GitHub release...");
+        executor.execute(() -> {
+            try {
+                GitHubUpdateChecker.Release release = GitHubUpdateChecker.fetchLatest();
+                activity.runOnUiThread(() -> applyUpdateCheck(release, downloadLatest, manual));
+            } catch (Exception error) {
+                activity.runOnUiThread(() -> applyUpdateFailure(manual));
+            }
+        });
+    }
+
+    private void applyUpdateCheck(
+            GitHubUpdateChecker.Release release,
+            boolean downloadLatest,
+            boolean manual
+    ) {
+        if (!isDialogActive()) {
+            return;
+        }
+        updateBusy = false;
+        setUpdateControlsEnabled(true);
+        int comparison;
+        try {
+            comparison = release.compareToInstalled(installedVersionName);
+        } catch (GitHubUpdateChecker.UpdateException error) {
+            applyUpdateFailure(manual);
+            return;
+        }
+
+        String message;
+        if (comparison > 0) {
+            message = "Update v" + release.versionName + " is available";
+        } else if (comparison == 0) {
+            message = "Up to date with published v" + release.versionName;
+        } else {
+            message = "Installed v" + installedVersionName
+                    + " is newer than published v" + release.versionName;
+        }
+        saveUpdateStatus(message);
+        if (downloadLatest) {
+            showDownloadConfirmation(release, comparison);
+        } else if (comparison > 0) {
+            showUpdateAvailable(release);
+        } else if (manual) {
+            Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void applyUpdateFailure(boolean manual) {
+        if (!isDialogActive()) {
+            return;
+        }
+        updateBusy = false;
+        setUpdateControlsEnabled(true);
+        saveUpdateStatus("Could not check GitHub. Try again later.");
+        if (manual) {
+            Toast.makeText(activity, "Could not check for updates", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showUpdateAvailable(GitHubUpdateChecker.Release release) {
+        String notes = release.changelog.trim().isEmpty()
+                ? "No release notes were provided."
+                : shorten(release.changelog.trim(), 4_000);
+        new AlertDialog.Builder(activity)
+                .setTitle("SpeedyWatch v" + release.versionName + " is available")
+                .setMessage(notes)
+                .setNegativeButton("Not now", null)
+                .setPositiveButton(
+                        "Download update",
+                        (alert, which) -> enqueueUpdateDownload(release)
+                )
+                .show();
+    }
+
+    private void showDownloadConfirmation(
+            GitHubUpdateChecker.Release release,
+            int comparison
+    ) {
+        String message = comparison > 0
+                ? "Download the official SpeedyWatch v" + release.versionName
+                        + " APK to your Downloads folder?"
+                : "The latest published APK is v" + release.versionName
+                        + ", which is not newer than installed v" + installedVersionName
+                        + ". Download it anyway?";
+        new AlertDialog.Builder(activity)
+                .setTitle("Download latest published APK?")
+                .setMessage(message)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton(
+                        comparison > 0 ? "Download APK" : "Download anyway",
+                        (alert, which) -> enqueueUpdateDownload(release)
+                )
+                .show();
+    }
+
+    private void enqueueUpdateDownload(GitHubUpdateChecker.Release release) {
+        try {
+            GitHubUpdateChecker.enqueueDownload(activity, release);
+            String message = "Downloading SpeedyWatch v" + release.versionName
+                    + " to Downloads";
+            saveUpdateStatus(message);
+            Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+        } catch (GitHubUpdateChecker.UpdateException error) {
+            saveUpdateStatus("Could not start the update download");
+            Toast.makeText(activity, "Could not download the update", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void saveUpdateStatus(String message) {
+        if (isDialogActive()) {
+            updateStatus.setText(message);
+        }
+        updatePreferences().edit()
+                .putLong(UPDATE_LAST_CHECK, System.currentTimeMillis())
+                .putString(UPDATE_LAST_STATUS, message)
+                .apply();
+    }
+
+    private void setUpdateControlsEnabled(boolean enabled) {
+        checkUpdatesButton.setEnabled(enabled);
+        downloadUpdateButton.setEnabled(enabled);
+    }
+
+    private boolean isDialogActive() {
+        return dialog != null && dialog.isShowing() && !activity.isFinishing();
+    }
+
+    private static String shorten(String value, int maximum) {
+        return value.length() <= maximum ? value : value.substring(0, maximum) + "...";
     }
 
     private void openSeoTimeMachines() {

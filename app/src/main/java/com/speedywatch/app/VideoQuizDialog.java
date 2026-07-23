@@ -104,7 +104,9 @@ final class VideoQuizDialog {
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
         content.addView(header);
 
         TextView guidance = text(
@@ -123,7 +125,7 @@ final class VideoQuizDialog {
             countButtons.add(countButton);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), 1f);
             if (countRow.getChildCount() > 0) {
-                params.setMarginStart(dp(6));
+                params.setMarginStart(dp(8));
             }
             countRow.addView(countButton, params);
         }

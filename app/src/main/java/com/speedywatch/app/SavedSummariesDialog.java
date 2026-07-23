@@ -95,7 +95,9 @@ final class SavedSummariesDialog {
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
         content.addView(header);
 
         search = new EditText(activity);
@@ -194,7 +196,10 @@ final class SavedSummariesDialog {
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> detail.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout.LayoutParams detailCloseParams =
+                new LinearLayout.LayoutParams(dp(42), dp(42));
+        detailCloseParams.setMarginStart(dp(8));
+        header.addView(close, detailCloseParams);
         content.addView(header);
 
         TextView sourceLabel = text("Original video URL", 12, MUTED);
@@ -202,7 +207,7 @@ final class SavedSummariesDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        sourceLabelParams.setMargins(0, dp(12), 0, dp(3));
+        sourceLabelParams.setMargins(0, dp(12), 0, dp(8));
         content.addView(sourceLabel, sourceLabelParams);
 
         TextView sourceUrl = text(entry.sourceUrl, 13, Color.rgb(90, 180, 255));
