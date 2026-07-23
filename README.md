@@ -36,6 +36,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Tap any transcript line to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view.
 - Save summaries and generated quiz guides locally with their original YouTube URL, then search titles, types, headings, and body text from the bookmark library.
+- Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original YouTube URL.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
 - Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions.
 
@@ -89,9 +90,9 @@ The API key is encrypted with Android Keystore AES-GCM on Android and stored in 
 3. Search the transcript or tap a timestamp to seek the video.
 4. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
 5. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
-6. Tap **Save summary** to add the original generated summary to the local bookmark library.
-7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** stays visible at the bottom and becomes available after the quiz succeeds.
-8. Use the bookmark icon beside Settings to search saved summaries and quizzes or reopen their original videos.
+6. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
+7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
+8. Use the bookmark icon beside Settings to search saved summaries and quizzes, reopen their original videos, or share a saved item.
 
 Transcript availability depends on the captions exposed by YouTube for the selected video.
 

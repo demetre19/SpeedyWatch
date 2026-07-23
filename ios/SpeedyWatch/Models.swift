@@ -61,6 +61,28 @@ struct SavedSummary: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+struct TextSharePayload {
+    let subject: String
+    let text: String
+
+    static func make(
+        videoTitle: String,
+        contentLabel: String,
+        content: String,
+        sourceURL: URL
+    ) -> TextSharePayload? {
+        let value = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, YouTubeURLPolicy.isSupportedSource(sourceURL) else { return nil }
+
+        let trimmedTitle = videoTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmedTitle.isEmpty ? "YouTube Video" : trimmedTitle
+        let label = contentLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subject = label.isEmpty ? title : "\(title) - \(label)"
+        let text = "\(subject)\n\n\(value)\n\nOriginal URL:\n\(sourceURL.absoluteString)"
+        return TextSharePayload(subject: subject, text: text)
+    }
+}
+
 enum SpeedyWatchError: LocalizedError {
     case invalidVideo
     case noCaptions

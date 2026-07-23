@@ -72,6 +72,7 @@ final class YouTubeSubsDialog {
     private Button transcriptButton;
     private Button copySummaryButton;
     private Button saveSummaryButton;
+    private Button shareSummaryButton;
     private TextView chatTitle;
     private LinearLayout chatRow;
     private EditText chatInput;
@@ -160,6 +161,7 @@ final class YouTubeSubsDialog {
         transcriptButton = button("Transcript");
         copySummaryButton = button("Copy summary");
         saveSummaryButton = button("Save summary");
+        shareSummaryButton = button("Share summary");
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
         summaryOneButton.setOnClickListener(ignored ->
@@ -169,6 +171,13 @@ final class YouTubeSubsDialog {
         transcriptButton.setOnClickListener(ignored -> showTranscript());
         copySummaryButton.setOnClickListener(ignored -> copySummary());
         saveSummaryButton.setOnClickListener(ignored -> saveSummary());
+        shareSummaryButton.setOnClickListener(ignored -> TextShare.showChooser(
+                activity,
+                videoTitle,
+                currentSummaryLabel,
+                currentSummaryText,
+                videoUrl
+        ));
         addWeighted(actions, summaryOneButton, 1f, 0);
         addWeighted(actions, summaryTwoButton, 1f, dp(6));
         addWeighted(actions, transcriptButton, 1f, dp(6));
@@ -247,6 +256,8 @@ final class YouTubeSubsDialog {
         saveSummaryButton.setVisibility(View.GONE);
         addWeighted(summaryActions, copySummaryButton, 1f, 0);
         addWeighted(summaryActions, saveSummaryButton, 1f, dp(6));
+        shareSummaryButton.setVisibility(View.GONE);
+        addWeighted(summaryActions, shareSummaryButton, 1f, dp(6));
         content.addView(summaryActions);
 
         search.addTextChangedListener(new SimpleTextWatcher() {
@@ -463,6 +474,7 @@ final class YouTubeSubsDialog {
         chatRow.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         copySummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         saveSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
+        shareSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
     }
 
     private void showTranscript() {
@@ -471,6 +483,7 @@ final class YouTubeSubsDialog {
         chatRow.setVisibility(View.GONE);
         copySummaryButton.setVisibility(View.GONE);
         saveSummaryButton.setVisibility(View.GONE);
+        shareSummaryButton.setVisibility(View.GONE);
         transcriptList.setVisibility(View.VISIBLE);
         search.setVisibility(View.VISIBLE);
         status.setText(transcriptAdapter.getCount() + " of " + entries.size() + " subtitles");

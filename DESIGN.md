@@ -40,7 +40,7 @@ Use San Francisco through SwiftUI system text styles. Respect Dynamic Type. Use 
 - Empty states: explain which video or setting is required.
 - Markdown: render with `AttributedString(markdown:)`, falling back to plain text.
 - AI chat: keep a compact text field and Send action at the bottom of a generated summary; render prior questions and answers in the summary scroll.
-- Saved output actions: expose Save summary or Save quiz only after successful generation, with confirmation through native alerts.
+- Saved output actions: expose Save and native Share actions only after successful summary or quiz generation, with save confirmation through native alerts.
 
 ## Motion
 

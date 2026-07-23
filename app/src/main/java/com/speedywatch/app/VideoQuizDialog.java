@@ -44,6 +44,7 @@ final class VideoQuizDialog {
     private TextView output;
     private Button createButton;
     private Button saveQuizButton;
+    private Button shareQuizButton;
     private int questionCount = 10;
     private String videoTitle = "YouTube Video";
     private String videoUrl = "";
@@ -152,15 +153,29 @@ final class VideoQuizDialog {
                 0,
                 1f
         ));
+        LinearLayout quizActions = horizontalLayout();
         saveQuizButton = button("Save quiz");
         saveQuizButton.setEnabled(false);
         saveQuizButton.setOnClickListener(ignored -> saveQuiz());
-        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+        quizActions.addView(saveQuizButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        shareQuizButton = button("Share quiz");
+        shareQuizButton.setEnabled(false);
+        shareQuizButton.setOnClickListener(ignored -> TextShare.showChooser(
+                activity,
+                videoTitle,
+                currentQuizLabel,
+                currentQuizText,
+                videoUrl
+        ));
+        LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        shareParams.setMarginStart(dp(8));
+        quizActions.addView(shareQuizButton, shareParams);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
+                ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        saveParams.setMargins(0, dp(8), 0, 0);
-        content.addView(saveQuizButton, saveParams);
+        actionsParams.setMargins(0, dp(8), 0, 0);
+        content.addView(quizActions, actionsParams);
         return content;
     }
 
@@ -226,6 +241,7 @@ final class VideoQuizDialog {
         currentQuizText = "";
         currentQuizLabel = "";
         saveQuizButton.setEnabled(false);
+        shareQuizButton.setEnabled(false);
         createButton.setEnabled(false);
         status.setText("Creating " + requestedCount + " questions with " + modelId);
         output.setText("Creating your pre-watch questions...");
@@ -247,7 +263,8 @@ final class VideoQuizDialog {
                         currentQuizText = result;
                         currentQuizLabel = "Quiz | " + requestedCount + " questions";
                         saveQuizButton.setEnabled(true);
-                        status.setText(requestedCount + " questions ready | tap Save quiz below");
+                        shareQuizButton.setEnabled(true);
+                        status.setText(requestedCount + " questions ready | tap Save or Share below");
                         createButton.setEnabled(true);
                     }
                 });

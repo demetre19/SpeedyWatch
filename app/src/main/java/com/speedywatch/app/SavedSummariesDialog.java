@@ -220,6 +220,18 @@ final class SavedSummariesDialog {
         openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
         actions.addView(openVideo, new LinearLayout.LayoutParams(0, dp(42), 1f));
 
+        Button share = button("Share");
+        share.setOnClickListener(ignored -> TextShare.showChooser(
+                activity,
+                entry.videoTitle,
+                entry.summaryLabel,
+                entry.summaryText,
+                entry.sourceUrl
+        ));
+        LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        shareParams.setMarginStart(dp(8));
+        actions.addView(share, shareParams);
+
         Button delete = button("Delete");
         delete.setTextColor(ACTIVE);
         delete.setOnClickListener(ignored -> confirmDelete(entry, detail));

@@ -190,6 +190,17 @@ struct TranscriptView: View {
                             alertMessage = "Summary copied"
                         }
                         Button("Save summary") { saveSummary() }
+                        if let transcript,
+                           let payload = TextSharePayload.make(
+                            videoTitle: transcript.videoTitle,
+                            contentLabel: summaryLabel,
+                            content: summaryText,
+                            sourceURL: transcript.videoURL
+                           ) {
+                            ShareLink(item: payload.text, subject: Text(payload.subject)) {
+                                Text("Share summary")
+                            }
+                        }
                     }
                 }
                 .buttonStyle(.bordered)
@@ -365,9 +376,24 @@ struct QuizView: View {
                     } else {
                         MarkdownText(value: output)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Button("Save quiz") { saveQuiz() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color.speedyAccent)
+                        HStack(spacing: 8) {
+                            Button("Save quiz") { saveQuiz() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.speedyAccent)
+                            if let transcript,
+                               let payload = TextSharePayload.make(
+                                videoTitle: transcript.videoTitle,
+                                contentLabel: outputLabel,
+                                content: output,
+                                sourceURL: transcript.videoURL
+                               ) {
+                                ShareLink(item: payload.text, subject: Text(payload.subject)) {
+                                    Text("Share quiz")
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(Color.speedyAccent)
+                            }
+                        }
                     }
                 }
                 .padding()
@@ -532,12 +558,26 @@ private struct SavedSummaryDetail: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                Button("Open original video") {
-                    guard YouTubeURLPolicy.isSupportedSource(entry.sourceURL) else { return }
-                    openSource(entry.sourceURL)
+                HStack(spacing: 8) {
+                    Button("Open original video") {
+                        guard YouTubeURLPolicy.isSupportedSource(entry.sourceURL) else { return }
+                        openSource(entry.sourceURL)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.speedyAccent)
+                    if let payload = TextSharePayload.make(
+                        videoTitle: entry.videoTitle,
+                        contentLabel: entry.summaryLabel,
+                        content: entry.summaryText,
+                        sourceURL: entry.sourceURL
+                    ) {
+                        ShareLink(item: payload.text, subject: Text(payload.subject)) {
+                            Text("Share")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.speedyAccent)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.speedyAccent)
             }
             .padding()
         }
