@@ -11,7 +11,13 @@ final class AppSettings: ObservableObject {
     - Key points as bullet points
     - Any notable conclusions or takeaways
 
+    This should be a detailed and through overview. With insightful and in-depth commentary and how it can be utilised in a business setting, do NOT include timestamps.
+
     Keep the summary factual and focused. Do not add opinions or information not present in the transcript.
+
+    Do NOT create tables. Make nice readable heading:text paragraphs. Must be left aligned
+
+    Give me step by step.instructions on how to implement it in a business. Be as detailed as possible.
     """
 
     static let defaultSummaryTwoPrompt = """
@@ -27,6 +33,15 @@ final class AppSettings: ObservableObject {
 
     static let defaultQuizPrompt = """
     You are a study tutor preparing a reader before they study a source. Use only facts, terms, and concepts present in the source. Return exactly the Requested question count from the request data as important pre-watch questions in Markdown. For each item, use a numbered heading for the question, then one short description explaining why the question matters and what the viewer should listen for. Do not answer the questions or include a summary, glossary, introduction, or conclusion.
+    """
+
+    private static let legacySummaryOnePrompt = """
+    You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:
+    - A brief overview of the video topic (2-3 sentences)
+    - Key points as bullet points
+    - Any notable conclusions or takeaways
+
+    Keep the summary factual and focused. Do not add opinions or information not present in the transcript.
     """
 
     @Published private(set) var apiKey: String
@@ -48,7 +63,13 @@ final class AppSettings: ObservableObject {
         apiKey = storedKey
 #endif
         modelID = defaults.string(forKey: "openrouter_model_id") ?? ""
-        summaryOnePrompt = defaults.string(forKey: "summary_one_prompt") ?? ""
+        let storedSummaryOne = defaults.string(forKey: "summary_one_prompt") ?? ""
+        summaryOnePrompt = storedSummaryOne == Self.legacySummaryOnePrompt
+            ? Self.defaultSummaryOnePrompt
+            : storedSummaryOne
+        if storedSummaryOne == Self.legacySummaryOnePrompt {
+            defaults.set(Self.defaultSummaryOnePrompt, forKey: "summary_one_prompt")
+        }
         summaryTwoPrompt = defaults.string(forKey: "summary_two_prompt") ?? ""
         quizPrompt = defaults.string(forKey: "quiz_prompt") ?? ""
         let savedSpeed = defaults.double(forKey: "default_playback_speed")

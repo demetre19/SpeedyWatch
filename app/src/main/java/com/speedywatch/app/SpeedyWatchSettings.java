@@ -27,11 +27,25 @@ final class SpeedyWatchSettings {
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
     private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
+    private static final String LEGACY_SUMMARY_ONE_PROMPT =
+            "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
+                    + "- A brief overview of the video topic (2-3 sentences)\n"
+                    + "- Key points as bullet points\n"
+                    + "- Any notable conclusions or takeaways\n\n"
+                    + "Keep the summary factual and focused. Do not add opinions or information not present in the transcript.";
 
+    private final Context context;
     private final SharedPreferences preferences;
 
     SpeedyWatchSettings(Context context) {
-        preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        preferences = this.context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+        String summaryOne = preferences.getString(SUMMARY_ONE, "");
+        if (LEGACY_SUMMARY_ONE_PROMPT.equals(summaryOne)) {
+            preferences.edit()
+                    .putString(SUMMARY_ONE, this.context.getString(R.string.summary_one_prompt_default))
+                    .apply();
+        }
     }
 
     double getDefaultPlaybackSpeed() {
@@ -91,7 +105,9 @@ final class SpeedyWatchSettings {
 
     String getSummaryOnePrompt() {
         String prompt = preferences.getString(SUMMARY_ONE, "");
-        return prompt == null ? "" : prompt;
+        return prompt == null || prompt.trim().isEmpty()
+                ? context.getString(R.string.summary_one_prompt_default)
+                : prompt;
     }
 
     String getSummaryTwoPrompt() {
