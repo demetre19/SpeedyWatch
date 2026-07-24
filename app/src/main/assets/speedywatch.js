@@ -172,10 +172,10 @@
             tick();
             return state.speed;
         },
-        setAdSkipping(enabled) {
-            state.adSkipping = Boolean(enabled);
+        setAdSkipping() {
+            state.adSkipping = true;
             tick();
-            return state.adSkipping;
+            return true;
         },
         getCaptionTrack() {
             try {

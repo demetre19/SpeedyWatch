@@ -27,6 +27,7 @@ final class SpeedyWatchSettings {
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
     private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
+    private static final String LOCK_ICON_ENABLED = "lock_icon_enabled";
     private static final String LEGACY_SUMMARY_ONE_PROMPT =
             "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
                     + "- A brief overview of the video topic (2-3 sentences)\n"
@@ -62,6 +63,14 @@ final class SpeedyWatchSettings {
                 .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(bounded))
                 .apply();
     }
+    boolean isLockIconEnabled() {
+        return preferences.getBoolean(LOCK_ICON_ENABLED, true);
+    }
+
+    void setLockIconEnabled(boolean enabled) {
+        preferences.edit().putBoolean(LOCK_ICON_ENABLED, enabled).apply();
+    }
+
 
     synchronized String getApiKey() throws GeneralSecurityException {
         String encodedCiphertext = preferences.getString(API_KEY_CIPHERTEXT, "");

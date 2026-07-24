@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.12**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.13**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -55,14 +55,14 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.12
-Version code: 12
+Version: 0.13
+Version code: 13
 Minimum Android version: Android 10 (API 29)
-SHA-256: fd28f10e0e4027b31bcfa5832126225fd24f42ffc6243d7a0196e56ed8405f98
+SHA-256: c000217023dca6de72190fd028cb5a138835ec1cde8a5cbcd17e16edf91968ab
 Signing: Android debug signing key
 ```
 
-This public v0.12 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed byte-for-byte on a Samsung phone, and exercised on the phone and an Android 16 / API 36 emulator. The immediate-download path was verified to save MP3 files under the YouTube video title instead of a placeholder name. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.13 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed byte-for-byte, and exercised on an Android 16 / API 36 emulator. This release keeps the lock control fixed at the bottom-right immediately above the speed controls, removes the Skip ads control, and keeps best-effort ad skipping enabled. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
@@ -182,7 +182,7 @@ The Android app bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp) under the Unl
 - YouTube can change its player, caption endpoints, and page structure without notice.
 - Android downloads depend on a video's public availability and YouTube's current delivery interfaces. Private, deleted, age- or region-restricted, DRM-protected, or otherwise inaccessible media may not download.
 - Download only media you own or have permission and legal authority to save, and follow YouTube's terms and applicable copyright law.
-- Ad skipping is best effort and is not a network-level ad blocker.
+- Ad skipping is always enabled, remains best effort, and is not a network-level ad blocker.
 - Videos without accessible captions cannot use transcript, summary, or quiz features.
 - OpenRouter usage may incur charges depending on the selected model and account.
 

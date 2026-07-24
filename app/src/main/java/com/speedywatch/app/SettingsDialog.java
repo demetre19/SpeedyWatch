@@ -69,6 +69,8 @@ final class SettingsDialog {
     private Button modelButton;
     private TextView modelStatus;
     private EditText defaultSpeedInput;
+    private Button lockIconToggleButton;
+    private boolean lockIconEnabled;
     private EditText summaryOneInput;
     private EditText summaryTwoInput;
     private EditText quizInput;
@@ -167,6 +169,18 @@ final class SettingsDialog {
         speedParams.setMarginStart(dp(8));
         defaultSpeedRow.addView(defaultSpeedInput, speedParams);
         content.addView(defaultSpeedRow, matchWrap(0, dp(12)));
+        lockIconEnabled = settings.isLockIconEnabled();
+        lockIconToggleButton = button("");
+        lockIconToggleButton.setOnClickListener(ignored -> {
+            lockIconEnabled = !lockIconEnabled;
+            updateLockIconButton();
+        });
+        updateLockIconButton();
+        content.addView(lockIconToggleButton, matchWrap(0, dp(6)));
+        content.addView(
+                text("Shown bottom-right above the speed controls.", 12, MUTED),
+                matchWrap(dp(2), dp(12))
+        );
 
         content.addView(text("Updates", 13, MUTED), matchWrap(dp(2), dp(8)));
         TextView currentVersion = text(
@@ -621,6 +635,10 @@ final class SettingsDialog {
         return savedPrompt.trim().isEmpty() ? activity.getString(defaultResource) : savedPrompt;
     }
 
+    private void updateLockIconButton() {
+        lockIconToggleButton.setText(lockIconEnabled ? "Lock icon: On" : "Lock icon: Off");
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -641,6 +659,7 @@ final class SettingsDialog {
             return;
         }
         settings.setDefaultPlaybackSpeed(defaultSpeed);
+        settings.setLockIconEnabled(lockIconEnabled);
         onSettingsSaved.run();
         if (selectedModelId == null || selectedModelId.isEmpty()) {
             Toast.makeText(

@@ -71,10 +71,8 @@ public final class MainActivity extends Activity {
 
     private WebView webView;
     private TextView statusText;
-    private Button adSkippingButton;
     private String controllerScript;
     private double selectedSpeed = 1.0;
-    private boolean adSkipping = true;
     private final Map<Double, Button> speedButtons = new LinkedHashMap<>();
     private final OpenRouterClient openRouterClient = new OpenRouterClient();
     private final ExecutorService ioExecutor = Executors.newFixedThreadPool(2);
@@ -82,9 +80,15 @@ public final class MainActivity extends Activity {
     private SpeedyWatchSettings appSettings;
     private SavedSummaryStore savedSummaryStore;
     private LinearLayout appRoot;
+    private LinearLayout speedControls;
     private EditText customSpeedInput;
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private FrameLayout screenLockShield;
+    private ScreenLockButton screenLockButton;
+    private boolean screenLocked;
+    private int screenLockInsetRight;
+    private int screenLockInsetBottom;
     private volatile YouTubeSubsDialog.TranscriptCallback activeTranscriptCallback;
     private volatile long activeTranscriptRequestId;
     private volatile boolean activeTranscriptDelivered;
@@ -106,6 +110,13 @@ public final class MainActivity extends Activity {
         appRoot = buildUi();
         setContentView(appRoot);
         applySystemBarInsets(appRoot);
+        initializeScreenLockOverlay();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    this::handleBackPressed
+            );
+        }
 
         WebView.setWebContentsDebuggingEnabled(false);
         WebSettings settings = webView.getSettings();
@@ -249,10 +260,10 @@ public final class MainActivity extends Activity {
                 1f
         ));
 
-        LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(dp(8), dp(6), dp(8), dp(8));
-        controls.setBackgroundColor(PANEL);
+        speedControls = new LinearLayout(this);
+        speedControls.setOrientation(LinearLayout.VERTICAL);
+        speedControls.setPadding(dp(8), dp(6), dp(8), dp(8));
+        speedControls.setBackgroundColor(PANEL);
 
         LinearLayout presets = horizontalRow();
         double[] rates = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0};
@@ -291,7 +302,7 @@ public final class MainActivity extends Activity {
             }
             return false;
         });
-        controls.addView(scrollingRow(presets));
+        speedControls.addView(scrollingRow(presets));
 
         LinearLayout actions = horizontalRow();
         actions.addView(makeButton("-0.1", ignored -> setSpeed(selectedSpeed - 0.1)));
@@ -308,13 +319,10 @@ public final class MainActivity extends Activity {
         actions.addView(statusText, statusParams);
 
         actions.addView(makeButton("+0.1", ignored -> setSpeed(selectedSpeed + 0.1)));
-        adSkippingButton = makeButton("Skip ads: ON", ignored -> toggleAdSkipping());
-        setButtonBackground(adSkippingButton, ACTIVE, ACTIVE, 0);
-        actions.addView(adSkippingButton);
-        controls.addView(actions);
+        speedControls.addView(actions);
 
 
-        root.addView(controls, new LinearLayout.LayoutParams(
+        root.addView(speedControls, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -442,12 +450,6 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void toggleAdSkipping() {
-        adSkipping = !adSkipping;
-        adSkippingButton.setText(adSkipping ? "Skip ads: ON" : "Skip ads: OFF");
-        setButtonBackground(adSkippingButton, adSkipping ? ACTIVE : BUTTON, adSkipping ? ACTIVE : BUTTON, 0);
-        applyControllerState();
-    }
 
     private void injectController() {
         webView.evaluateJavascript(controllerScript, ignored -> applyControllerState());
@@ -458,21 +460,21 @@ public final class MainActivity extends Activity {
         String script = "(() => { const c = window.__speedyWatchController; "
                 + "if (!c) return 'missing'; "
                 + "c.setSpeed(" + String.format(Locale.US, "%.2f", selectedSpeed) + "); "
-                + "c.setAdSkipping(" + adSkipping + "); "
+                + "c.setAdSkipping(true); "
                 + "const media = document.querySelector('video, audio'); "
                 + "return media ? 'media:' + media.playbackRate.toFixed(2) : 'ready'; })();";
         String liveResult = "\"media:" + String.format(Locale.US, "%.2f", selectedSpeed) + "\"";
         webView.evaluateJavascript(script, result -> {
             boolean ready = result != null && !result.equals("\"missing\"") && !result.equals("null");
             String label = result != null && result.equals(liveResult)
-                    ? formatRate(selectedSpeed) + " live | ads " + (adSkipping ? "blocked" : "allowed")
+                    ? formatRate(selectedSpeed) + " live | ads blocked"
                     : statusLabel();
             statusText.setText(ready ? label : formatRate(selectedSpeed) + " | loading");
         });
     }
 
     private String statusLabel() {
-        return formatRate(selectedSpeed) + " | ads " + (adSkipping ? "blocked" : "allowed");
+        return formatRate(selectedSpeed) + " | ads blocked";
     }
 
     private static String formatRate(double rate) {
@@ -543,7 +545,10 @@ public final class MainActivity extends Activity {
                 appSettings,
                 openRouterClient,
                 ioExecutor,
-                () -> setSpeed(appSettings.getDefaultPlaybackSpeed())
+                () -> {
+                    setSpeed(appSettings.getDefaultPlaybackSpeed());
+                    applyScreenLockSettings();
+                }
         ).show();
     }
 
@@ -983,6 +988,95 @@ public final class MainActivity extends Activity {
 
 
 
+    private void initializeScreenLockOverlay() {
+        screenLockShield = new FrameLayout(this);
+        screenLockShield.setBackgroundColor(Color.TRANSPARENT);
+        screenLockShield.setClickable(false);
+        screenLockButton = new ScreenLockButton(this, new ScreenLockButton.Listener() {
+            @Override
+            public void onLockRequested() {
+                setScreenLocked(true);
+            }
+
+            @Override
+            public void onUnlockRequested() {
+                setScreenLocked(false);
+            }
+
+        });
+        int buttonSize = dp(52);
+        screenLockShield.addView(screenLockButton, new FrameLayout.LayoutParams(
+                buttonSize,
+                buttonSize,
+                Gravity.BOTTOM | Gravity.END
+        ));
+        addContentView(screenLockShield, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        screenLockShield.setOnApplyWindowInsetsListener((view, insets) -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Insets safeInsets = insets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                );
+                screenLockInsetRight = safeInsets.right;
+                screenLockInsetBottom = safeInsets.bottom;
+            } else {
+                screenLockInsetRight = insets.getSystemWindowInsetRight();
+                screenLockInsetBottom = insets.getSystemWindowInsetBottom();
+            }
+            positionScreenLockButton();
+            return insets;
+        });
+        applyScreenLockSettings();
+        screenLockShield.requestApplyInsets();
+    }
+
+    private void applyScreenLockSettings() {
+        if (screenLockShield == null) {
+            return;
+        }
+        if (!appSettings.isLockIconEnabled()) {
+            setScreenLocked(false);
+            screenLockShield.setVisibility(View.GONE);
+            return;
+        }
+        screenLockShield.setVisibility(View.VISIBLE);
+        positionScreenLockButton();
+        screenLockShield.bringToFront();
+    }
+
+    private void positionScreenLockButton() {
+        if (screenLockButton == null) {
+            return;
+        }
+        screenLockShield.post(() -> {
+            if (screenLockShield.getWidth() == 0 || screenLockShield.getHeight() == 0) {
+                return;
+            }
+            FrameLayout.LayoutParams params =
+                    (FrameLayout.LayoutParams) screenLockButton.getLayoutParams();
+            params.gravity = Gravity.BOTTOM | Gravity.END;
+            params.leftMargin = 0;
+            params.topMargin = 0;
+            params.rightMargin = screenLockInsetRight + dp(8);
+            params.bottomMargin = screenLockInsetBottom
+                    + (speedControls == null ? 0 : speedControls.getHeight())
+                    + dp(8);
+            screenLockButton.setLayoutParams(params);
+        });
+    }
+
+
+    private void setScreenLocked(boolean locked) {
+        screenLocked = locked;
+        screenLockShield.setClickable(locked);
+        screenLockButton.setLocked(locked);
+        if (screenLockShield.getVisibility() == View.VISIBLE) {
+            screenLockShield.bringToFront();
+        }
+    }
+
     private void showFullscreenView(View view, WebChromeClient.CustomViewCallback callback) {
         if (fullscreenView != null) {
             callback.onCustomViewHidden();
@@ -998,6 +1092,10 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
         setFullscreenSystemBars(true);
+        if (screenLockShield.getVisibility() == View.VISIBLE) {
+            screenLockShield.bringToFront();
+            screenLockShield.requestApplyInsets();
+        }
     }
 
     private void hideFullscreenView() {
@@ -1013,6 +1111,10 @@ public final class MainActivity extends Activity {
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         setFullscreenSystemBars(false);
         appRoot.requestApplyInsets();
+        if (screenLockShield.getVisibility() == View.VISIBLE) {
+            screenLockShield.bringToFront();
+            screenLockShield.requestApplyInsets();
+        }
         if (fullscreenCallback != null) {
             fullscreenCallback.onCustomViewHidden();
             fullscreenCallback = null;
@@ -1074,12 +1176,19 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        handleBackPressed();
+    }
+
+    private void handleBackPressed() {
+        if (screenLocked) {
+            return;
+        }
         if (fullscreenView != null) {
             hideFullscreenView();
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
-            super.onBackPressed();
+            finish();
         }
     }
 
