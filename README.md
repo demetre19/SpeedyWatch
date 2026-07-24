@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.11**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.12**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -32,7 +32,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Keep the selected speed when YouTube replaces or resets its video player.
 - Choose and persist a custom **default playback speed** in Settings for future app launches.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
-- On Android, save the current public video as MP3 audio or an MP4 up to the selected resolution. Downloads continue in the background and are written to `Downloads/SpeedyWatch`.
+- On Android, save the current public video as MP3 audio or an MP4 up to the selected resolution. Downloads continue in the background, use the YouTube video title as the filename, and are written to `Downloads/SpeedyWatch`.
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view.
@@ -55,14 +55,14 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.11
-Version code: 11
+Version: 0.12
+Version code: 12
 Minimum Android version: Android 10 (API 29)
-SHA-256: 2969646950d52897732dd21dbeda7019064ef5544673ab12deecfea709ea2467
+SHA-256: fd28f10e0e4027b31bcfa5832126225fd24f42ffc6243d7a0196e56ed8405f98
 Signing: Android debug signing key
 ```
 
-This public v0.11 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed on a Samsung phone, and exercised on an Android 16 / API 36 emulator, including real MP3 and H.264/AAC MP4 downloads through the shipping UI. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.12 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed byte-for-byte on a Samsung phone, and exercised on the phone and an Android 16 / API 36 emulator. The immediate-download path was verified to save MP3 files under the YouTube video title instead of a placeholder name. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 

@@ -128,14 +128,15 @@ public final class SpeedyWatchDownloadService extends Service {
                 throw new IOException("Download cancelled");
             }
 
+            String resolvedTitle = YouTubeDownloadEngine.downloadedTitle(jobDir, title);
             String extension = KIND_MP3.equals(kind) ? "mp3" : "mp4";
             File completed = findCompletedFile(jobDir, extension);
             if (completed == null) {
                 throw new IOException("Download did not produce an " + extension.toUpperCase(Locale.US) + " file");
             }
-            updateNotification(title, "Saving to Android Downloads", 100, true);
-            Uri published = publish(completed, title + "." + extension, extension);
-            showFinishedNotification(title, published, extension);
+            updateNotification(resolvedTitle, "Saving to Android Downloads", 100, true);
+            Uri published = publish(completed, resolvedTitle + "." + extension, extension);
+            showFinishedNotification(resolvedTitle, published, extension);
         } catch (Exception error) {
             showFailureNotification(title, cancelled ? "Download cancelled" : readableError(error));
         } finally {
@@ -154,6 +155,7 @@ public final class SpeedyWatchDownloadService extends Service {
         request.addOption("--newline");
         request.addOption("--no-warnings");
         request.addOption("-o", new File(jobDir, "source.%(ext)s").getAbsolutePath());
+        request.addOption("--write-info-json");
         if (KIND_MP3.equals(kind)) {
             request.addOption("-f", "bestaudio/best");
             request.addOption("-x");

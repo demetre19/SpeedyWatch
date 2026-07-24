@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +31,7 @@ final class YouTubeDownloadEngine {
     private static final String BUNDLED_YTDLP_VERSION = "2026.07.04";
     private static final String DOWNLOAD_PREFS = "download_engine";
     private static final String YTDLP_VERSION_KEY = "bundled_ytdlp_version";
+    private static final long MAX_INFO_JSON_BYTES = 2L * 1024L * 1024L;
     private static volatile boolean initialized;
 
     private YouTubeDownloadEngine() {
@@ -189,6 +191,21 @@ final class YouTubeDownloadEngine {
             cleaned = "YouTube Video";
         }
         return cleaned.length() > 80 ? cleaned.substring(0, 80).trim() : cleaned;
+    }
+
+    static String downloadedTitle(File jobDir, String fallbackTitle) {
+        File info = new File(jobDir, "source.info.json");
+        if (!info.isFile() || info.length() <= 0 || info.length() > MAX_INFO_JSON_BYTES) {
+            return safeDisplayName(fallbackTitle);
+        }
+        try {
+            JSONObject root = new JSONObject(
+                    new String(Files.readAllBytes(info.toPath()), StandardCharsets.UTF_8)
+            );
+            return safeDisplayName(root.optString("title", fallbackTitle));
+        } catch (Exception ignored) {
+            return safeDisplayName(fallbackTitle);
+        }
     }
 
     static final class Metadata {
