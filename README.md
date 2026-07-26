@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.15**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.16**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -54,7 +54,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original YouTube URL.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
 - Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions.
-- On Android, check the official latest stable GitHub Release from Settings and manually download its APK to the Downloads folder.
+- On Android, check the official latest stable GitHub Release from Settings, see an explicit up-to-date status when no newer version exists, and manually download its APK to the Downloads folder.
 
 ## Android download and install
 
@@ -69,14 +69,15 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.15
-Version code: 15
+Version: 0.16
+Version code: 16
 Minimum Android version: Android 10 (API 29)
-SHA-256: 3daded9dbe614531c97a882b78673a2e1f3dde0665519dc6ec7c433688224d12
+Supported device ABIs: arm64-v8a and armeabi-v7a
+SHA-256: 21eee958feb848b726fa0d41c7bd46ce1d4801abbff4e87450342b6bee81de8b
 Signing: Android debug signing key
 ```
 
-This public v0.15 APK is debug-signed with APK Signature Scheme v2. The exact release APK was installed byte-for-byte and launched on a Samsung Android phone, where the padded rounded `You` message bubble was visually verified. Search by keyword or supported URL, copied-URL Download selection, and immediate visible summary-cache reuse were user-verified on the immediately preceding v0.14 candidate built from the same feature changes before this v0.15 UI-only polish. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.16 APK is debug-signed with APK Signature Scheme v2. It fixes the Settings update check so a current installation reports `SpeedyWatch is up to date` instead of rejecting the release asset as unavailable. The 105,927,718-byte APK remains below the previous updater's 128 MiB acceptance ceiling, allowing v0.15 to discover and download this update. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 

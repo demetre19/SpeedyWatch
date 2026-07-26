@@ -26,7 +26,7 @@ final class GitHubUpdateChecker {
     static final String ASSET_NAME = "SpeedyWatch.apk";
     static final long AUTO_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
 
-    private static final long MAX_APK_BYTES = 128L * 1024L * 1024L;
+    private static final long MAX_APK_BYTES = 256L * 1024L * 1024L;
     private static final int MAX_RELEASE_BYTES = 1024 * 1024;
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
@@ -142,9 +142,7 @@ final class GitHubUpdateChecker {
             }
 
             long size = selected.getLong("size");
-            if (size <= 0 || size > MAX_APK_BYTES) {
-                throw new UpdateException("Invalid update size");
-            }
+            validateAssetSize(size);
             String downloadUrl = requiredString(selected, "browser_download_url");
             validateOfficialDownloadUrl(downloadUrl, tag);
             String digest = requiredString(selected, "digest");
@@ -187,6 +185,12 @@ final class GitHubUpdateChecker {
             return manager.enqueue(request);
         } catch (RuntimeException error) {
             throw new UpdateException("Could not start the Android download", error);
+        }
+    }
+
+    static void validateAssetSize(long size) throws UpdateException {
+        if (size <= 0 || size > MAX_APK_BYTES) {
+            throw new UpdateException("Invalid update size");
         }
     }
 

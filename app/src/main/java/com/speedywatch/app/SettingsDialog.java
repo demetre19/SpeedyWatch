@@ -384,7 +384,7 @@ final class SettingsDialog {
         if (comparison > 0) {
             message = "Update v" + release.versionName + " is available";
         } else if (comparison == 0) {
-            message = "Up to date with published v" + release.versionName;
+            message = "SpeedyWatch is up to date (v" + release.versionName + ")";
         } else {
             message = "Installed v" + installedVersionName
                     + " is newer than published v" + release.versionName;
