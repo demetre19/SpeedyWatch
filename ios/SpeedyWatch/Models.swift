@@ -24,13 +24,75 @@ struct TranscriptPackage: Sendable {
     let videoURL: URL
 }
 
+struct CaptionTrackOption: Identifiable, Hashable, Sendable {
+    let languageCode: String
+    let displayName: String
+    let isAutomatic: Bool
+
+    var id: String { "\(languageCode)-\(isAutomatic)" }
+}
+
+enum PlaybackProfile: String, CaseIterable, Codable, Identifiable, Sendable {
+    case normal
+    case careful
+    case lecture
+    case podcast
+
+    var id: Self { self }
+
+    var displayName: String {
+        switch self {
+        case .normal: "Normal"
+        case .careful: "Careful"
+        case .lecture: "Lecture"
+        case .podcast: "Podcast"
+        }
+    }
+
+    var speed: Double {
+        switch self {
+        case .normal: 1
+        case .careful: 0.8
+        case .lecture: 1.5
+        case .podcast: 2
+        }
+    }
+}
+
 struct OpenRouterModel: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let contextLength: Int
+    let promptPrice: Double?
+    let completionPrice: Double?
 
     var displayName: String { name.isEmpty ? id : name }
-    var searchText: String { "\(name) \(id)".lowercased() }
+    var isFree: Bool { promptPrice == 0 && completionPrice == 0 }
+    var hasLongContext: Bool { contextLength >= 100_000 }
+    var contextLabel: String {
+        guard contextLength > 0 else { return "Context unknown" }
+        if contextLength >= 1_000_000 {
+            return "\(formatted(contextLength.doubleValue / 1_000_000))M context"
+        }
+        return "\(Int((Double(contextLength) / 1_000).rounded()))K context"
+    }
+    var pricingLabel: String {
+        guard let promptPrice, let completionPrice else { return "Pricing unavailable" }
+        if isFree { return "Free" }
+        return "$\(formatted(promptPrice * 1_000_000))/M input • $\(formatted(completionPrice * 1_000_000))/M output"
+    }
+    var guidance: String { "\(contextLabel) • \(pricingLabel)" }
+    var searchText: String {
+        "\(name) \(id) \(guidance) \(isFree ? "free" : "paid")".lowercased()
+    }
+
+    private func formatted(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...4)))
+    }
+}
+
+private extension Int {
+    var doubleValue: Double { Double(self) }
 }
 
 struct OpenRouterMessage: Equatable, Sendable {
@@ -185,6 +247,46 @@ enum YouTubeURLPolicy {
             return false
         }
         return host == "youtube.com" || host.hasSuffix(".youtube.com") || host == "youtu.be"
+    }
+
+    static func canonicalVideoURL(from url: URL) -> URL? {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
+            return nil
+        }
+        let segments = url.path.split(separator: "/").map(String.init)
+        var videoID: String?
+        if host == "youtu.be" {
+            videoID = segments.first
+        } else if host == "youtube.com" || host.hasSuffix(".youtube.com") {
+            switch segments.first {
+            case "watch":
+                videoID = queryValue("v", in: url)
+            case "shorts", "live", "embed", "v", "e":
+                videoID = segments.dropFirst().first
+            case "attribution_link":
+                if let path = queryValue("u", in: url),
+                   let nested = URL(string: "https://www.youtube.com\(path)") {
+                    return canonicalVideoURL(from: nested)
+                }
+            default:
+                break
+            }
+        } else if (host == "youtube-nocookie.com" || host.hasSuffix(".youtube-nocookie.com")),
+                  segments.first == "embed" {
+            videoID = segments.dropFirst().first
+        }
+        guard let videoID,
+              videoID.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil else {
+            return nil
+        }
+        return URL(string: "https://www.youtube.com/watch?v=\(videoID)")
+    }
+
+    private static func queryValue(_ name: String, in url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == name })?
+            .value
     }
 
     static func isTrustedCaption(_ url: URL) -> Bool {

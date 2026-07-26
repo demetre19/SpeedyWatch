@@ -28,6 +28,17 @@ final class SpeedyWatchSettings {
     private static final String QUIZ = "quiz_prompt";
     private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
     private static final String LOCK_ICON_ENABLED = "lock_icon_enabled";
+    private static final String PLAYBACK_PROFILE = "playback_profile";
+    private static final String ADAPTIVE_SPEED_ENABLED = "adaptive_speed_enabled";
+    private static final String ADAPTIVE_SPEED_BOOST = "adaptive_speed_boost";
+    private static final String SPONSORBLOCK_ENABLED = "sponsorblock_enabled";
+    private static final String SPONSORBLOCK_SPONSOR = "sponsorblock_sponsor";
+    private static final String SPONSORBLOCK_SELF_PROMOTION = "sponsorblock_self_promotion";
+    private static final String SPONSORBLOCK_INTERACTION = "sponsorblock_interaction";
+    static final String PROFILE_NORMAL = "normal";
+    static final String PROFILE_CAREFUL = "careful";
+    static final String PROFILE_LECTURE = "lecture";
+    static final String PROFILE_PODCAST = "podcast";
     private static final String LEGACY_SUMMARY_ONE_PROMPT =
             "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
                     + "- A brief overview of the video topic (2-3 sentences)\n"
@@ -63,6 +74,94 @@ final class SpeedyWatchSettings {
                 .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(bounded))
                 .apply();
     }
+    String getPlaybackProfile() {
+        String profile = preferences.getString(PLAYBACK_PROFILE, PROFILE_NORMAL);
+        return isPlaybackProfile(profile) ? profile : PROFILE_NORMAL;
+    }
+
+    void setPlaybackPreferences(String profile, boolean adaptiveEnabled, double adaptiveBoost) {
+        String boundedProfile = isPlaybackProfile(profile) ? profile : PROFILE_NORMAL;
+        double boundedBoost = Math.max(0.1, Math.min(1.5, adaptiveBoost));
+        preferences.edit()
+                .putString(PLAYBACK_PROFILE, boundedProfile)
+                .putBoolean(ADAPTIVE_SPEED_ENABLED, adaptiveEnabled)
+                .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(boundedBoost))
+                .apply();
+    }
+
+    boolean isAdaptiveSpeedEnabled() {
+        return preferences.getBoolean(ADAPTIVE_SPEED_ENABLED, false);
+    }
+
+    double getAdaptiveSpeedBoost() {
+        return Math.max(0.1, Math.min(1.5, Double.longBitsToDouble(preferences.getLong(
+                ADAPTIVE_SPEED_BOOST,
+                Double.doubleToRawLongBits(0.5)
+        ))));
+    }
+
+    static double speedForProfile(String profile) {
+        if (PROFILE_CAREFUL.equals(profile)) {
+            return 0.8;
+        }
+        if (PROFILE_LECTURE.equals(profile)) {
+            return 1.5;
+        }
+        if (PROFILE_PODCAST.equals(profile)) {
+            return 2.0;
+        }
+        return 1.0;
+    }
+
+    static String profileLabel(String profile) {
+        if (PROFILE_CAREFUL.equals(profile)) {
+            return "Careful · 0.8x";
+        }
+        if (PROFILE_LECTURE.equals(profile)) {
+            return "Lecture · 1.5x";
+        }
+        if (PROFILE_PODCAST.equals(profile)) {
+            return "Podcast · 2x";
+        }
+        return "Normal · 1x";
+    }
+
+    private static boolean isPlaybackProfile(String profile) {
+        return PROFILE_NORMAL.equals(profile)
+                || PROFILE_CAREFUL.equals(profile)
+                || PROFILE_LECTURE.equals(profile)
+                || PROFILE_PODCAST.equals(profile);
+    }
+    boolean isSponsorBlockEnabled() {
+        return preferences.getBoolean(SPONSORBLOCK_ENABLED, false);
+    }
+
+    boolean skipsSponsorSegments() {
+        return preferences.getBoolean(SPONSORBLOCK_SPONSOR, true);
+    }
+
+    boolean skipsSelfPromotionSegments() {
+        return preferences.getBoolean(SPONSORBLOCK_SELF_PROMOTION, true);
+    }
+
+    boolean skipsInteractionSegments() {
+        return preferences.getBoolean(SPONSORBLOCK_INTERACTION, false);
+    }
+
+    void setSponsorBlockPreferences(
+            boolean enabled,
+            boolean sponsor,
+            boolean selfPromotion,
+            boolean interaction
+    ) {
+        preferences.edit()
+                .putBoolean(SPONSORBLOCK_ENABLED, enabled)
+                .putBoolean(SPONSORBLOCK_SPONSOR, sponsor)
+                .putBoolean(SPONSORBLOCK_SELF_PROMOTION, selfPromotion)
+                .putBoolean(SPONSORBLOCK_INTERACTION, interaction)
+                .apply();
+    }
+
     boolean isLockIconEnabled() {
         return preferences.getBoolean(LOCK_ICON_ENABLED, true);
     }
@@ -121,12 +220,16 @@ final class SpeedyWatchSettings {
 
     String getSummaryTwoPrompt() {
         String prompt = preferences.getString(SUMMARY_TWO, "");
-        return prompt == null ? "" : prompt;
+        return prompt == null || prompt.trim().isEmpty()
+                ? context.getString(R.string.summary_two_prompt_default)
+                : prompt;
     }
 
     String getQuizPrompt() {
         String prompt = preferences.getString(QUIZ, "");
-        return prompt == null ? "" : prompt;
+        return prompt == null || prompt.trim().isEmpty()
+                ? context.getString(R.string.quiz_prompt_default)
+                : prompt;
     }
 
 
@@ -136,6 +239,42 @@ final class SpeedyWatchSettings {
                 .putString(SUMMARY_TWO, summaryTwo == null ? "" : summaryTwo)
                 .putString(QUIZ, quiz == null ? "" : quiz)
                 .apply();
+    }
+
+    boolean restoreBackup(
+            String modelId,
+            String summaryOne,
+            String summaryTwo,
+            String quiz,
+            double defaultSpeed,
+            boolean lockEnabled,
+            String playbackProfile,
+            boolean adaptiveEnabled,
+            double adaptiveBoost
+    ) {
+        String normalizedModel = modelId == null ? "" : modelId.trim();
+        if (normalizedModel.length() > 300
+                || summaryOne == null || summaryOne.trim().isEmpty()
+                || summaryTwo == null || summaryTwo.trim().isEmpty()
+                || quiz == null || quiz.trim().isEmpty()
+                || !Double.isFinite(defaultSpeed)
+                || defaultSpeed < 0.25 || defaultSpeed > 4
+                || !isPlaybackProfile(playbackProfile)
+                || !Double.isFinite(adaptiveBoost)
+                || adaptiveBoost < 0.1 || adaptiveBoost > 1.5) {
+            return false;
+        }
+        return preferences.edit()
+                .putString(MODEL_ID, normalizedModel)
+                .putString(SUMMARY_ONE, summaryOne)
+                .putString(SUMMARY_TWO, summaryTwo)
+                .putString(QUIZ, quiz)
+                .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(defaultSpeed))
+                .putBoolean(LOCK_ICON_ENABLED, lockEnabled)
+                .putString(PLAYBACK_PROFILE, playbackProfile)
+                .putBoolean(ADAPTIVE_SPEED_ENABLED, adaptiveEnabled)
+                .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(adaptiveBoost))
+                .commit();
     }
 
     private SecretKey getOrCreateSecretKey() throws GeneralSecurityException {

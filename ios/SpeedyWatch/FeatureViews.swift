@@ -32,14 +32,40 @@ struct TranscriptView: View {
     @State private var chatTurns: [TranscriptChatTurn] = []
     @State private var generating = false
     @State private var alertMessage: String?
+    @State private var captionOptions: [CaptionTrackOption] = []
+    @State private var selectedTrackID: String?
+    @State private var paragraphMode = false
+    @State private var followPlayback = false
+    @State private var playbackTime: TimeInterval?
 
     private let service = TranscriptService()
     private let client = OpenRouterClient()
 
-    private var filteredEntries: [TranscriptEntry] {
+    private var readingEntries: [TranscriptEntry] {
         guard let entries = transcript?.entries else { return [] }
+        return paragraphMode ? paragraphEntries(from: entries) : entries
+    }
+
+    private var filteredEntries: [TranscriptEntry] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return needle.isEmpty ? entries : entries.filter { $0.text.localizedCaseInsensitiveContains(needle) }
+        return needle.isEmpty
+            ? readingEntries
+            : readingEntries.filter {
+                "\($0.timestamp) \($0.text)".localizedCaseInsensitiveContains(needle)
+            }
+    }
+
+    private var activeEntryID: TranscriptEntry.ID? {
+        guard let playbackTime else { return nil }
+        for (index, entry) in readingEntries.enumerated() {
+            let nextStart = index + 1 < readingEntries.count
+                ? readingEntries[index + 1].start
+                : entry.start + max(entry.duration, 5)
+            if playbackTime >= entry.start && playbackTime < nextStart {
+                return entry.id
+            }
+        }
+        return nil
     }
 
     var body: some View {
@@ -73,6 +99,7 @@ struct TranscriptView: View {
                 if transcript != nil { summaryActions }
             }
             .task { await loadTranscript() }
+            .task(id: followPlayback) { await followCurrentCaption() }
             .alert("SpeedyWatch", isPresented: Binding(
                 get: { alertMessage != nil },
                 set: { if !$0 { alertMessage = nil } }
@@ -87,35 +114,92 @@ struct TranscriptView: View {
     }
 
     private var transcriptContent: some View {
-        List(filteredEntries) { entry in
-            Button {
-                webController.seek(to: entry.start)
-                dismiss()
-            } label: {
-                HStack(alignment: .top, spacing: 12) {
-                    Text(entry.timestamp)
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(Color.speedyAccent)
-                        .frame(width: 52, alignment: .leading)
-                    Text(entry.text)
-                        .foregroundStyle(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Menu {
+                        Button("Auto") {
+                            Task { await loadTranscript() }
+                            selectedTrackID = nil
+                        }
+                        ForEach(captionOptions) { option in
+                            Button {
+                                selectedTrackID = option.id
+                                Task { await loadTranscript(preferredTrackID: option.id) }
+                            } label: {
+                                Text(option.displayName + (option.isAutomatic ? " (auto-generated)" : ""))
+                            }
+                        }
+                    } label: {
+                        Label(selectedLanguageName, systemImage: "globe")
+                    }
+                    .disabled(captionOptions.isEmpty)
+
+                    Button {
+                        paragraphMode.toggle()
+                    } label: {
+                        Label(paragraphMode ? "Paragraphs" : "Lines", systemImage: "text.alignleft")
+                    }
+
+                    Button {
+                        followPlayback.toggle()
+                    } label: {
+                        Label("Follow", systemImage: followPlayback ? "location.fill" : "location")
+                    }
+                    .tint(followPlayback ? Color.speedyAccent : nil)
+
+                    Button {
+                        UIPasteboard.general.string = transcript?.entries
+                            .map { "\($0.timestamp) \($0.text)" }
+                            .joined(separator: "\n")
+                        alertMessage = "Transcript copied"
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
                 }
-                .padding(.vertical, 4)
+                .buttonStyle(.bordered)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("Seeks the video to \(entry.timestamp) and closes subtitles")
-            .listRowBackground(Color.speedyBackground)
-        }
-        .listStyle(.plain)
-        .searchable(text: $query, prompt: "Search subtitles")
-        .overlay(alignment: .bottom) {
-            Text("\(filteredEntries.count) of \(transcript?.entries.count ?? 0) subtitles")
-                .font(.caption)
-                .foregroundStyle(Color.speedyMuted)
-                .padding(8)
-                .background(.black.opacity(0.8), in: Capsule())
-                .padding(.bottom, 8)
+
+            ScrollViewReader { proxy in
+                List(filteredEntries) { entry in
+                    Button {
+                        webController.seek(to: entry.start)
+                        dismiss()
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(entry.timestamp)
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(Color.speedyAccent)
+                                .frame(width: 52, alignment: .leading)
+                            Text(entry.text)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Seeks the video to \(entry.timestamp) and closes subtitles")
+                    .listRowBackground(entry.id == activeEntryID ? Color.speedyAccent.opacity(0.18) : Color.speedyBackground)
+                }
+                .listStyle(.plain)
+                .searchable(text: $query, prompt: "Search subtitles")
+                .overlay(alignment: .bottom) {
+                    Text("\(filteredEntries.count) of \(readingEntries.count) \(paragraphMode ? "paragraphs" : "subtitles")")
+                        .font(.caption)
+                        .foregroundStyle(Color.speedyMuted)
+                        .padding(8)
+                        .background(.black.opacity(0.8), in: Capsule())
+                        .padding(.bottom, 8)
+                }
+                .onChange(of: activeEntryID) { _, entryID in
+                    guard followPlayback, query.isEmpty, let entryID else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(entryID, anchor: .center)
+                    }
+                }
+            }
         }
     }
 
@@ -213,16 +297,64 @@ struct TranscriptView: View {
         .disabled(generating)
     }
 
-    private func loadTranscript() async {
+    private func loadTranscript(preferredTrackID: String? = nil) async {
         loading = true
         do {
-            let loaded = try await service.load(from: webController)
+            let loaded = try await service.load(
+                from: webController,
+                preferredTrackID: preferredTrackID
+            )
             transcript = loaded
             status = "\(loaded.entries.count) subtitles · tap a line to seek"
+            if captionOptions.isEmpty {
+                captionOptions = (try? await service.availableTracks(from: webController)) ?? []
+            }
         } catch {
             status = error.localizedDescription
         }
         loading = false
+    }
+
+    private var selectedLanguageName: String {
+        guard let selectedTrackID else { return "Language: Auto" }
+        let name = captionOptions.first(where: { $0.id == selectedTrackID })?.displayName
+            ?? "Selected"
+        return "Language: \(name)"
+    }
+
+    private func paragraphEntries(from entries: [TranscriptEntry]) -> [TranscriptEntry] {
+        guard !entries.isEmpty else { return [] }
+        var paragraphs: [TranscriptEntry] = []
+        var start = entries[0].start
+        var end = entries[0].start + entries[0].duration
+        var text = entries[0].text
+        var count = 1
+        for entry in entries.dropFirst() {
+            let gap = entry.start - end
+            if count >= 4 || gap > 2.5 || entry.start - start > 30 {
+                paragraphs.append(TranscriptEntry(start: start, duration: max(0, end - start), text: text))
+                start = entry.start
+                text = entry.text
+                count = 1
+            } else {
+                text += " " + entry.text
+                count += 1
+            }
+            end = max(end, entry.start + entry.duration)
+        }
+        paragraphs.append(TranscriptEntry(start: start, duration: max(0, end - start), text: text))
+        return paragraphs
+    }
+
+    private func followCurrentCaption() async {
+        guard followPlayback else {
+            playbackTime = nil
+            return
+        }
+        while !Task.isCancelled && followPlayback {
+            playbackTime = await webController.currentTime()
+            try? await Task.sleep(for: .milliseconds(750))
+        }
     }
 
     private func generateSummary(label: String, prompt: String) async {
@@ -589,6 +721,7 @@ private struct SavedSummaryDetail: View {
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var summaries: SavedSummaryStore
 
     @State private var apiKey = ""
     @State private var revealKey = false
@@ -597,11 +730,20 @@ struct SettingsView: View {
     @State private var summaryTwo = ""
     @State private var quiz = ""
     @State private var defaultSpeed = "1"
+    @State private var playbackProfile: PlaybackProfile = .normal
+    @State private var adaptiveSpeedEnabled = false
+    @State private var sponsorBlockEnabled = false
+    @State private var sponsorCategoryEnabled = true
+    @State private var selfPromotionCategoryEnabled = true
+    @State private var interactionCategoryEnabled = false
     @State private var models: [OpenRouterModel] = []
     @State private var loadingModels = false
     @State private var status = ""
     @State private var alertMessage: String?
     @State private var prepared = false
+    @State private var backupDocument = SpeedyWatchBackupDocument()
+    @State private var showingBackupExporter = false
+    @State private var showingBackupImporter = false
 
     private let client = OpenRouterClient()
 
@@ -609,10 +751,46 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section("Playback") {
+                    Picker("Playback profile", selection: $playbackProfile) {
+                        ForEach(PlaybackProfile.allCases) { profile in
+                            Text("\(profile.displayName) · \(SpeedFormatting.rate(profile.speed))")
+                                .tag(profile)
+                        }
+                    }
+                    .onChange(of: playbackProfile) { _, profile in
+                        defaultSpeed = SpeedFormatting.value(profile.speed)
+                    }
+                    Toggle("Adaptive caption-gap speed", isOn: $adaptiveSpeedEnabled)
+                    Text("Adaptive speed adds 0.5x only during caption gaps, then returns to your chosen rate.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("SponsorBlock community skips", isOn: $sponsorBlockEnabled)
+                    Toggle("Sponsors", isOn: $sponsorCategoryEnabled)
+                        .disabled(!sponsorBlockEnabled)
+                    Toggle("Self-promotion", isOn: $selfPromotionCategoryEnabled)
+                        .disabled(!sponsorBlockEnabled)
+                    Toggle("Interaction reminders", isOn: $interactionCategoryEnabled)
+                        .disabled(!sponsorBlockEnabled)
+                    Text("Optional community-submitted segments from SponsorBlock. Lookup uses only a four-character video-ID hash prefix.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     TextField("Default speed", text: $defaultSpeed)
                         .keyboardType(.decimalPad)
                     Text("Accepted range: 0.25x to 4x")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section("Backup") {
+                    Text("Includes settings and saved summaries or quizzes. Your OpenRouter API key is never included.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Export backup") { exportBackup() }
+                    Button("Restore backup", role: .destructive) {
+                        showingBackupImporter = true
+                    }
+                    Text("Restore replaces saved content, prompts, and preferences while leaving the API key unchanged.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("OpenRouter API key") {
@@ -644,6 +822,11 @@ struct SettingsView: View {
                     .disabled(models.isEmpty)
                     Text(modelID.isEmpty ? "Refresh models to choose a text model." : modelID)
                         .font(.caption.monospaced()).foregroundStyle(.secondary)
+                    if let selectedModel {
+                        Text(selectedModel.guidance)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Summary One prompt") {
@@ -678,13 +861,34 @@ struct SettingsView: View {
                 set: { if !$0 { alertMessage = nil } }
             )) { Button("OK", role: .cancel) { alertMessage = nil } }
             message: { Text(alertMessage ?? "") }
+            .fileExporter(
+                isPresented: $showingBackupExporter,
+                document: backupDocument,
+                contentType: .json,
+                defaultFilename: "SpeedyWatch-backup"
+            ) { result in
+                if case .failure = result {
+                    alertMessage = "Backup could not be exported"
+                }
+            }
+            .fileImporter(
+                isPresented: $showingBackupImporter,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                restoreBackup(from: result)
+            }
         }
         .presentationDetents([.large])
         .interactiveDismissDisabled()
     }
 
+    private var selectedModel: OpenRouterModel? {
+        models.first(where: { $0.id == modelID })
+    }
+
     private var selectedModelName: String {
-        models.first(where: { $0.id == modelID })?.displayName ?? (modelID.isEmpty ? "None" : modelID)
+        selectedModel?.displayName ?? (modelID.isEmpty ? "None" : modelID)
     }
 
     private var keyPreview: String {
@@ -703,6 +907,12 @@ struct SettingsView: View {
         summaryTwo = settings.summaryTwoPrompt.isEmpty ? AppSettings.defaultSummaryTwoPrompt : settings.summaryTwoPrompt
         quiz = settings.quizPrompt.isEmpty ? AppSettings.defaultQuizPrompt : settings.quizPrompt
         defaultSpeed = SpeedFormatting.value(settings.defaultPlaybackSpeed)
+        playbackProfile = settings.playbackProfile
+        adaptiveSpeedEnabled = settings.adaptiveSpeedEnabled
+        sponsorBlockEnabled = settings.sponsorBlockEnabled
+        sponsorCategoryEnabled = settings.sponsorCategoryEnabled
+        selfPromotionCategoryEnabled = settings.selfPromotionCategoryEnabled
+        interactionCategoryEnabled = settings.interactionCategoryEnabled
     }
 
     private func refreshModels() async {
@@ -722,6 +932,36 @@ struct SettingsView: View {
         loadingModels = false
     }
 
+    private func exportBackup() {
+        do {
+            backupDocument = try SpeedyWatchBackupService.create(settings: settings, store: summaries)
+            showingBackupExporter = true
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    private func restoreBackup(from result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessed {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            let data = try handle.read(upToCount: SpeedyWatchBackupDocument.maximumBytes + 1) ?? Data()
+            try SpeedyWatchBackupService.restore(data: data, settings: settings, store: summaries)
+            prepared = false
+            prepareDrafts()
+            alertMessage = "Backup restored. The API key was left unchanged."
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
     private func save() {
         guard let speed = Double(defaultSpeed.replacingOccurrences(of: ",", with: ".")), speed >= 0.25, speed <= 4 else {
             alertMessage = "Default speed must be between 0.25 and 4"
@@ -734,7 +974,15 @@ struct SettingsView: View {
                 summaryOnePrompt: summaryOne,
                 summaryTwoPrompt: summaryTwo,
                 quizPrompt: quiz,
-                defaultPlaybackSpeed: speed
+                defaultPlaybackSpeed: speed,
+                playbackProfile: playbackProfile,
+                adaptiveSpeedEnabled: adaptiveSpeedEnabled
+            )
+            settings.setSponsorBlock(
+                enabled: sponsorBlockEnabled,
+                sponsor: sponsorCategoryEnabled,
+                selfPromotion: selfPromotionCategoryEnabled,
+                interaction: interactionCategoryEnabled
             )
             dismiss()
         } catch {
@@ -744,36 +992,64 @@ struct SettingsView: View {
 }
 
 private struct ModelSelectionView: View {
+    private enum Filter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case free = "Free"
+        case longContext = "Long context"
+
+        var id: Self { self }
+    }
+
     let models: [OpenRouterModel]
     @Binding var selectedID: String
     @State private var query = ""
+    @State private var filter: Filter = .all
 
     private var filtered: [OpenRouterModel] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return needle.isEmpty ? models : models.filter { $0.searchText.contains(needle) }
+        return models.filter { model in
+            let matchesFilter: Bool
+            switch filter {
+            case .all:
+                matchesFilter = true
+            case .free:
+                matchesFilter = model.isFree
+            case .longContext:
+                matchesFilter = model.hasLongContext
+            }
+            return matchesFilter && (needle.isEmpty || model.searchText.contains(needle))
+        }
     }
 
     var body: some View {
-        List(filtered) { model in
-            Button {
-                selectedID = model.id
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(model.displayName).foregroundStyle(.primary)
-                        Text(model.id).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        if model.contextLength > 0 {
-                            Text("Context: \(model.contextLength.formatted()) tokens")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    if model.id == selectedID {
-                        Image(systemName: "checkmark").foregroundStyle(Color.speedyAccent)
-                    }
+        List {
+            Picker("Filter models", selection: $filter) {
+                ForEach(Filter.allCases) { option in
+                    Text(option.rawValue).tag(option)
                 }
             }
-            .accessibilityAddTraits(model.id == selectedID ? .isSelected : [])
+            .pickerStyle(.segmented)
+
+            ForEach(filtered) { model in
+                Button {
+                    selectedID = model.id
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(model.displayName).foregroundStyle(.primary)
+                            Text(model.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Text(model.guidance)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if model.id == selectedID {
+                            Image(systemName: "checkmark").foregroundStyle(Color.speedyAccent)
+                        }
+                    }
+                }
+                .accessibilityAddTraits(model.id == selectedID ? .isSelected : [])
+            }
         }
         .navigationTitle("OpenRouter Model")
         .searchable(text: $query, prompt: "Search models")

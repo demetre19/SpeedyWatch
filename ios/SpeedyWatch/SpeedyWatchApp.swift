@@ -18,6 +18,9 @@ struct SpeedyWatchApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             UIApplication.shared.isIdleTimerDisabled = phase == .active
+            if phase == .active {
+                webController.openPendingSharedVideo()
+            }
         }
     }
 }

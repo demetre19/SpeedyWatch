@@ -1,6 +1,7 @@
 package com.speedywatch.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -8,6 +9,8 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputFilter;
 import android.text.Editable;
 import android.text.InputType;
@@ -39,8 +42,22 @@ import java.util.concurrent.ExecutorService;
 
 final class YouTubeSubsDialog {
     interface TranscriptHost {
-        void loadTranscript(TranscriptCallback callback);
+        default void loadTranscript(TranscriptCallback callback) {
+            loadTranscript("", callback);
+        }
+        void loadTranscript(String languageCode, TranscriptCallback callback);
+        void loadCaptionOptions(CaptionOptionsCallback callback);
         void seekTo(double seconds);
+        void currentTime(CurrentTimeCallback callback);
+    }
+
+    interface CaptionOptionsCallback {
+        void onLoaded(List<CaptionOption> options);
+        void onError(String message);
+    }
+
+    interface CurrentTimeCallback {
+        void onTime(double seconds);
     }
 
     interface TranscriptCallback {
@@ -62,6 +79,9 @@ final class YouTubeSubsDialog {
     private final SavedSummaryStore savedSummaryStore;
     private final List<TranscriptEntry> entries = new ArrayList<>();
     private final List<ChatTurn> chatTurns = new ArrayList<>();
+    private final Handler followHandler = new Handler(Looper.getMainLooper());
+    private final Runnable followTick = this::updateFollowPosition;
+    private final List<CaptionOption> captionOptions = new ArrayList<>();
 
     private Dialog dialog;
     private TextView status;
@@ -81,6 +101,12 @@ final class YouTubeSubsDialog {
     private LinearLayout chatRow;
     private EditText chatInput;
     private Button sendChatButton;
+    private Button readingModeButton;
+    private Button followButton;
+    private boolean followPlayback;
+    private Button languageButton;
+    private String selectedLanguageCode = "";
+    private double currentPlaybackTime = -1;
     private String videoTitle = "YouTube Video";
     private String videoUrl = "";
     private String currentSummaryText = "";
@@ -116,6 +142,7 @@ final class YouTubeSubsDialog {
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.CENTER);
         }
+        dialog.setOnDismissListener(ignored -> followHandler.removeCallbacks(followTick));
         loadTranscript();
     }
 
@@ -160,6 +187,48 @@ final class YouTubeSubsDialog {
         );
         searchParams.setMargins(0, dp(10), 0, dp(8));
         content.addView(search, searchParams);
+
+        languageButton = button("Language: Auto");
+        languageButton.setEnabled(false);
+        languageButton.setOnClickListener(ignored -> showLanguagePicker());
+        LinearLayout.LayoutParams languageParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        languageParams.setMargins(0, 0, 0, dp(8));
+        content.addView(languageButton, languageParams);
+
+        LinearLayout readingActions = horizontalLayout();
+        readingModeButton = button("Lines");
+        readingModeButton.setOnClickListener(ignored -> {
+            boolean paragraphs = !transcriptAdapter.isParagraphMode();
+            transcriptAdapter.setParagraphMode(paragraphs);
+            readingModeButton.setText(paragraphs ? "Paragraphs" : "Lines");
+            updateTranscriptStatus();
+        });
+        followButton = button("Follow: Off");
+        followButton.setOnClickListener(ignored -> {
+            followPlayback = !followPlayback;
+            followButton.setText(followPlayback ? "Follow: On" : "Follow: Off");
+            if (followPlayback) {
+                updateFollowPosition();
+            } else {
+                followHandler.removeCallbacks(followTick);
+                currentPlaybackTime = -1;
+                transcriptAdapter.notifyDataSetChanged();
+            }
+        });
+        Button copyTranscriptButton = button("Copy transcript");
+        copyTranscriptButton.setOnClickListener(ignored -> copyTranscript());
+        addWeighted(readingActions, readingModeButton, 1f, 0);
+        addWeighted(readingActions, followButton, 1f, dp(8));
+        addWeighted(readingActions, copyTranscriptButton, 1f, dp(8));
+        LinearLayout.LayoutParams readingParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        readingParams.setMargins(0, 0, 0, dp(8));
+        content.addView(readingActions, readingParams);
 
         LinearLayout actions = horizontalLayout();
         summaryOneButton = button("Summary One");
@@ -286,15 +355,20 @@ final class YouTubeSubsDialog {
             @Override
             public void afterTextChanged(Editable editable) {
                 transcriptAdapter.filter(editable.toString());
-                status.setText(transcriptAdapter.getCount() + " of " + entries.size() + " subtitles");
+                updateTranscriptStatus();
             }
         });
         return content;
     }
 
     private void loadTranscript() {
+        loadTranscript("");
+    }
+
+    private void loadTranscript(String languageCode) {
         status.setText("Loading subtitles...");
-        host.loadTranscript(new TranscriptCallback() {
+        selectedLanguageCode = languageCode == null ? "" : languageCode;
+        host.loadTranscript(selectedLanguageCode, new TranscriptCallback() {
             @Override
             public void onLoaded(List<TranscriptEntry> loaded, String title, String url) {
                 if (dialog == null || !dialog.isShowing()) {
@@ -307,7 +381,10 @@ final class YouTubeSubsDialog {
                 transcriptAdapter.setEntries(entries);
                 summaryOneButton.setEnabled(!entries.isEmpty());
                 summaryTwoButton.setEnabled(!entries.isEmpty());
-                status.setText(entries.size() + " subtitles | tap a line to seek");
+                updateTranscriptStatus();
+                if (captionOptions.isEmpty()) {
+                    loadCaptionOptions();
+                }
             }
 
             @Override
@@ -319,6 +396,50 @@ final class YouTubeSubsDialog {
                 Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void loadCaptionOptions() {
+        host.loadCaptionOptions(new CaptionOptionsCallback() {
+            @Override
+            public void onLoaded(List<CaptionOption> options) {
+                if (dialog == null || !dialog.isShowing()) {
+                    return;
+                }
+                captionOptions.clear();
+                captionOptions.addAll(options);
+                languageButton.setEnabled(!captionOptions.isEmpty());
+            }
+
+            @Override
+            public void onError(String message) {
+                // The active caption remains available when the language list cannot load.
+            }
+        });
+    }
+
+    private void showLanguagePicker() {
+        List<CaptionOption> choices = new ArrayList<>();
+        choices.add(new CaptionOption("", "Auto"));
+        choices.addAll(captionOptions);
+        String[] labels = new String[choices.size()];
+        int selectedIndex = 0;
+        for (int index = 0; index < choices.size(); index++) {
+            CaptionOption option = choices.get(index);
+            labels[index] = option.label;
+            if (option.languageCode.equals(selectedLanguageCode)) {
+                selectedIndex = index;
+            }
+        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Caption language")
+                .setSingleChoiceItems(labels, selectedIndex, (picker, index) -> {
+                    CaptionOption option = choices.get(index);
+                    languageButton.setText("Language: " + option.label);
+                    picker.dismiss();
+                    loadTranscript(option.languageCode);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void summarize(String prompt, String summaryName) {
@@ -617,6 +738,51 @@ final class YouTubeSubsDialog {
         shareSummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
     }
 
+    private void updateTranscriptStatus() {
+        String unit = transcriptAdapter.isParagraphMode() ? "paragraphs" : "subtitles";
+        status.setText(transcriptAdapter.getCount()
+                + " of "
+                + transcriptAdapter.totalCount()
+                + " "
+                + unit
+                + " | tap a line to seek");
+    }
+
+    private void copyTranscript() {
+        if (entries.isEmpty()) {
+            return;
+        }
+        StringBuilder output = new StringBuilder();
+        for (TranscriptEntry entry : entries) {
+            if (output.length() > 0) {
+                output.append('\n');
+            }
+            output.append(entry.timestamp()).append(' ').append(entry.text);
+        }
+        ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("SpeedyWatch transcript", output.toString()));
+        Toast.makeText(activity, "Transcript copied", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateFollowPosition() {
+        followHandler.removeCallbacks(followTick);
+        if (!followPlayback || dialog == null || !dialog.isShowing()) {
+            return;
+        }
+        host.currentTime(seconds -> {
+            if (!followPlayback || dialog == null || !dialog.isShowing()) {
+                return;
+            }
+            currentPlaybackTime = seconds;
+            int active = transcriptAdapter.activePosition(seconds);
+            transcriptAdapter.notifyDataSetChanged();
+            if (active >= 0 && search.getText().toString().trim().isEmpty()) {
+                transcriptList.smoothScrollToPosition(active);
+            }
+            followHandler.postDelayed(followTick, 750);
+        });
+    }
+
     private void showTranscript() {
         summaryScroll.setVisibility(View.GONE);
         chatTitle.setVisibility(View.GONE);
@@ -626,7 +792,7 @@ final class YouTubeSubsDialog {
         shareSummaryButton.setVisibility(View.GONE);
         transcriptList.setVisibility(View.VISIBLE);
         search.setVisibility(View.VISIBLE);
-        status.setText(transcriptAdapter.getCount() + " of " + entries.size() + " subtitles");
+        updateTranscriptStatus();
     }
 
     private void copySummary() {
@@ -719,13 +885,84 @@ final class YouTubeSubsDialog {
         }
     }
 
+    static final class CaptionOption {
+        final String languageCode;
+        final String label;
+
+        CaptionOption(String languageCode, String label) {
+            this.languageCode = languageCode;
+            this.label = label;
+        }
+    }
+
     private final class TranscriptAdapter extends BaseAdapter {
+
         private final List<TranscriptEntry> all = new ArrayList<>();
         private final List<TranscriptEntry> visible = new ArrayList<>();
+        private final List<TranscriptEntry> source = new ArrayList<>();
+        private boolean paragraphMode;
 
         void setEntries(List<TranscriptEntry> loaded) {
+            source.clear();
+            source.addAll(loaded);
+            rebuild();
+        }
+
+        void setParagraphMode(boolean enabled) {
+            if (paragraphMode == enabled) {
+                return;
+            }
+            paragraphMode = enabled;
+            rebuild();
+        }
+
+        boolean isParagraphMode() {
+            return paragraphMode;
+        }
+
+        int totalCount() {
+            return all.size();
+        }
+
+        int activePosition(double seconds) {
+            for (int index = 0; index < visible.size(); index++) {
+                TranscriptEntry entry = visible.get(index);
+                double end = index + 1 < visible.size()
+                        ? visible.get(index + 1).startSeconds
+                        : entry.startSeconds + Math.max(entry.durationSeconds, 5);
+                if (seconds >= entry.startSeconds && seconds < end) {
+                    return index;
+                }
+            }
+            return -1;
+        }
+
+        private void rebuild() {
             all.clear();
-            all.addAll(loaded);
+            if (!paragraphMode) {
+                all.addAll(source);
+            } else if (!source.isEmpty()) {
+                double start = source.get(0).startSeconds;
+                double end = start + source.get(0).durationSeconds;
+                StringBuilder text = new StringBuilder(source.get(0).text);
+                int count = 1;
+                for (int index = 1; index < source.size(); index++) {
+                    TranscriptEntry entry = source.get(index);
+                    double gap = entry.startSeconds - end;
+                    if (count >= 4 || gap > 2.5 || entry.startSeconds - start > 30) {
+                        all.add(new TranscriptEntry(start, Math.max(0, end - start), text.toString()));
+                        start = entry.startSeconds;
+                        text.setLength(0);
+                        text.append(entry.text);
+                        count = 1;
+                    } else {
+                        text.append(' ').append(entry.text);
+                        count++;
+                    }
+                    end = Math.max(end, entry.startSeconds + entry.durationSeconds);
+                }
+                all.add(new TranscriptEntry(start, Math.max(0, end - start), text.toString()));
+            }
             filter(search == null ? "" : search.getText().toString());
         }
 
@@ -779,7 +1016,8 @@ final class YouTubeSubsDialog {
             TranscriptEntry entry = getItem(position);
             timestamp.setText(entry.timestamp());
             line.setText(entry.text);
-            row.setBackgroundColor(BACKGROUND);
+            row.setBackgroundColor(position == activePosition(currentPlaybackTime)
+                    ? Color.rgb(58, 24, 31) : BACKGROUND);
             return row;
         }
     }

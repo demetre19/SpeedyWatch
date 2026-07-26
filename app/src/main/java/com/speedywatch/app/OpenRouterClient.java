@@ -23,15 +23,63 @@ final class OpenRouterClient {
         final String id;
         final String name;
         final int contextLength;
+        final double promptPrice;
+        final double completionPrice;
 
-        Model(String id, String name, int contextLength) {
+        Model(String id, String name, int contextLength, double promptPrice, double completionPrice) {
             this.id = id;
             this.name = name;
             this.contextLength = contextLength;
+            this.promptPrice = promptPrice;
+            this.completionPrice = completionPrice;
+        }
+
+        boolean isFree() {
+            return Double.isFinite(promptPrice)
+                    && Double.isFinite(completionPrice)
+                    && promptPrice == 0
+                    && completionPrice == 0;
+        }
+
+        boolean hasLongContext() {
+            return contextLength >= 100_000;
+        }
+
+        String guidance() {
+            return contextLabel() + " • " + pricingLabel();
         }
 
         String searchText() {
-            return (name + " " + id).toLowerCase(java.util.Locale.US);
+            return (name + " " + id + " " + guidance() + (isFree() ? " free" : " paid"))
+                    .toLowerCase(java.util.Locale.US);
+        }
+
+        private String contextLabel() {
+            if (contextLength <= 0) {
+                return "Context unknown";
+            }
+            if (contextLength >= 1_000_000) {
+                return String.format(java.util.Locale.US, "%.1fM context", contextLength / 1_000_000d);
+            }
+            return Math.round(contextLength / 1_000d) + "K context";
+        }
+
+        private String pricingLabel() {
+            if (!Double.isFinite(promptPrice) || !Double.isFinite(completionPrice)) {
+                return "Pricing unavailable";
+            }
+            if (isFree()) {
+                return "Free";
+            }
+            return "$" + pricePerMillion(promptPrice)
+                    + "/M input • $" + pricePerMillion(completionPrice) + "/M output";
+        }
+
+        private static String pricePerMillion(double perToken) {
+            double value = perToken * 1_000_000d;
+            return String.format(java.util.Locale.US, value >= 10 ? "%.2f" : "%.4f", value)
+                    .replaceAll("0+$", "")
+                    .replaceAll("\\.$", "");
         }
     }
     static final class Message {
@@ -65,7 +113,14 @@ final class OpenRouterClient {
                     continue;
                 }
                 String name = item.optString("name", id).trim();
-                models.add(new Model(id, name.isEmpty() ? id : name, item.optInt("context_length", 0)));
+                JSONObject pricing = item.optJSONObject("pricing");
+                models.add(new Model(
+                        id,
+                        name.isEmpty() ? id : name,
+                        item.optInt("context_length", 0),
+                        parsePrice(pricing, "prompt"),
+                        parsePrice(pricing, "completion")
+                ));
             }
             models.sort(Comparator.comparing(model -> model.name.toLowerCase(java.util.Locale.US)));
             return models;
@@ -192,6 +247,18 @@ final class OpenRouterClient {
                 output.write(buffer, 0, count);
             }
             return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static double parsePrice(JSONObject pricing, String key) {
+        if (pricing == null) {
+            return Double.NaN;
+        }
+        try {
+            double value = Double.parseDouble(pricing.optString(key, ""));
+            return Double.isFinite(value) && value >= 0 ? value : Double.NaN;
+        } catch (NumberFormatException ignored) {
+            return Double.NaN;
         }
     }
 

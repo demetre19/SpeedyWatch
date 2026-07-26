@@ -21,7 +21,6 @@ struct ContentView: View {
     @State private var activeSheet: ActiveSheet?
     @State private var speed = 1.0
     @State private var customSpeed = "1"
-    @State private var adSkipping = true
     @State private var initialized = false
     @FocusState private var customSpeedFocused: Bool
 
@@ -48,10 +47,17 @@ struct ContentView: View {
             guard !initialized else { return }
             initialized = true
             applySpeed(settings.defaultPlaybackSpeed)
-            webController.setAdSkipping(adSkipping)
+            webController.setAdaptiveSpeed(settings.adaptiveSpeedEnabled)
+            configureSponsorBlock()
         }
         .onChange(of: settings.defaultPlaybackSpeed) { _, newValue in
             applySpeed(newValue)
+        }
+        .onChange(of: settings.adaptiveSpeedEnabled) { _, enabled in
+            webController.setAdaptiveSpeed(enabled)
+        }
+        .onChange(of: sponsorConfigurationKey) { _, _ in
+            configureSponsorBlock()
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
@@ -130,21 +136,27 @@ struct ContentView: View {
                 Button("−0.1") { applySpeed(speed - 0.1) }
                     .buttonStyle(SpeedButtonStyle())
                     .accessibilityLabel("Decrease speed by 0.1")
-                Text("\(SpeedFormatting.rate(speed)) · ads \(adSkipping ? "blocked" : "allowed")")
+                Text("\(SpeedFormatting.rate(speed))\(settings.adaptiveSpeedEnabled ? " · adaptive" : "") · ads blocked")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.speedyAccent))
-                    .accessibilityLabel("Playback speed \(SpeedFormatting.rate(speed)), ads \(adSkipping ? "blocked" : "allowed")")
+                    .accessibilityLabel("Playback speed \(SpeedFormatting.rate(speed)), ads blocked")
                 Button("+0.1") { applySpeed(speed + 0.1) }
                     .buttonStyle(SpeedButtonStyle())
                     .accessibilityLabel("Increase speed by 0.1")
-                Button("Ads: \(adSkipping ? "ON" : "OFF")") {
-                    adSkipping.toggle()
-                    webController.setAdSkipping(adSkipping)
+                Menu {
+                    ForEach(PlaybackProfile.allCases) { profile in
+                        Button("\(profile.displayName) · \(SpeedFormatting.rate(profile.speed))") {
+                            settings.applyPlaybackProfile(profile)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .frame(width: 42, height: 42)
                 }
-                .buttonStyle(SpeedButtonStyle(selected: adSkipping))
-                .accessibilityHint("Toggles best-effort YouTube ad skipping")
+                .buttonStyle(SpeedButtonStyle(selected: settings.playbackProfile.speed == speed))
+                .accessibilityLabel("Playback profile")
             }
         }
         .padding(.horizontal, 8)
@@ -162,6 +174,24 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .foregroundStyle(.white)
         .accessibilityLabel(label)
+    }
+
+    private var sponsorConfigurationKey: String {
+        [
+            settings.sponsorBlockEnabled,
+            settings.sponsorCategoryEnabled,
+            settings.selfPromotionCategoryEnabled,
+            settings.interactionCategoryEnabled
+        ].map { String($0) }.joined(separator: "|")
+    }
+
+    private func configureSponsorBlock() {
+        webController.configureSponsorBlock(
+            enabled: settings.sponsorBlockEnabled,
+            sponsor: settings.sponsorCategoryEnabled,
+            selfPromotion: settings.selfPromotionCategoryEnabled,
+            interaction: settings.interactionCategoryEnabled
+        )
     }
 
     private func applyCustomSpeed() {

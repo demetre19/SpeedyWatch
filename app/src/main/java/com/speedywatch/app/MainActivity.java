@@ -61,6 +61,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,6 +74,8 @@ public final class MainActivity extends Activity {
     private static final int PANEL = Color.rgb(30, 30, 30);
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
+    private static final int REQUEST_EXPORT_BACKUP = 4101;
+    private static final int REQUEST_IMPORT_BACKUP = 4102;
 
     private WebView webView;
     private TextView statusText;
@@ -80,6 +85,8 @@ public final class MainActivity extends Activity {
     private final OpenRouterClient openRouterClient = new OpenRouterClient();
     private final ExecutorService ioExecutor = Executors.newFixedThreadPool(2);
     private final AtomicLong transcriptRequestCounter = new AtomicLong();
+    private final SponsorBlockClient sponsorBlockClient = new SponsorBlockClient();
+    private final AtomicLong sponsorBlockRequestCounter = new AtomicLong();
     private SpeedyWatchSettings appSettings;
     private SavedSummaryStore savedSummaryStore;
     private LinearLayout appRoot;
@@ -99,6 +106,7 @@ public final class MainActivity extends Activity {
     private volatile String activeTranscriptPageUrl = "";
     private volatile String activeVideoId = "";
     private volatile String lastCaptionRequestUrl = "";
+    private volatile String lastSponsorLookupKey = "";
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -170,6 +178,11 @@ public final class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return openExternallyIfNeeded(Uri.parse(url));
             }
+            @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                refreshSponsorSegments(url);
+            }
+
 
             @Override
             public void onPageFinished(WebView view, String url) {
@@ -194,9 +207,82 @@ public final class MainActivity extends Activity {
             }
         });
 
+        String incomingVideoUrl = incomingVideoUrl(getIntent());
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(HOME_URL);
+            webView.loadUrl(incomingVideoUrl == null ? HOME_URL : incomingVideoUrl);
+        } else if (incomingVideoUrl != null) {
+            webView.loadUrl(incomingVideoUrl);
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        String videoUrl = incomingVideoUrl(intent);
+        if (videoUrl != null) {
+            webView.loadUrl(videoUrl);
+        } else if (Intent.ACTION_SEND.equals(intent.getAction())
+                || Intent.ACTION_VIEW.equals(intent.getAction())) {
+            Toast.makeText(this, "Share an HTTPS YouTube video link", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        Uri uri = data.getData();
+        if (requestCode == REQUEST_EXPORT_BACKUP) {
+            exportBackup(uri);
+        } else if (requestCode == REQUEST_IMPORT_BACKUP) {
+            importBackup(uri);
+        }
+    }
+
+    private String incomingVideoUrl(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            Uri data = intent.getData();
+            return data == null ? null : YouTubeUrls.canonicalVideoUrl(data.toString());
+        }
+        if (!Intent.ACTION_SEND.equals(intent.getAction())) {
+            return null;
+        }
+
+        CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        String canonical = YouTubeUrls.canonicalVideoUrlFromText(
+                text == null ? null : text.toString()
+        );
+        if (canonical != null) {
+            return canonical;
+        }
+        String html = intent.getStringExtra(Intent.EXTRA_HTML_TEXT);
+        canonical = YouTubeUrls.canonicalVideoUrlFromText(html);
+        if (canonical != null) {
+            return canonical;
+        }
+        ClipData clipData = intent.getClipData();
+        if (clipData == null) {
+            return null;
+        }
+        int itemCount = Math.min(clipData.getItemCount(), 10);
+        for (int index = 0; index < itemCount; index++) {
+            ClipData.Item item = clipData.getItemAt(index);
+            Uri uri = item.getUri();
+            canonical = YouTubeUrls.canonicalVideoUrl(uri == null ? null : uri.toString());
+            if (canonical == null && item.getText() != null) {
+                canonical = YouTubeUrls.canonicalVideoUrlFromText(item.getText().toString());
+            }
+            if (canonical != null) {
+                return canonical;
+            }
+        }
+        return null;
     }
 
     private LinearLayout buildUi() {
@@ -455,7 +541,10 @@ public final class MainActivity extends Activity {
 
 
     private void injectController() {
-        webView.evaluateJavascript(controllerScript, ignored -> applyControllerState());
+        webView.evaluateJavascript(controllerScript, ignored -> {
+            applyControllerState();
+            refreshSponsorSegments(webView.getUrl());
+        });
     }
 
     private void applyControllerState() {
@@ -464,20 +553,27 @@ public final class MainActivity extends Activity {
                 + "if (!c) return 'missing'; "
                 + "c.setSpeed(" + String.format(Locale.US, "%.2f", selectedSpeed) + "); "
                 + "c.setAdSkipping(true); "
+                + "c.setAdaptiveSpeed(" + appSettings.isAdaptiveSpeedEnabled() + ", "
+                + String.format(Locale.US, "%.2f", appSettings.getAdaptiveSpeedBoost()) + "); "
+                + "c.setSponsorSkipping(" + appSettings.isSponsorBlockEnabled() + "); "
                 + "const media = document.querySelector('video, audio'); "
                 + "return media ? 'media:' + media.playbackRate.toFixed(2) : 'ready'; })();";
         String liveResult = "\"media:" + String.format(Locale.US, "%.2f", selectedSpeed) + "\"";
         webView.evaluateJavascript(script, result -> {
             boolean ready = result != null && !result.equals("\"missing\"") && !result.equals("null");
             String label = result != null && result.equals(liveResult)
-                    ? formatRate(selectedSpeed) + " live | ads blocked"
+                    ? formatRate(selectedSpeed) + " live"
+                            + (appSettings.isAdaptiveSpeedEnabled() ? " | adaptive" : "")
+                            + " | ads blocked"
                     : statusLabel();
             statusText.setText(ready ? label : formatRate(selectedSpeed) + " | loading");
         });
     }
 
     private String statusLabel() {
-        return formatRate(selectedSpeed) + " | ads blocked";
+        return formatRate(selectedSpeed)
+                + (appSettings.isAdaptiveSpeedEnabled() ? " | adaptive" : "")
+                + " | ads blocked";
     }
 
     private static String formatRate(double rate) {
@@ -643,8 +739,86 @@ public final class MainActivity extends Activity {
                 () -> {
                     setSpeed(appSettings.getDefaultPlaybackSpeed());
                     applyScreenLockSettings();
-                }
+                    lastSponsorLookupKey = "";
+                    refreshSponsorSegments(webView.getUrl());
+                },
+                this::chooseBackupDestination,
+                this::chooseBackupFile
         ).show();
+    }
+
+    private void chooseBackupDestination() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, "SpeedyWatch-backup.json");
+        startActivityForResult(intent, REQUEST_EXPORT_BACKUP);
+    }
+
+    private void chooseBackupFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json");
+        startActivityForResult(intent, REQUEST_IMPORT_BACKUP);
+    }
+
+    private void exportBackup(Uri uri) {
+        ioExecutor.execute(() -> {
+            try {
+                String json = AppBackup.create(appSettings, savedSummaryStore);
+                try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
+                    if (output == null) {
+                        throw new IOException("Backup destination is unavailable");
+                    }
+                    output.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Backup exported without the API key", Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Backup could not be exported", Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private void importBackup(Uri uri) {
+        ioExecutor.execute(() -> {
+            try {
+                String json;
+                try (InputStream input = getContentResolver().openInputStream(uri);
+                     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                    if (input == null) {
+                        throw new IOException("Backup file is unavailable");
+                    }
+                    byte[] buffer = new byte[8192];
+                    int total = 0;
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        total += count;
+                        if (total > AppBackup.MAXIMUM_BYTES) {
+                            throw new IOException("Backup file is too large");
+                        }
+                        output.write(buffer, 0, count);
+                    }
+                    json = output.toString(StandardCharsets.UTF_8.name());
+                }
+                AppBackup.restore(json, appSettings, savedSummaryStore);
+                runOnUiThread(() -> {
+                    setSpeed(appSettings.getDefaultPlaybackSpeed());
+                    applyScreenLockSettings();
+                    lastSponsorLookupKey = "";
+                    refreshSponsorSegments(webView.getUrl());
+                    Toast.makeText(
+                            this,
+                            "Backup restored. The API key was left unchanged.",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            } catch (Exception error) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Backup could not be restored", Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     private void showYouTubeSubs() {
@@ -669,21 +843,109 @@ public final class MainActivity extends Activity {
         ).show();
     }
 
+    private void refreshSponsorSegments(String pageUrl) {
+        String canonical = YouTubeUrls.canonicalVideoUrl(pageUrl);
+        Uri canonicalUri = canonical == null ? null : Uri.parse(canonical);
+        String videoId = canonicalUri == null ? null : canonicalUri.getQueryParameter("v");
+        if (!appSettings.isSponsorBlockEnabled()
+                || videoId == null
+                || !videoId.matches("[A-Za-z0-9_-]{11}")) {
+            lastSponsorLookupKey = "";
+            applySponsorSegments(false, Collections.emptyList());
+            return;
+        }
+        Set<String> categories = new HashSet<>();
+        if (appSettings.skipsSponsorSegments()) categories.add("sponsor");
+        if (appSettings.skipsSelfPromotionSegments()) categories.add("selfpromo");
+        if (appSettings.skipsInteractionSegments()) categories.add("interaction");
+        String lookupKey = videoId + "|" + String.join(",", new java.util.TreeSet<>(categories));
+        if (categories.isEmpty()) {
+            lastSponsorLookupKey = "";
+            applySponsorSegments(false, Collections.emptyList());
+            return;
+        }
+        if (lookupKey.equals(lastSponsorLookupKey)) {
+            return;
+        }
+        lastSponsorLookupKey = lookupKey;
+        long requestId = sponsorBlockRequestCounter.incrementAndGet();
+        applySponsorSegments(true, Collections.emptyList());
+        ioExecutor.execute(() -> {
+            try {
+                List<SponsorBlockClient.Segment> segments = sponsorBlockClient.fetch(videoId, categories);
+                runOnUiThread(() -> {
+                    if (requestId == sponsorBlockRequestCounter.get()
+                            && lookupKey.equals(lastSponsorLookupKey)) {
+                        applySponsorSegments(true, segments);
+                    }
+                });
+            } catch (Exception ignored) {
+                runOnUiThread(() -> {
+                    if (requestId == sponsorBlockRequestCounter.get()
+                            && lookupKey.equals(lastSponsorLookupKey)) {
+                        applySponsorSegments(true, Collections.emptyList());
+                    }
+                });
+            }
+        });
+    }
+
+    private void applySponsorSegments(boolean enabled, List<SponsorBlockClient.Segment> segments) {
+        StringBuilder script = new StringBuilder(
+                "(() => { const c = window.__speedyWatchController; if (!c) return false; "
+                        + "c.clearSponsorSegments(); c.setSponsorSkipping(" + enabled + "); ");
+        for (SponsorBlockClient.Segment segment : segments) {
+            script.append("c.addSponsorSegment(")
+                    .append(String.format(Locale.US, "%.3f", segment.start)).append(',')
+                    .append(String.format(Locale.US, "%.3f", segment.end)).append(',')
+                    .append(segment.category).append("); ");
+        }
+        script.append("return true; })();");
+        webView.evaluateJavascript(script.toString(), null);
+    }
+
     private YouTubeSubsDialog.TranscriptHost transcriptHost() {
         return new YouTubeSubsDialog.TranscriptHost() {
             @Override
-            public void loadTranscript(YouTubeSubsDialog.TranscriptCallback callback) {
-                requestTranscript(callback);
+            public void loadTranscript(
+                    String languageCode,
+                    YouTubeSubsDialog.TranscriptCallback callback
+            ) {
+                requestTranscript(languageCode, callback);
+            }
+
+            @Override
+            public void loadCaptionOptions(YouTubeSubsDialog.CaptionOptionsCallback callback) {
+                requestCaptionOptions(callback);
             }
 
             @Override
             public void seekTo(double seconds) {
                 seekVideo(seconds);
             }
+
+            @Override
+            public void currentTime(YouTubeSubsDialog.CurrentTimeCallback callback) {
+                String script = "window.__speedyWatchController "
+                        + "? window.__speedyWatchController.currentTime() : null";
+                webView.evaluateJavascript(script, result -> {
+                    try {
+                        Object value = new JSONTokener(result == null ? "null" : result).nextValue();
+                        if (value instanceof Number number) {
+                            callback.onTime(number.doubleValue());
+                        }
+                    } catch (Exception ignored) {
+                        // The transcript remains usable when playback time is unavailable.
+                    }
+                });
+            }
         };
     }
 
-    private void requestTranscript(YouTubeSubsDialog.TranscriptCallback callback) {
+    private void requestTranscript(
+            String languageCode,
+            YouTubeSubsDialog.TranscriptCallback callback
+    ) {
         String pageUrl = webView.getUrl();
         Uri pageUri = pageUrl == null ? null : Uri.parse(pageUrl);
         String videoId = pageUri == null ? null : pageUri.getQueryParameter("v");
@@ -705,6 +967,11 @@ public final class MainActivity extends Activity {
         activeTranscriptPageUrl = pageUrl;
         activeVideoId = videoId;
         lastCaptionRequestUrl = "";
+
+        if (languageCode != null && !languageCode.isEmpty()) {
+            loadInnerTubeCaptionTrack(requestId, languageCode);
+            return;
+        }
 
         String script = "window.__speedyWatchController "
                 + "? window.__speedyWatchController.getCaptionTrack() : null";
@@ -749,7 +1016,62 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void loadInnerTubeCaptionTrack(long requestId, String selectionKey) {
+        String videoId = activeVideoId;
+        ioExecutor.execute(() -> {
+            try {
+                String baseUrl = fetchInnerTubeCaptionUrl(videoId, selectionKey);
+                runOnUiThread(() -> fetchTranscriptUrl(requestId, baseUrl, false));
+            } catch (Exception error) {
+                runOnUiThread(() ->
+                        deliverTranscriptError(requestId, "The selected caption language could not be loaded"));
+            }
+        });
+    }
+
+    private void requestCaptionOptions(YouTubeSubsDialog.CaptionOptionsCallback callback) {
+        String videoId = activeVideoId;
+        if (videoId == null || !videoId.matches("[A-Za-z0-9_-]{11}")) {
+            callback.onError("Open a YouTube video first");
+            return;
+        }
+        ioExecutor.execute(() -> {
+            try {
+                JSONArray tracks = fetchInnerTubeCaptionTracks(videoId);
+                List<YouTubeSubsDialog.CaptionOption> options = new ArrayList<>();
+                for (int index = 0; index < tracks.length(); index++) {
+                    JSONObject track = tracks.optJSONObject(index);
+                    if (track == null) {
+                        continue;
+                    }
+                    String key = captionTrackKey(track);
+                    String label = captionTrackLabel(track);
+                    if (!key.isEmpty() && !label.isEmpty()) {
+                        options.add(new YouTubeSubsDialog.CaptionOption(key, label));
+                    }
+                }
+                runOnUiThread(() -> callback.onLoaded(options));
+            } catch (Exception error) {
+                runOnUiThread(() -> callback.onError("Caption languages could not be loaded"));
+            }
+        });
+    }
+
     private String fetchInnerTubeCaptionUrl(String videoId) throws Exception {
+        return fetchInnerTubeCaptionUrl(videoId, "");
+    }
+
+    private String fetchInnerTubeCaptionUrl(String videoId, String selectionKey) throws Exception {
+        JSONArray tracks = fetchInnerTubeCaptionTracks(videoId);
+        JSONObject selected = selectCaptionTrack(tracks, selectionKey);
+        String baseUrl = selected == null ? "" : selected.optString("baseUrl", "").trim();
+        if (baseUrl.isEmpty() || !isTrustedCaptionUri(Uri.parse(baseUrl))) {
+            throw new IOException("No caption track was available");
+        }
+        return baseUrl;
+    }
+
+    private JSONArray fetchInnerTubeCaptionTracks(String videoId) throws Exception {
         URL endpoint = new URL("https://www.youtube.com/youtubei/v1/player?prettyPrint=false");
         HttpURLConnection connection = (HttpURLConnection) endpoint.openConnection();
         try {
@@ -802,19 +1124,26 @@ public final class MainActivity extends Activity {
             JSONObject renderer = captions == null
                     ? null : captions.optJSONObject("playerCaptionsTracklistRenderer");
             JSONArray tracks = renderer == null ? null : renderer.optJSONArray("captionTracks");
-            JSONObject selected = selectCaptionTrack(tracks);
-            String baseUrl = selected == null ? "" : selected.optString("baseUrl", "").trim();
-            if (baseUrl.isEmpty() || !isTrustedCaptionUri(Uri.parse(baseUrl))) {
+            if (tracks == null || tracks.length() == 0) {
                 throw new IOException("No caption track was available");
             }
-            return baseUrl;
+            return tracks;
         } finally {
             connection.disconnect();
         }
     }
 
-    private static JSONObject selectCaptionTrack(JSONArray tracks) {
+    private static JSONObject selectCaptionTrack(JSONArray tracks, String selectionKey) {
         if (tracks == null || tracks.length() == 0) {
+            return null;
+        }
+        if (selectionKey != null && !selectionKey.isEmpty()) {
+            for (int index = 0; index < tracks.length(); index++) {
+                JSONObject track = tracks.optJSONObject(index);
+                if (track != null && selectionKey.equals(captionTrackKey(track))) {
+                    return track;
+                }
+            }
             return null;
         }
         String deviceLanguage = Locale.getDefault().getLanguage();
@@ -845,6 +1174,36 @@ public final class MainActivity extends Activity {
             }
         }
         return null;
+    }
+
+    private static String captionTrackKey(JSONObject track) {
+        String code = track.optString("languageCode", "").trim();
+        if (code.isEmpty()) {
+            return "";
+        }
+        return code + ("asr".equals(track.optString("kind")) ? "|asr" : "|manual");
+    }
+
+    private static String captionTrackLabel(JSONObject track) {
+        JSONObject name = track.optJSONObject("name");
+        String label = name == null ? "" : name.optString("simpleText", "").trim();
+        if (label.isEmpty() && name != null) {
+            JSONArray runs = name.optJSONArray("runs");
+            StringBuilder combined = new StringBuilder();
+            if (runs != null) {
+                for (int index = 0; index < runs.length(); index++) {
+                    JSONObject run = runs.optJSONObject(index);
+                    if (run != null) {
+                        combined.append(run.optString("text", ""));
+                    }
+                }
+            }
+            label = combined.toString().trim();
+        }
+        if (label.isEmpty()) {
+            label = track.optString("languageCode", "").trim();
+        }
+        return label + ("asr".equals(track.optString("kind")) ? " (auto-generated)" : "");
     }
 
     private void triggerCaptionNetworkRequest(long requestId) {
@@ -894,6 +1253,9 @@ public final class MainActivity extends Activity {
             } catch (Exception error) {
                 if (allowClickFallback) {
                     runOnUiThread(() -> triggerCaptionNetworkRequest(requestId));
+                } else {
+                    runOnUiThread(() ->
+                            deliverTranscriptError(requestId, "Subtitles could not be loaded"));
                 }
             }
         });

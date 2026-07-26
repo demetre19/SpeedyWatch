@@ -2,13 +2,20 @@ import Foundation
 
 struct TranscriptService: Sendable {
     private let session: URLSession
+    private struct InnerTubeTrack: Sendable {
+        let option: CaptionTrackOption
+        let url: URL
+    }
 
     init(session: URLSession = .shared) {
         self.session = session
     }
 
     @MainActor
-    func load(from controller: YouTubeWebController) async throws -> TranscriptPackage {
+    func load(
+        from controller: YouTubeWebController,
+        preferredTrackID: String? = nil
+    ) async throws -> TranscriptPackage {
         guard let pageURL = controller.liveURL,
               let videoID = Self.videoID(from: pageURL) else {
             throw SpeedyWatchError.invalidVideo
@@ -20,7 +27,8 @@ struct TranscriptService: Sendable {
         let cookies = await controller.cookies()
         let userAgent = await controller.userAgent()
 
-        if let rawURL = metadata?["baseUrl"] as? String,
+        if preferredTrackID == nil,
+           let rawURL = metadata?["baseUrl"] as? String,
            let signedURL = URL(string: rawURL),
            YouTubeURLPolicy.isTrustedCaption(signedURL),
            let entries = try? await downloadCaption(from: signedURL, cookies: cookies, userAgent: userAgent),
@@ -28,10 +36,22 @@ struct TranscriptService: Sendable {
             return TranscriptPackage(entries: entries, videoTitle: title, videoURL: pageURL)
         }
 
-        let fallbackURL = try await innerTubeCaptionURL(videoID: videoID)
-        let entries = try await downloadCaption(from: fallbackURL, cookies: cookies, userAgent: userAgent)
+        let tracks = try await innerTubeTracks(videoID: videoID)
+        guard let selected = selectTrack(tracks, preferredTrackID: preferredTrackID) else {
+            throw SpeedyWatchError.noCaptions
+        }
+        let entries = try await downloadCaption(from: selected.url, cookies: cookies, userAgent: userAgent)
         guard !entries.isEmpty else { throw SpeedyWatchError.noCaptions }
         return TranscriptPackage(entries: entries, videoTitle: title, videoURL: pageURL)
+    }
+
+    @MainActor
+    func availableTracks(from controller: YouTubeWebController) async throws -> [CaptionTrackOption] {
+        guard let pageURL = controller.liveURL,
+              let videoID = Self.videoID(from: pageURL) else {
+            throw SpeedyWatchError.invalidVideo
+        }
+        return try await innerTubeTracks(videoID: videoID).map(\.option)
     }
 
     static func videoID(from url: URL) -> String? {
@@ -65,7 +85,7 @@ struct TranscriptService: Sendable {
         }
     }
 
-    private func innerTubeCaptionURL(videoID: String) async throws -> URL {
+    private func innerTubeTracks(videoID: String) async throws -> [InnerTubeTrack] {
         let endpoint = URL(string: "https://www.youtube.com/youtubei/v1/player?prettyPrint=false")!
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -87,27 +107,57 @@ struct TranscriptService: Sendable {
         let captions = response["captions"] as? [String: Any]
         let renderer = captions?["playerCaptionsTracklistRenderer"] as? [String: Any]
         let tracks = renderer?["captionTracks"] as? [[String: Any]] ?? []
-        guard let track = selectTrack(tracks),
-              let rawURL = track["baseUrl"] as? String,
-              let url = URL(string: rawURL),
-              YouTubeURLPolicy.isTrustedCaption(url) else {
-            throw SpeedyWatchError.noCaptions
+        return tracks.compactMap { track in
+            guard let rawURL = track["baseUrl"] as? String,
+                  let url = URL(string: rawURL),
+                  YouTubeURLPolicy.isTrustedCaption(url) else {
+                return nil
+            }
+            let languageCode = (track["languageCode"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !languageCode.isEmpty else { return nil }
+            let nameObject = track["name"] as? [String: Any]
+            let simpleName = nameObject?["simpleText"] as? String
+            let runName = (nameObject?["runs"] as? [[String: Any]])?
+                .compactMap { $0["text"] as? String }
+                .joined()
+            let label = [simpleName, runName, languageCode]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty }) ?? languageCode
+            return InnerTubeTrack(
+                option: CaptionTrackOption(
+                    languageCode: languageCode,
+                    displayName: label,
+                    isAutomatic: (track["kind"] as? String) == "asr"
+                ),
+                url: url
+            )
         }
-        return url
     }
 
-    private func selectTrack(_ tracks: [[String: Any]]) -> [String: Any]? {
+    private func selectTrack(
+        _ tracks: [InnerTubeTrack],
+        preferredTrackID: String?
+    ) -> InnerTubeTrack? {
         guard !tracks.isEmpty else { return nil }
+        if let preferredTrackID,
+           let preferred = tracks.first(where: { $0.option.id == preferredTrackID }) {
+            return preferred
+        }
         let deviceLanguage = Locale.current.language.languageCode?.identifier ?? ""
-        if let match = tracks.first(where: { language($0, matches: deviceLanguage) }) { return match }
-        if let english = tracks.first(where: { language($0, matches: "en") }) { return english }
-        return tracks.first(where: { ($0["kind"] as? String) != "asr" }) ?? tracks.first
+        if let match = tracks.first(where: { language($0.option.languageCode, matches: deviceLanguage) }) {
+            return match
+        }
+        if let english = tracks.first(where: { language($0.option.languageCode, matches: "en") }) {
+            return english
+        }
+        return tracks.first(where: { !$0.option.isAutomatic }) ?? tracks.first
     }
 
-    private func language(_ track: [String: Any], matches language: String) -> Bool {
-        guard !language.isEmpty, let code = (track["languageCode"] as? String)?.lowercased() else { return false }
+    private func language(_ code: String, matches language: String) -> Bool {
+        guard !language.isEmpty else { return false }
+        let normalizedCode = code.lowercased()
         let target = language.lowercased()
-        return code == target || code.hasPrefix("\(target)-")
+        return normalizedCode == target || normalizedCode.hasPrefix("\(target)-")
     }
 
     private func downloadCaption(from url: URL, cookies: [HTTPCookie], userAgent: String) async throws -> [TranscriptEntry] {

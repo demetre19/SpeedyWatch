@@ -173,6 +173,41 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         return entries;
     }
 
+    synchronized void replaceAll(List<Entry> restoredEntries) {
+        if (restoredEntries == null) {
+            throw new IllegalArgumentException("Saved items are unavailable");
+        }
+        List<Entry> validated = new ArrayList<>(restoredEntries.size());
+        for (Entry entry : restoredEntries) {
+            String title = requireText(entry.videoTitle, "Video title");
+            String label = requireText(entry.summaryLabel, "Saved item label");
+            String text = requireText(entry.summaryText, "Saved item content");
+            String sourceUrl = requireText(entry.sourceUrl, "Source URL");
+            if (!isSupportedSourceUrl(sourceUrl) || entry.createdAt <= 0) {
+                throw new IllegalArgumentException("Saved item data is invalid");
+            }
+            validated.add(new Entry(0, title, label, text, sourceUrl, entry.createdAt));
+        }
+
+        SQLiteDatabase database = getWritableDatabase();
+        database.beginTransaction();
+        try {
+            database.delete(TABLE, null, null);
+            for (Entry entry : validated) {
+                ContentValues values = new ContentValues();
+                values.put("video_title", entry.videoTitle);
+                values.put("summary_label", entry.summaryLabel);
+                values.put("summary_text", entry.summaryText);
+                values.put("source_url", entry.sourceUrl);
+                values.put("created_at", entry.createdAt);
+                database.insertOrThrow(TABLE, null, values);
+            }
+            database.setTransactionSuccessful();
+        } finally {
+            database.endTransaction();
+        }
+    }
+
     synchronized boolean delete(long id) {
         return id > 0 && getWritableDatabase().delete(TABLE, "id = ?", new String[]{Long.toString(id)}) > 0;
     }

@@ -58,6 +58,8 @@ final class SettingsDialog {
     private final ExecutorService executor;
     private final List<OpenRouterClient.Model> models = new ArrayList<>();
     private final Runnable onSettingsSaved;
+    private final Runnable onExportBackup;
+    private final Runnable onImportBackup;
     private final String installedVersionName;
     private final long installedVersionCode;
 
@@ -71,6 +73,18 @@ final class SettingsDialog {
     private EditText defaultSpeedInput;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
+    private Button playbackProfileButton;
+    private Button adaptiveSpeedButton;
+    private String playbackProfile;
+    private boolean adaptiveSpeedEnabled;
+    private Button sponsorBlockButton;
+    private Button sponsorCategoryButton;
+    private Button selfPromotionCategoryButton;
+    private Button interactionCategoryButton;
+    private boolean sponsorBlockEnabled;
+    private boolean sponsorCategoryEnabled;
+    private boolean selfPromotionCategoryEnabled;
+    private boolean interactionCategoryEnabled;
     private EditText summaryOneInput;
     private EditText summaryTwoInput;
     private EditText quizInput;
@@ -85,13 +99,17 @@ final class SettingsDialog {
             SpeedyWatchSettings settings,
             OpenRouterClient client,
             ExecutorService executor,
-            Runnable onSettingsSaved
+            Runnable onSettingsSaved,
+            Runnable onExportBackup,
+            Runnable onImportBackup
     ) {
         this.activity = activity;
         this.settings = settings;
         this.client = client;
         this.executor = executor;
         this.onSettingsSaved = onSettingsSaved;
+        this.onExportBackup = onExportBackup;
+        this.onImportBackup = onImportBackup;
         try {
             PackageInfo packageInfo = activity.getPackageManager().getPackageInfo(
                     activity.getPackageName(),
@@ -149,6 +167,51 @@ final class SettingsDialog {
 
         LinearLayout content = verticalLayout();
         content.addView(text("Playback", 13, MUTED), matchWrap(dp(2), dp(12)));
+        playbackProfile = settings.getPlaybackProfile();
+        playbackProfileButton = button("");
+        playbackProfileButton.setOnClickListener(ignored -> {
+            playbackProfile = nextPlaybackProfile(playbackProfile);
+            defaultSpeedInput.setText(formatSpeed(SpeedyWatchSettings.speedForProfile(playbackProfile)));
+            updatePlaybackButtons();
+        });
+        content.addView(playbackProfileButton, matchWrap(0, dp(8)));
+
+        adaptiveSpeedEnabled = settings.isAdaptiveSpeedEnabled();
+        adaptiveSpeedButton = button("");
+        adaptiveSpeedButton.setOnClickListener(ignored -> {
+            adaptiveSpeedEnabled = !adaptiveSpeedEnabled;
+            updatePlaybackButtons();
+        });
+        content.addView(adaptiveSpeedButton, matchWrap(0, dp(6)));
+        content.addView(
+                text("Adaptive speed adds 0.5x only during caption gaps, then returns to your chosen rate.", 12, MUTED),
+                matchWrap(dp(2), dp(10))
+        );
+        sponsorBlockEnabled = settings.isSponsorBlockEnabled();
+        sponsorCategoryEnabled = settings.skipsSponsorSegments();
+        selfPromotionCategoryEnabled = settings.skipsSelfPromotionSegments();
+        interactionCategoryEnabled = settings.skipsInteractionSegments();
+        sponsorBlockButton = button("");
+        sponsorBlockButton.setOnClickListener(ignored -> {
+            sponsorBlockEnabled = !sponsorBlockEnabled;
+            updateSponsorBlockButtons();
+        });
+        content.addView(sponsorBlockButton, matchWrap(0, dp(6)));
+        sponsorCategoryButton = categoryButton("Sponsors", () -> sponsorCategoryEnabled = !sponsorCategoryEnabled);
+        selfPromotionCategoryButton = categoryButton(
+                "Self-promotion", () -> selfPromotionCategoryEnabled = !selfPromotionCategoryEnabled);
+        interactionCategoryButton = categoryButton(
+                "Interaction reminders", () -> interactionCategoryEnabled = !interactionCategoryEnabled);
+        content.addView(sponsorCategoryButton, matchWrap(0, dp(6)));
+        content.addView(selfPromotionCategoryButton, matchWrap(0, dp(6)));
+        content.addView(interactionCategoryButton, matchWrap(0, dp(6)));
+        content.addView(
+                text("Optional community-submitted segments from SponsorBlock. Lookup uses only a four-character video-ID hash prefix.", 12, MUTED),
+                matchWrap(dp(2), dp(10))
+        );
+        updateSponsorBlockButtons();
+
+
         LinearLayout defaultSpeedRow = horizontalLayout();
         TextView defaultSpeedLabel = label("Default playback speed");
         defaultSpeedLabel.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -169,6 +232,7 @@ final class SettingsDialog {
         speedParams.setMarginStart(dp(8));
         defaultSpeedRow.addView(defaultSpeedInput, speedParams);
         content.addView(defaultSpeedRow, matchWrap(0, dp(12)));
+        updatePlaybackButtons();
         lockIconEnabled = settings.isLockIconEnabled();
         lockIconToggleButton = button("");
         lockIconToggleButton.setOnClickListener(ignored -> {
@@ -211,6 +275,37 @@ final class SettingsDialog {
         downloadParams.setMarginStart(dp(8));
         updateActions.addView(downloadUpdateButton, downloadParams);
         content.addView(updateActions, matchWrap(dp(8), dp(14)));
+
+        content.addView(text("Backup", 13, MUTED), matchWrap(dp(2), dp(8)));
+        content.addView(
+                text(
+                        "Exports settings and saved summaries or quizzes. Your OpenRouter API key is never included.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(0, dp(8))
+        );
+        LinearLayout backupActions = horizontalLayout();
+        Button exportBackup = button("Export backup");
+        exportBackup.setOnClickListener(ignored -> {
+            dialog.dismiss();
+            onExportBackup.run();
+        });
+        backupActions.addView(exportBackup, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        Button importBackup = button("Restore backup");
+        importBackup.setOnClickListener(ignored -> new AlertDialog.Builder(activity)
+                .setTitle("Restore backup?")
+                .setMessage("This replaces saved summaries, quizzes, prompts, and app preferences. The API key stays unchanged.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Choose backup", (alert, which) -> {
+                    dialog.dismiss();
+                    onImportBackup.run();
+                })
+                .show());
+        LinearLayout.LayoutParams importParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        importParams.setMarginStart(dp(8));
+        backupActions.addView(importBackup, importParams);
+        content.addView(backupActions, matchWrap(0, dp(14)));
 
         content.addView(text("OpenRouter", 13, MUTED), matchWrap(dp(2), dp(12)));
 
@@ -575,7 +670,9 @@ final class SettingsDialog {
 
     private void updateModelButton() {
         OpenRouterClient.Model model = findModel(selectedModelId);
-        modelButton.setText(model == null ? "Choose a model" : model.name + "\n" + model.id);
+        modelButton.setText(model == null
+                ? "Choose a model"
+                : model.name + "\n" + model.id + "\n" + model.guidance());
     }
 
     private void openModelPicker() {
@@ -595,8 +692,17 @@ final class SettingsDialog {
         EditText search = input(false, 1);
         search.setHint("Search name or model ID");
         content.addView(search, matchWrap(dp(10), dp(8)));
+        Button filter = button("Showing: All models");
+        filter.setOnClickListener(ignored -> {
+            ModelAdapter adapter = (ModelAdapter) filter.getTag();
+            adapter.cycleMode();
+            filter.setText(adapter.modeLabel());
+        });
+        content.addView(filter, matchWrap(0, dp(8)));
+
 
         ModelAdapter adapter = new ModelAdapter(models);
+        filter.setTag(adapter);
         ListView list = new ListView(activity);
         list.setDivider(new ColorDrawable(Color.rgb(55, 55, 55)));
         list.setDividerHeight(dp(1));
@@ -635,6 +741,52 @@ final class SettingsDialog {
         return savedPrompt.trim().isEmpty() ? activity.getString(defaultResource) : savedPrompt;
     }
 
+    private void updatePlaybackButtons() {
+        if (playbackProfileButton != null) {
+            playbackProfileButton.setText(
+                    "Playback profile: " + SpeedyWatchSettings.profileLabel(playbackProfile));
+        }
+        if (adaptiveSpeedButton != null) {
+            adaptiveSpeedButton.setText(
+                    adaptiveSpeedEnabled ? "Adaptive caption-gap speed: On" : "Adaptive caption-gap speed: Off");
+        }
+    }
+
+    private static String nextPlaybackProfile(String current) {
+        if (SpeedyWatchSettings.PROFILE_NORMAL.equals(current)) {
+            return SpeedyWatchSettings.PROFILE_CAREFUL;
+        }
+        if (SpeedyWatchSettings.PROFILE_CAREFUL.equals(current)) {
+            return SpeedyWatchSettings.PROFILE_LECTURE;
+        }
+        if (SpeedyWatchSettings.PROFILE_LECTURE.equals(current)) {
+            return SpeedyWatchSettings.PROFILE_PODCAST;
+        }
+        return SpeedyWatchSettings.PROFILE_NORMAL;
+    }
+
+    private Button categoryButton(String label, Runnable toggle) {
+        Button result = button(label);
+        result.setOnClickListener(ignored -> {
+            toggle.run();
+            updateSponsorBlockButtons();
+        });
+        return result;
+    }
+
+    private void updateSponsorBlockButtons() {
+        if (sponsorBlockButton == null) {
+            return;
+        }
+        sponsorBlockButton.setText(
+                sponsorBlockEnabled ? "SponsorBlock community skips: On" : "SponsorBlock community skips: Off");
+        sponsorCategoryButton.setText("Sponsors: " + (sponsorCategoryEnabled ? "On" : "Off"));
+        selfPromotionCategoryButton.setText(
+                "Self-promotion: " + (selfPromotionCategoryEnabled ? "On" : "Off"));
+        interactionCategoryButton.setText(
+                "Interaction reminders: " + (interactionCategoryEnabled ? "On" : "Off"));
+    }
+
     private void updateLockIconButton() {
         lockIconToggleButton.setText(lockIconEnabled ? "Lock icon: On" : "Lock icon: Off");
     }
@@ -660,6 +812,13 @@ final class SettingsDialog {
         }
         settings.setDefaultPlaybackSpeed(defaultSpeed);
         settings.setLockIconEnabled(lockIconEnabled);
+        settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
+        settings.setSponsorBlockPreferences(
+                sponsorBlockEnabled,
+                sponsorCategoryEnabled,
+                selfPromotionCategoryEnabled,
+                interactionCategoryEnabled
+        );
         onSettingsSaved.run();
         if (selectedModelId == null || selectedModelId.isEmpty()) {
             Toast.makeText(
@@ -780,17 +939,41 @@ final class SettingsDialog {
     private final class ModelAdapter extends BaseAdapter {
         private final List<OpenRouterClient.Model> all;
         private final List<OpenRouterClient.Model> visible = new ArrayList<>();
+        private String query = "";
+        private int mode;
 
         ModelAdapter(List<OpenRouterClient.Model> models) {
             all = new ArrayList<>(models);
-            visible.addAll(models);
+            applyFilter();
         }
 
-        void filter(String query) {
-            String normalized = query == null ? "" : query.toLowerCase(Locale.US).trim();
+        void filter(String value) {
+            query = value == null ? "" : value.toLowerCase(Locale.US).trim();
+            applyFilter();
+        }
+
+        void cycleMode() {
+            mode = (mode + 1) % 3;
+            applyFilter();
+        }
+
+        String modeLabel() {
+            if (mode == 1) {
+                return "Showing: Free models";
+            }
+            if (mode == 2) {
+                return "Showing: Long context";
+            }
+            return "Showing: All models";
+        }
+
+        private void applyFilter() {
             visible.clear();
             for (OpenRouterClient.Model model : all) {
-                if (normalized.isEmpty() || model.searchText().contains(normalized)) {
+                boolean matchesMode = mode == 0
+                        || (mode == 1 && model.isFree())
+                        || (mode == 2 && model.hasLongContext());
+                if (matchesMode && (query.isEmpty() || model.searchText().contains(query))) {
                     visible.add(model);
                 }
             }
@@ -831,7 +1014,7 @@ final class SettingsDialog {
             }
             OpenRouterClient.Model model = getItem(position);
             name.setText(model.name);
-            id.setText(model.id);
+            id.setText(model.id + "\n" + model.guidance());
             row.setBackgroundColor(model.id.equals(selectedModelId) ? Color.rgb(52, 25, 31) : BACKGROUND);
             return row;
         }
