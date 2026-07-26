@@ -17,6 +17,18 @@
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
 | Current public APK: **v0.15**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
+### Samsung Galaxy: install the APK
+
+**Developer Options and USB debugging are not required.**
+
+1. Download `SpeedyWatch.apk`, then open **My Files → Downloads → SpeedyWatch.apk**.
+2. If Samsung says the phone cannot install unknown apps from this source, tap **Settings** in that prompt and enable **Allow from this source** for the app opening the file, such as My Files, Chrome, or Samsung Internet. Return to the APK and tap **Install**.
+3. If Samsung **Auto Blocker** prevents the install, open **Settings → Security and privacy → Auto Blocker**, turn it off only long enough to install this APK, then turn Auto Blocker back on.
+4. Let [Google Play Protect](https://support.google.com/googleplay/answer/2812853) scan the APK if prompted. Keep Play Protect enabled; if it identifies the file as harmful rather than merely unknown, stop and report the exact warning.
+5. Tap **Open** after installation, or launch **SpeedyWatch** from the app drawer.
+
+If Android says **App not installed**, cannot update the existing app, or installs but will not open, confirm the phone runs Android 10 or newer. Then uninstall any older SpeedyWatch copy and install this APK again; an older copy signed with a different key cannot be updated in place. **Uninstalling removes that copy's app-private settings, saved summaries, and saved quizzes.**
+
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
 [Release notes and previous Android downloads](https://github.com/demetre19/SpeedyWatch/releases/latest)
@@ -64,7 +76,7 @@ SHA-256: 3daded9dbe614531c97a882b78673a2e1f3dde0665519dc6ec7c433688224d12
 Signing: Android debug signing key
 ```
 
-This public v0.15 APK is debug-signed with APK Signature Scheme v2. The exact release APK was installed byte-for-byte and launched on Android 16/API 36; its Search toolbar, always-on ad-block status, and automatic saved-summary database migration were verified there. Summary cache reuse after closing and reopening the transcript modal was verified with a controlled local response fixture, which was removed before the release APK was built. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.15 APK is debug-signed with APK Signature Scheme v2. The exact release APK was installed byte-for-byte and launched on a Samsung Android phone, where the padded rounded `You` message bubble was visually verified. Search by keyword or supported URL, copied-URL Download selection, and immediate visible summary-cache reuse were user-verified on the immediately preceding v0.14 candidate built from the same feature changes before this v0.15 UI-only polish. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
