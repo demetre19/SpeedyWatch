@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.13**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.15**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 > **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
@@ -27,15 +27,17 @@
 
 SpeedyWatch is a focused Android and iPhone YouTube browser for people who want faster playback and useful transcript tools without leaving the video.
 
+- Use the leftmost **Search** action to enter YouTube keywords or paste a supported YouTube video URL. Keywords open YouTube results; a URL opens that exact video for playback, captions, summaries, quizzes, or downloading.
 - Set playback speed from **0.25x to 4x**.
 - Use common presets, direct decimal entry, or **0.1x** adjustments.
 - Keep the selected speed when YouTube replaces or resets its video player.
 - Choose and persist a custom **default playback speed** in Settings for future app launches.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
-- On Android, save the current public video as MP3 audio or an MP4 up to the selected resolution. Downloads continue in the background, use the YouTube video title as the filename, and are written to `Downloads/SpeedyWatch`.
+- On Android, tap Download to use a valid YouTube video URL copied to the clipboard—including standard, short, mobile, music, Shorts, Live, embed, no-cookie, and attribution links—or fall back to the current video. Choose MP3 audio or an MP4 up to an available resolution for that exact video. Downloads continue in the background, use the YouTube video title as the filename, and are written to `Downloads/SpeedyWatch`.
 - Load and search captions for the current video.
 - Tap any transcript line to jump to that moment and return to the video.
-- Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view.
+- Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
+- Successful Summary One and Summary Two results are cached automatically in app-private storage. Pressing the same Summary button again immediately renders the cached result without another OpenRouter request when the summary type, prompt, model, source URL, and transcript are unchanged.
 - Save summaries and generated quiz guides locally with their original YouTube URL, then search titles, types, headings, and body text from the bookmark library.
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original YouTube URL.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
@@ -55,14 +57,14 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.13
-Version code: 13
+Version: 0.15
+Version code: 15
 Minimum Android version: Android 10 (API 29)
-SHA-256: c000217023dca6de72190fd028cb5a138835ec1cde8a5cbcd17e16edf91968ab
+SHA-256: 3daded9dbe614531c97a882b78673a2e1f3dde0665519dc6ec7c433688224d12
 Signing: Android debug signing key
 ```
 
-This public v0.13 APK is debug-signed with APK Signature Scheme v2. It was integrity-checked, installed byte-for-byte, and exercised on an Android 16 / API 36 emulator. This release keeps the lock control fixed at the bottom-right immediately above the speed controls, removes the Skip ads control, and keeps best-effort ad skipping enabled. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.15 APK is debug-signed with APK Signature Scheme v2. The exact release APK was installed byte-for-byte and launched on Android 16/API 36; its Search toolbar, always-on ad-block status, and automatic saved-summary database migration were verified there. Summary cache reuse after closing and reopening the transcript modal was verified with a controlled local response fixture, which was removed before the release APK was built. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
@@ -91,6 +93,7 @@ The API key is encrypted with Android Keystore AES-GCM on Android and stored in 
 2. Tap the **YouTube Subs** icon to load the transcript.
 3. Search the transcript or tap a timestamp to seek the video.
 4. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
+   If you close the modal and choose the same summary again, SpeedyWatch reuses its private cached result when the generation context is unchanged.
 5. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
 6. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
 7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
@@ -106,6 +109,7 @@ Transcript availability depends on the captions exposed by YouTube for the selec
 - Your OpenRouter API key remains in platform-protected storage: Android Keystore-encrypted app storage or iPhone Keychain.
 - Transcript text and any follow-up question you submit are sent to OpenRouter only when you request a summary, follow-up answer, or quiz.
 - Saved summaries, saved quizzes, and their source URLs remain in app-private local storage until you delete them. Follow-up chat history is not saved.
+- Automatically cached summary results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
 - Links outside YouTube open through the platform's external app handler.
 
 ## Build from source

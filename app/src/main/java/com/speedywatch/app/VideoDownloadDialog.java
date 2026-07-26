@@ -34,6 +34,7 @@ final class VideoDownloadDialog {
     private final Activity activity;
     private final ExecutorService executor;
     private final String videoUrl;
+    private final boolean fromClipboard;
 
     private Dialog dialog;
     private TextView status;
@@ -41,15 +42,25 @@ final class VideoDownloadDialog {
     private LinearLayout choices;
     private String videoTitle = "YouTube Video";
 
-    VideoDownloadDialog(Activity activity, ExecutorService executor, String videoUrl) {
+    VideoDownloadDialog(
+            Activity activity,
+            ExecutorService executor,
+            String videoUrl,
+            boolean fromClipboard
+    ) {
         this.activity = activity;
         this.executor = executor;
         this.videoUrl = videoUrl;
+        this.fromClipboard = fromClipboard;
     }
 
     void show() {
         if (!YouTubeDownloadEngine.isSupportedYouTubeUrl(videoUrl)) {
-            Toast.makeText(activity, "Open a YouTube video first", Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    activity,
+                    "Copy a YouTube video URL or open a video first",
+                    Toast.LENGTH_LONG
+            ).show();
             return;
         }
         dialog = new Dialog(activity);
@@ -79,7 +90,11 @@ final class VideoDownloadDialog {
         title = text("Download video", 21, Color.WHITE);
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         heading.addView(title);
-        status = text("Checking this video...", 12, MUTED);
+        status = text(
+                fromClipboard ? "Checking clipboard video..." : "Checking this video...",
+                12,
+                MUTED
+        );
         heading.addView(status);
         header.addView(heading, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -139,7 +154,11 @@ final class VideoDownloadDialog {
         }
         videoTitle = metadata.title;
         title.setText(metadata.title);
-        status.setText(metadata.resolutions.size() + " video quality options ready");
+        status.setText(
+                (fromClipboard ? "Clipboard video • " : "")
+                        + metadata.resolutions.size()
+                        + " video quality options ready"
+        );
         showChoices(metadata.resolutions);
     }
 
@@ -167,7 +186,11 @@ final class VideoDownloadDialog {
         if (dialog == null || !dialog.isShowing()) {
             return;
         }
-        status.setText("Standard download options ready");
+        status.setText(
+                fromClipboard
+                        ? "Clipboard video • standard download options ready"
+                        : "Standard download options ready"
+        );
         showChoices(STANDARD_RESOLUTIONS);
         Toast.makeText(activity, "Standard download options are ready", Toast.LENGTH_LONG).show();
     }

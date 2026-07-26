@@ -39,8 +39,9 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
     }
 
     private static final String DATABASE_NAME = "saved_summaries.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 3;
     private static final String TABLE = "saved_summaries";
+    private static final String CACHE_TABLE = "summary_cache";
 
     SavedSummaryStore(Context context) {
         super(context.getApplicationContext(), DATABASE_NAME, null, DATABASE_VERSION);
@@ -60,11 +61,25 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         database.execSQL(
                 "CREATE INDEX saved_summaries_created_at ON " + TABLE + " (created_at DESC)"
         );
+        createCacheTable(database);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase database, int oldVersion, int newVersion) {
+        if (oldVersion < 3) {
+            createCacheTable(database);
+        }
     }
+
+    private static void createCacheTable(SQLiteDatabase database) {
+        database.execSQL(
+                "CREATE TABLE IF NOT EXISTS " + CACHE_TABLE + " ("
+                        + "cache_key TEXT PRIMARY KEY,"
+                        + "summary_text TEXT NOT NULL,"
+                        + "created_at INTEGER NOT NULL)"
+        );
+    }
+
 
     synchronized void save(
             String videoTitle,
@@ -89,6 +104,39 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         values.put("created_at", System.currentTimeMillis());
         if (database.insertOrThrow(TABLE, null, values) < 0) {
             throw new IllegalStateException("Item could not be saved");
+        }
+    }
+
+
+
+    synchronized void cacheSummary(String cacheKey, String summaryText) {
+        ContentValues values = new ContentValues();
+        values.put("cache_key", requireText(cacheKey, "Summary cache key"));
+        values.put("summary_text", requireText(summaryText, "Summary cache content"));
+        values.put("created_at", System.currentTimeMillis());
+        if (getWritableDatabase().insertWithOnConflict(
+                CACHE_TABLE,
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_REPLACE
+        ) < 0) {
+            throw new IllegalStateException("Summary could not be cached");
+        }
+    }
+
+    synchronized String loadCachedSummary(String cacheKey) {
+        String normalizedKey = requireText(cacheKey, "Summary cache key");
+        try (Cursor cursor = getReadableDatabase().query(
+                CACHE_TABLE,
+                new String[]{"summary_text"},
+                "cache_key = ?",
+                new String[]{normalizedKey},
+                null,
+                null,
+                null,
+                "1"
+        )) {
+            return cursor.moveToFirst() ? cursor.getString(0) : null;
         }
     }
 

@@ -28,6 +28,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +69,7 @@ final class YouTubeSubsDialog {
     private ListView transcriptList;
     private TranscriptAdapter transcriptAdapter;
     private ScrollView summaryScroll;
+    private LinearLayout summaryContent;
     private TextView summaryOutput;
     private Button summaryOneButton;
     private Button summaryTwoButton;
@@ -212,8 +216,14 @@ final class YouTubeSubsDialog {
         summaryOutput.setLinkTextColor(Color.rgb(90, 180, 255));
         summaryOutput.setLineSpacing(0, 1.18f);
         summaryOutput.setPadding(dp(10), dp(10), dp(10), dp(10));
+        summaryContent = new LinearLayout(activity);
+        summaryContent.setOrientation(LinearLayout.VERTICAL);
+        summaryContent.addView(summaryOutput, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
         summaryScroll = new ScrollView(activity);
-        summaryScroll.addView(summaryOutput);
+        summaryScroll.addView(summaryContent);
         summaryScroll.setVisibility(View.GONE);
         body.addView(summaryScroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -321,22 +331,14 @@ final class YouTubeSubsDialog {
             return;
         }
 
-        final String apiKey;
-        try {
-            apiKey = settings.getApiKey();
-        } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
-            return;
-        }
         String modelId = settings.getModelId();
-        if (apiKey.trim().isEmpty() || modelId.trim().isEmpty()) {
+        if (modelId == null || modelId.trim().isEmpty()) {
             Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
 
         String userMessage = buildUserMessage();
-        summaryOneButton.setEnabled(false);
-        summaryTwoButton.setEnabled(false);
+        String cacheKey = summaryCacheKey(summaryName, prompt, modelId, videoUrl, userMessage);
         currentSummaryText = "";
         currentSummaryLabel = "";
         currentSummaryPrompt = "";
@@ -344,22 +346,59 @@ final class YouTubeSubsDialog {
         if (chatInput != null) {
             chatInput.setText("");
         }
+
+        try {
+            String cachedSummary = savedSummaryStore.loadCachedSummary(cacheKey);
+            if (cachedSummary != null) {
+                useSummary(cachedSummary, summaryName, prompt);
+                status.setText(summaryName + " | " + modelId + " | cached | ask below");
+                return;
+            }
+        } catch (RuntimeException ignored) {
+            // A cache read failure must not prevent a fresh summary.
+        }
+
+        final String apiKey;
+        try {
+            apiKey = settings.getApiKey();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (apiKey.trim().isEmpty()) {
+            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        summaryOneButton.setEnabled(false);
+        summaryTwoButton.setEnabled(false);
         status.setText("Sending transcript to " + modelId);
 
         executor.execute(() -> {
             try {
                 String result = client.summarize(apiKey, modelId, prompt, userMessage);
+                boolean cacheStored;
+                try {
+                    savedSummaryStore.cacheSummary(cacheKey, result);
+                    cacheStored = true;
+                } catch (RuntimeException ignored) {
+                    cacheStored = false;
+                }
+                boolean finalCacheStored = cacheStored;
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
-                        currentSummaryText = result;
-                        currentSummaryLabel = summaryName;
-                        currentSummaryPrompt = prompt;
-                        saveSummaryButton.setText("Save summary");
-                        saveSummaryButton.setEnabled(true);
-                        showSummary(result, true);
-                        status.setText(summaryName + " | " + modelId + " | ask below");
-                        summaryOneButton.setEnabled(true);
-                        summaryTwoButton.setEnabled(true);
+                        useSummary(result, summaryName, prompt);
+                        status.setText(summaryName
+                                + " | "
+                                + modelId
+                                + (finalCacheStored ? " | saved for reuse | ask below" : " | ask below"));
+                        if (!finalCacheStored) {
+                            Toast.makeText(
+                                    activity,
+                                    "Summary generated but could not be cached",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
                     }
                 });
             } catch (Exception error) {
@@ -378,6 +417,18 @@ final class YouTubeSubsDialog {
             }
         });
     }
+
+    private void useSummary(String result, String summaryName, String prompt) {
+        currentSummaryText = result;
+        currentSummaryLabel = summaryName;
+        currentSummaryPrompt = prompt;
+        saveSummaryButton.setText("Save summary");
+        saveSummaryButton.setEnabled(true);
+        showSummary(result, true);
+        summaryOneButton.setEnabled(true);
+        summaryTwoButton.setEnabled(true);
+    }
+
 
     private void askFollowUp() {
         String question = chatInput.getText().toString().trim();
@@ -446,17 +497,50 @@ final class YouTubeSubsDialog {
     }
 
     private void renderConversation() {
-        StringBuilder value = new StringBuilder(currentSummaryText);
-        for (ChatTurn turn : chatTurns) {
-            value.append("\n\n---\n\n**You**\n\n")
-                    .append(turn.question)
-                    .append("\n\n**AI**\n\n")
-                    .append(turn.answer);
+        float density = activity.getResources().getDisplayMetrics().density;
+        summaryOutput.setText(MarkdownRenderer.render(currentSummaryText, density));
+        if (summaryContent.getChildCount() > 1) {
+            summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
         }
-        summaryOutput.setText(MarkdownRenderer.render(
-                value.toString(),
-                activity.getResources().getDisplayMetrics().density
-        ));
+        for (ChatTurn turn : chatTurns) {
+            TextView userMessage = text("", 14, Color.WHITE);
+            userMessage.setTextIsSelectable(true);
+            userMessage.setMovementMethod(LinkMovementMethod.getInstance());
+            userMessage.setLinkTextColor(Color.rgb(90, 180, 255));
+            userMessage.setLineSpacing(0, 1.18f);
+            userMessage.setPadding(dp(8), dp(8), dp(8), dp(8));
+            userMessage.setBackground(panelBackground(
+                    Color.rgb(58, 18, 28),
+                    Color.rgb(96, 35, 50)
+            ));
+            userMessage.setText(MarkdownRenderer.render(
+                    "**You**\n\n" + turn.question,
+                    density
+            ));
+            LinearLayout.LayoutParams userParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            userParams.setMargins(dp(10), dp(10), dp(10), dp(4));
+            summaryContent.addView(userMessage, userParams);
+
+            TextView aiMessage = text("", 14, Color.WHITE);
+            aiMessage.setTextIsSelectable(true);
+            aiMessage.setMovementMethod(LinkMovementMethod.getInstance());
+            aiMessage.setLinkTextColor(Color.rgb(90, 180, 255));
+            aiMessage.setLineSpacing(0, 1.18f);
+            aiMessage.setPadding(dp(8), dp(4), dp(8), dp(4));
+            aiMessage.setText(MarkdownRenderer.render(
+                    "**AI**\n\n" + turn.answer,
+                    density
+            ));
+            LinearLayout.LayoutParams aiParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            aiParams.setMargins(dp(2), dp(4), dp(2), 0);
+            summaryContent.addView(aiMessage, aiParams);
+        }
         summaryScroll.post(() -> summaryScroll.fullScroll(View.FOCUS_DOWN));
     }
 
@@ -473,6 +557,47 @@ final class YouTubeSubsDialog {
                 + transcript;
     }
 
+    private static String summaryCacheKey(
+            String summaryName,
+            String prompt,
+            String modelId,
+            String sourceUrl,
+            String userMessage
+    ) {
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 is unavailable", error);
+        }
+        updateDigest(digest, summaryName);
+        updateDigest(digest, prompt);
+        updateDigest(digest, modelId);
+        updateDigest(digest, sourceUrl);
+        updateDigest(digest, userMessage);
+
+        byte[] hash = digest.digest();
+        char[] encoded = new char[hash.length * 2];
+        char[] hexadecimal = "0123456789abcdef".toCharArray();
+        for (int index = 0; index < hash.length; index++) {
+            int value = hash[index] & 0xff;
+            encoded[index * 2] = hexadecimal[value >>> 4];
+            encoded[index * 2 + 1] = hexadecimal[value & 0x0f];
+        }
+        return new String(encoded);
+    }
+
+    private static void updateDigest(MessageDigest digest, String value) {
+        byte[] bytes = (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
+        digest.update((byte) (bytes.length >>> 24));
+        digest.update((byte) (bytes.length >>> 16));
+        digest.update((byte) (bytes.length >>> 8));
+        digest.update((byte) bytes.length);
+        digest.update(bytes);
+    }
+
+
+
     private void showSummary(String value, boolean actionsAvailable) {
         transcriptList.setVisibility(View.GONE);
         search.setVisibility(View.GONE);
@@ -480,6 +605,9 @@ final class YouTubeSubsDialog {
                 value,
                 activity.getResources().getDisplayMetrics().density
         ));
+        if (summaryContent.getChildCount() > 1) {
+            summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
+        }
         summaryScroll.setVisibility(View.VISIBLE);
         transcriptButton.setVisibility(View.VISIBLE);
         chatTitle.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);

@@ -1,7 +1,6 @@
 package com.speedywatch.app;
 
 import android.content.Context;
-import android.net.Uri;
 
 import com.yausername.ffmpeg.FFmpeg;
 import com.yausername.youtubedl_android.YoutubeDL;
@@ -23,7 +22,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.TreeSet;
 
 final class YouTubeDownloadEngine {
@@ -154,32 +152,7 @@ final class YouTubeDownloadEngine {
     }
 
     static boolean isSupportedYouTubeUrl(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return false;
-        }
-        Uri uri = Uri.parse(value);
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
-            return false;
-        }
-        String host = uri.getHost().toLowerCase(Locale.US);
-        String videoId = null;
-        if ("youtu.be".equals(host)) {
-            List<String> segments = uri.getPathSegments();
-            if (!segments.isEmpty()) {
-                videoId = segments.get(0);
-            }
-        } else if ("youtube.com".equals(host) || host.endsWith(".youtube.com")) {
-            if ("/watch".equals(uri.getPath())) {
-                videoId = uri.getQueryParameter("v");
-            } else {
-                List<String> segments = uri.getPathSegments();
-                if (segments.size() >= 2
-                        && ("shorts".equals(segments.get(0)) || "live".equals(segments.get(0)))) {
-                    videoId = segments.get(1);
-                }
-            }
-        }
-        return videoId != null && videoId.matches("[A-Za-z0-9_-]{11}");
+        return YouTubeUrls.canonicalVideoUrl(value) != null;
     }
 
     static String safeDisplayName(String title) {

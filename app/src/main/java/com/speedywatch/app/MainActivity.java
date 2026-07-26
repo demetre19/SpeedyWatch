@@ -3,6 +3,9 @@ package com.speedywatch.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
@@ -203,9 +206,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout navigation = horizontalRow();
         navigation.addView(makeIconButton(
-                R.drawable.ic_home,
-                "YouTube home",
-                ignored -> webView.loadUrl(HOME_URL)
+                R.drawable.ic_search,
+                "Search YouTube by URL or keywords",
+                ignored -> showYouTubeSearch()
         ));
         navigation.addView(makeIconButton(R.drawable.ic_back, "Back", ignored -> {
             if (webView.canGoBack()) {
@@ -522,13 +525,105 @@ public final class MainActivity extends Activity {
                 || host.equals("consent.google.com");
     }
 
+    private void showYouTubeSearch() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("YouTube URL or keywords");
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(Color.rgb(180, 180, 180));
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        input.setSelectAllOnFocus(true);
+
+        String clipboardUrl = clipboardVideoUrl();
+        if (clipboardUrl != null) {
+            input.setText(clipboardUrl);
+            input.setSelection(input.length());
+        }
+
+        FrameLayout container = new FrameLayout(this);
+        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        container.addView(input, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(48)
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Search YouTube")
+                .setMessage("Enter a video URL to open it directly, or enter keywords to search YouTube.")
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Search", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog
+                .getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(button -> {
+                    String destination = YouTubeUrls.searchOrVideoUrl(
+                            input.getText().toString()
+                    );
+                    if (destination == null) {
+                        input.setError("Enter a valid YouTube video URL or search words");
+                        return;
+                    }
+                    webView.loadUrl(destination);
+                    dialog.dismiss();
+                }));
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                return true;
+            }
+            return false;
+        });
+        dialog.show();
+    }
+
     private void showDownload() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4001);
         }
-        new VideoDownloadDialog(this, ioExecutor, webView.getUrl()).show();
+
+        String clipboardUrl = clipboardVideoUrl();
+        String videoUrl = clipboardUrl != null
+                ? clipboardUrl
+                : YouTubeUrls.canonicalVideoUrl(webView.getUrl());
+        new VideoDownloadDialog(
+                this,
+                ioExecutor,
+                videoUrl,
+                clipboardUrl != null
+        ).show();
+    }
+
+    private String clipboardVideoUrl() {
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null || !clipboard.hasPrimaryClip()) {
+            return null;
+        }
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip == null) {
+            return null;
+        }
+        for (int index = 0; index < clip.getItemCount(); index++) {
+            ClipData.Item item = clip.getItemAt(index);
+            CharSequence text = item.getText();
+            String videoUrl = YouTubeUrls.canonicalVideoUrlFromText(
+                    text == null ? null : text.toString()
+            );
+            if (videoUrl == null) {
+                videoUrl = YouTubeUrls.canonicalVideoUrlFromText(item.getHtmlText());
+            }
+            if (videoUrl == null && item.getUri() != null) {
+                videoUrl = YouTubeUrls.canonicalVideoUrl(item.getUri().toString());
+            }
+            if (videoUrl != null) {
+                return videoUrl;
+            }
+        }
+        return null;
     }
 
     private void showSavedSummaries() {
