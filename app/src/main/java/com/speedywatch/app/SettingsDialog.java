@@ -48,11 +48,8 @@ final class SettingsDialog {
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(180, 180, 180);
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
-    private static final String UPDATE_PREFERENCES = "speedywatch_updates";
-    private static final String UPDATE_LAST_CHECK = "last_check_ms";
-    private static final String UPDATE_LAST_STATUS = "last_status";
 
-    private final Activity activity;
+    private final MainActivity activity;
     private final SpeedyWatchSettings settings;
     private final OpenRouterClient client;
     private final ExecutorService executor;
@@ -71,6 +68,8 @@ final class SettingsDialog {
     private Button modelButton;
     private TextView modelStatus;
     private EditText defaultSpeedInput;
+    private Button defaultMp3QualityButton;
+    private String defaultMp3Quality;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button playbackProfileButton;
@@ -95,7 +94,7 @@ final class SettingsDialog {
     private boolean updateBusy;
 
     SettingsDialog(
-            Activity activity,
+            MainActivity activity,
             SpeedyWatchSettings settings,
             OpenRouterClient client,
             ExecutorService executor,
@@ -246,6 +245,24 @@ final class SettingsDialog {
                 matchWrap(dp(2), dp(12))
         );
 
+        content.addView(text("Downloads", 13, MUTED), matchWrap(dp(2), dp(8)));
+        defaultMp3Quality = settings.getDefaultMp3Quality();
+        defaultMp3QualityButton = button("");
+        defaultMp3QualityButton.setOnClickListener(ignored -> {
+            defaultMp3Quality = SpeedyWatchSettings.nextMp3Quality(defaultMp3Quality);
+            updateDefaultMp3QualityButton();
+        });
+        updateDefaultMp3QualityButton();
+        content.addView(defaultMp3QualityButton, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "Used first in the Download dialog; each queued MP3 keeps the quality you chose.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(12))
+        );
+
         content.addView(text("Updates", 13, MUTED), matchWrap(dp(2), dp(8)));
         TextView currentVersion = text(
                 "Current version " + installedVersionName
@@ -256,7 +273,10 @@ final class SettingsDialog {
         content.addView(currentVersion, matchWrap(0, dp(8)));
         SharedPreferences updatePreferences = updatePreferences();
         updateStatus = text(
-                updatePreferences.getString(UPDATE_LAST_STATUS, "Not checked yet"),
+                updatePreferences.getString(
+                        GitHubUpdateChecker.UPDATE_LAST_STATUS,
+                        "Not checked yet"
+                ),
                 12,
                 MUTED
         );
@@ -268,7 +288,7 @@ final class SettingsDialog {
                 checkUpdatesButton,
                 new LinearLayout.LayoutParams(0, dp(44), 1f)
         );
-        downloadUpdateButton = button("Download latest APK");
+        downloadUpdateButton = button("Download and install");
         downloadUpdateButton.setOnClickListener(ignored -> startUpdateCheck(true, true));
         LinearLayout.LayoutParams downloadParams =
                 new LinearLayout.LayoutParams(0, dp(44), 1f);
@@ -427,11 +447,17 @@ final class SettingsDialog {
     }
 
     private SharedPreferences updatePreferences() {
-        return activity.getSharedPreferences(UPDATE_PREFERENCES, Activity.MODE_PRIVATE);
+        return activity.getSharedPreferences(
+                GitHubUpdateChecker.UPDATE_PREFERENCES,
+                Activity.MODE_PRIVATE
+        );
     }
 
     private void initializeUpdateCheck() {
-        long lastCheck = updatePreferences().getLong(UPDATE_LAST_CHECK, 0);
+        long lastCheck = updatePreferences().getLong(
+                GitHubUpdateChecker.UPDATE_LAST_CHECK,
+                0
+        );
         if (System.currentTimeMillis() - lastCheck >= GitHubUpdateChecker.AUTO_CHECK_INTERVAL_MS) {
             startUpdateCheck(false, false);
         }
@@ -515,7 +541,7 @@ final class SettingsDialog {
                 .setMessage(notes)
                 .setNegativeButton("Not now", null)
                 .setPositiveButton(
-                        "Download update",
+                        "Download and install",
                         (alert, which) -> enqueueUpdateDownload(release)
                 )
                 .show();
@@ -526,27 +552,33 @@ final class SettingsDialog {
             int comparison
     ) {
         String message = comparison > 0
-                ? "Download the official SpeedyWatch v" + release.versionName
-                        + " APK to your Downloads folder?"
+                ? "Download and verify the official SpeedyWatch v" + release.versionName
+                        + " APK, then open Android's installer?"
                 : "The latest published APK is v" + release.versionName
                         + ", which is not newer than installed v" + installedVersionName
-                        + ". Download it anyway?";
+                        + ". Download, verify, and open the installer anyway?";
         new AlertDialog.Builder(activity)
                 .setTitle("Download latest published APK?")
                 .setMessage(message)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton(
-                        comparison > 0 ? "Download APK" : "Download anyway",
+                        comparison > 0 ? "Download and install" : "Download anyway",
                         (alert, which) -> enqueueUpdateDownload(release)
                 )
                 .show();
     }
 
     private void enqueueUpdateDownload(GitHubUpdateChecker.Release release) {
+        activity.runAfterNotificationPermissionDecision(
+                () -> startUpdateDownload(release)
+        );
+    }
+
+    private void startUpdateDownload(GitHubUpdateChecker.Release release) {
         try {
             GitHubUpdateChecker.enqueueDownload(activity, release);
             String message = "Downloading SpeedyWatch v" + release.versionName
-                    + " to Downloads";
+                    + "; Android's installer will open when it is verified";
             saveUpdateStatus(message);
             Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
         } catch (GitHubUpdateChecker.UpdateException error) {
@@ -560,8 +592,8 @@ final class SettingsDialog {
             updateStatus.setText(message);
         }
         updatePreferences().edit()
-                .putLong(UPDATE_LAST_CHECK, System.currentTimeMillis())
-                .putString(UPDATE_LAST_STATUS, message)
+                .putLong(GitHubUpdateChecker.UPDATE_LAST_CHECK, System.currentTimeMillis())
+                .putString(GitHubUpdateChecker.UPDATE_LAST_STATUS, message)
                 .apply();
     }
 
@@ -791,6 +823,13 @@ final class SettingsDialog {
         lockIconToggleButton.setText(lockIconEnabled ? "Lock icon: On" : "Lock icon: Off");
     }
 
+    private void updateDefaultMp3QualityButton() {
+        defaultMp3QualityButton.setText(
+                "Default MP3 quality: "
+                        + SpeedyWatchSettings.mp3QualityLabel(defaultMp3Quality)
+        );
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -811,6 +850,7 @@ final class SettingsDialog {
             return;
         }
         settings.setDefaultPlaybackSpeed(defaultSpeed);
+        settings.setDefaultMp3Quality(defaultMp3Quality);
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(

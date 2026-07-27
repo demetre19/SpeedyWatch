@@ -76,6 +76,7 @@ public final class MainActivity extends Activity {
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int REQUEST_EXPORT_BACKUP = 4101;
     private static final int REQUEST_IMPORT_BACKUP = 4102;
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 4001;
 
     private WebView webView;
     private TextView statusText;
@@ -105,8 +106,11 @@ public final class MainActivity extends Activity {
     private volatile String activeTranscriptTitle = "YouTube Video";
     private volatile String activeTranscriptPageUrl = "";
     private volatile String activeVideoId = "";
-    private volatile String lastCaptionRequestUrl = "";
+    private volatile String observedCaptionRequestUrl = "";
+    private volatile String observedCaptionVideoId = "";
+    private volatile String activeCaptionRequestUrl = "";
     private volatile String lastSponsorLookupKey = "";
+    private Runnable pendingNotificationPermissionAction;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -180,6 +184,7 @@ public final class MainActivity extends Activity {
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                clearObservedCaptionRequestForNavigation(url);
                 refreshSponsorSegments(url);
             }
 
@@ -240,6 +245,46 @@ public final class MainActivity extends Activity {
         } else if (requestCode == REQUEST_IMPORT_BACKUP) {
             importBackup(uri);
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_NOTIFICATION_PERMISSION) {
+            return;
+        }
+        Runnable action = pendingNotificationPermissionAction;
+        pendingNotificationPermissionAction = null;
+        if (action == null) {
+            return;
+        }
+        if (grantResults.length == 0
+                || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(
+                    this,
+                    "Notifications are off; reopen SpeedyWatch after a background download to install",
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+        action.run();
+    }
+
+    void runAfterNotificationPermissionDecision(Runnable action) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            action.run();
+            return;
+        }
+        pendingNotificationPermissionAction = action;
+        requestPermissions(
+                new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                REQUEST_NOTIFICATION_PERMISSION
+        );
     }
 
     private String incomingVideoUrl(Intent intent) {
@@ -675,12 +720,10 @@ public final class MainActivity extends Activity {
     }
 
     private void showDownload() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4001);
-        }
+        runAfterNotificationPermissionDecision(this::showDownloadDialog);
+    }
 
+    private void showDownloadDialog() {
         String clipboardUrl = clipboardVideoUrl();
         String videoUrl = clipboardUrl != null
                 ? clipboardUrl
@@ -688,6 +731,7 @@ public final class MainActivity extends Activity {
         new VideoDownloadDialog(
                 this,
                 ioExecutor,
+                appSettings,
                 videoUrl,
                 clipboardUrl != null
         ).show();
@@ -966,7 +1010,11 @@ public final class MainActivity extends Activity {
         activeTranscriptTitle = "YouTube Video";
         activeTranscriptPageUrl = pageUrl;
         activeVideoId = videoId;
-        lastCaptionRequestUrl = "";
+        activeCaptionRequestUrl = "";
+        if (!videoId.equals(observedCaptionVideoId)) {
+            observedCaptionRequestUrl = "";
+            observedCaptionVideoId = "";
+        }
 
         if (languageCode != null && !languageCode.isEmpty()) {
             loadInnerTubeCaptionTrack(requestId, languageCode);
@@ -985,7 +1033,7 @@ public final class MainActivity extends Activity {
         try {
             Object outer = new JSONTokener(evaluationResult == null ? "null" : evaluationResult).nextValue();
             if (!(outer instanceof String json)) {
-                loadInnerTubeCaptionTrack(requestId);
+                loadObservedCaptionTrackOrInnerTube(requestId);
                 return;
             }
             JSONObject metadata = new JSONObject(json);
@@ -995,13 +1043,25 @@ public final class MainActivity extends Activity {
             }
             String baseUrl = metadata.optString("baseUrl", "").trim();
             if (baseUrl.isEmpty() || !isTrustedCaptionUri(Uri.parse(baseUrl))) {
-                loadInnerTubeCaptionTrack(requestId);
+                loadObservedCaptionTrackOrInnerTube(requestId);
                 return;
             }
             fetchTranscriptUrl(requestId, baseUrl, true);
         } catch (Exception error) {
-            loadInnerTubeCaptionTrack(requestId);
+            loadObservedCaptionTrackOrInnerTube(requestId);
         }
+    }
+
+    private void loadObservedCaptionTrackOrInnerTube(long requestId) {
+        String url = observedCaptionRequestUrl;
+        if (activeVideoId.equals(observedCaptionVideoId)
+                && !url.isEmpty()
+                && isTrustedCaptionUri(Uri.parse(url))) {
+            activeCaptionRequestUrl = url;
+            fetchTranscriptUrl(requestId, url, true);
+            return;
+        }
+        loadInnerTubeCaptionTrack(requestId);
     }
 
     private void loadInnerTubeCaptionTrack(long requestId) {
@@ -1077,7 +1137,10 @@ public final class MainActivity extends Activity {
         try {
             JSONObject client = new JSONObject()
                     .put("clientName", "ANDROID")
-                    .put("clientVersion", "20.10.38");
+                    .put("clientVersion", "21.26.364")
+                    .put("androidSdkVersion", 30)
+                    .put("osName", "Android")
+                    .put("osVersion", "11");
             JSONObject payload = new JSONObject()
                     .put("context", new JSONObject().put("client", client))
                     .put("videoId", videoId);
@@ -1092,8 +1155,10 @@ public final class MainActivity extends Activity {
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             connection.setRequestProperty(
                     "User-Agent",
-                    "com.google.android.youtube/20.10.38 (Linux; U; Android 14)"
+                    "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip"
             );
+            connection.setRequestProperty("X-YouTube-Client-Name", "3");
+            connection.setRequestProperty("X-YouTube-Client-Version", "21.26.364");
             connection.getOutputStream().write(body);
             if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) {
                 throw new IOException("YouTube player request failed");
@@ -1210,6 +1275,7 @@ public final class MainActivity extends Activity {
         if (requestId != activeTranscriptRequestId || activeTranscriptDelivered) {
             return;
         }
+        activeCaptionRequestUrl = "";
         String script = "window.__speedyWatchController "
                 + "? window.__speedyWatchController.requestCaptions() : 'missing'";
         webView.evaluateJavascript(script, result -> {
@@ -1226,18 +1292,36 @@ public final class MainActivity extends Activity {
     }
 
     private void captureCaptionRequest(Uri uri) {
-        if (!isTrustedCaptionUri(uri)
-                || activeTranscriptCallback == null
-                || activeTranscriptDelivered) {
+        if (!isTrustedCaptionUri(uri)) {
+            return;
+        }
+        String videoId = uri.getQueryParameter("v");
+        if (videoId == null || !videoId.matches("[A-Za-z0-9_-]{11}")) {
             return;
         }
         String url = uri.toString();
-        if (url.equals(lastCaptionRequestUrl)) {
+        observedCaptionRequestUrl = url;
+        observedCaptionVideoId = videoId;
+        if (activeTranscriptCallback == null
+                || activeTranscriptDelivered
+                || !videoId.equals(activeVideoId)
+                || url.equals(activeCaptionRequestUrl)) {
             return;
         }
-        lastCaptionRequestUrl = url;
+        activeCaptionRequestUrl = url;
         long requestId = activeTranscriptRequestId;
         runOnUiThread(() -> fetchTranscriptUrl(requestId, url, false));
+    }
+
+    private void clearObservedCaptionRequestForNavigation(String pageUrl) {
+        Uri pageUri = pageUrl == null ? null : Uri.parse(pageUrl);
+        String videoId = pageUri == null ? null : pageUri.getQueryParameter("v");
+        if (videoId == null
+                || !videoId.matches("[A-Za-z0-9_-]{11}")
+                || !videoId.equals(observedCaptionVideoId)) {
+            observedCaptionRequestUrl = "";
+            observedCaptionVideoId = "";
+        }
     }
 
     private void fetchTranscriptUrl(long requestId, String url, boolean allowClickFallback) {
@@ -1659,6 +1743,7 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        GitHubUpdateChecker.resumePendingInstaller(this);
     }
 
     @Override

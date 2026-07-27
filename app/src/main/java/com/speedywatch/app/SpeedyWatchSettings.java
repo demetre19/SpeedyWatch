@@ -27,6 +27,7 @@ final class SpeedyWatchSettings {
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
     private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
+    private static final String DEFAULT_MP3_QUALITY = "default_mp3_quality";
     private static final String LOCK_ICON_ENABLED = "lock_icon_enabled";
     private static final String PLAYBACK_PROFILE = "playback_profile";
     private static final String ADAPTIVE_SPEED_ENABLED = "adaptive_speed_enabled";
@@ -39,6 +40,9 @@ final class SpeedyWatchSettings {
     static final String PROFILE_CAREFUL = "careful";
     static final String PROFILE_LECTURE = "lecture";
     static final String PROFILE_PODCAST = "podcast";
+    static final String MP3_QUALITY_HIGH = "high";
+    static final String MP3_QUALITY_STANDARD = "standard";
+    static final String MP3_QUALITY_COMPACT = "compact";
     private static final String LEGACY_SUMMARY_ONE_PROMPT =
             "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
                     + "- A brief overview of the video topic (2-3 sentences)\n"
@@ -73,6 +77,50 @@ final class SpeedyWatchSettings {
         preferences.edit()
                 .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(bounded))
                 .apply();
+    }
+
+    String getDefaultMp3Quality() {
+        String quality = preferences.getString(DEFAULT_MP3_QUALITY, MP3_QUALITY_STANDARD);
+        return isMp3Quality(quality) ? quality : MP3_QUALITY_STANDARD;
+    }
+
+    void setDefaultMp3Quality(String quality) {
+        preferences.edit()
+                .putString(
+                        DEFAULT_MP3_QUALITY,
+                        isMp3Quality(quality) ? quality : MP3_QUALITY_STANDARD
+                )
+                .apply();
+    }
+
+    static String mp3QualityLabel(String quality) {
+        if (MP3_QUALITY_HIGH.equals(quality)) {
+            return "High (192 kbps)";
+        }
+        if (MP3_QUALITY_COMPACT.equals(quality)) {
+            return "Compact (64 kbps)";
+        }
+        return "Standard (128 kbps)";
+    }
+
+    static String mp3BitrateForQuality(String quality) {
+        if (MP3_QUALITY_HIGH.equals(quality)) {
+            return "192K";
+        }
+        if (MP3_QUALITY_COMPACT.equals(quality)) {
+            return "64K";
+        }
+        return "128K";
+    }
+
+    static String nextMp3Quality(String quality) {
+        if (MP3_QUALITY_STANDARD.equals(quality)) {
+            return MP3_QUALITY_HIGH;
+        }
+        if (MP3_QUALITY_HIGH.equals(quality)) {
+            return MP3_QUALITY_COMPACT;
+        }
+        return MP3_QUALITY_STANDARD;
     }
     String getPlaybackProfile() {
         String profile = preferences.getString(PLAYBACK_PROFILE, PROFILE_NORMAL);
@@ -131,6 +179,12 @@ final class SpeedyWatchSettings {
                 || PROFILE_CAREFUL.equals(profile)
                 || PROFILE_LECTURE.equals(profile)
                 || PROFILE_PODCAST.equals(profile);
+    }
+
+    static boolean isMp3Quality(String quality) {
+        return MP3_QUALITY_HIGH.equals(quality)
+                || MP3_QUALITY_STANDARD.equals(quality)
+                || MP3_QUALITY_COMPACT.equals(quality);
     }
     boolean isSponsorBlockEnabled() {
         return preferences.getBoolean(SPONSORBLOCK_ENABLED, false);
@@ -250,7 +304,8 @@ final class SpeedyWatchSettings {
             boolean lockEnabled,
             String playbackProfile,
             boolean adaptiveEnabled,
-            double adaptiveBoost
+            double adaptiveBoost,
+            String mp3Quality
     ) {
         String normalizedModel = modelId == null ? "" : modelId.trim();
         if (normalizedModel.length() > 300
@@ -261,7 +316,8 @@ final class SpeedyWatchSettings {
                 || defaultSpeed < 0.25 || defaultSpeed > 4
                 || !isPlaybackProfile(playbackProfile)
                 || !Double.isFinite(adaptiveBoost)
-                || adaptiveBoost < 0.1 || adaptiveBoost > 1.5) {
+                || adaptiveBoost < 0.1 || adaptiveBoost > 1.5
+                || !isMp3Quality(mp3Quality)) {
             return false;
         }
         return preferences.edit()
@@ -274,6 +330,7 @@ final class SpeedyWatchSettings {
                 .putString(PLAYBACK_PROFILE, playbackProfile)
                 .putBoolean(ADAPTIVE_SPEED_ENABLED, adaptiveEnabled)
                 .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(adaptiveBoost))
+                .putString(DEFAULT_MP3_QUALITY, mp3Quality)
                 .commit();
     }
 

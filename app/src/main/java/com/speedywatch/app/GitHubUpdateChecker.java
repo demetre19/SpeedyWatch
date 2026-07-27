@@ -1,10 +1,22 @@
 package com.speedywatch.app;
 
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.ActivityManager;
 import android.app.DownloadManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
-
+import android.os.Process;
+import android.provider.Settings;
+import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -17,6 +29,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,6 +40,9 @@ final class GitHubUpdateChecker {
             "https://api.github.com/repos/demetre19/SpeedyWatch/releases/latest";
     static final String ASSET_NAME = "SpeedyWatch.apk";
     static final long AUTO_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
+    static final String UPDATE_PREFERENCES = "speedywatch_updates";
+    static final String UPDATE_LAST_CHECK = "last_check_ms";
+    static final String UPDATE_LAST_STATUS = "last_status";
 
     private static final long MAX_APK_BYTES = 256L * 1024L * 1024L;
     private static final int MAX_RELEASE_BYTES = 1024 * 1024;
@@ -33,6 +51,16 @@ final class GitHubUpdateChecker {
     private static final Pattern RELEASE_TAG = Pattern.compile("^v([0-9]+(?:\\.[0-9]+){1,3})$");
     private static final Pattern SHA256 = Pattern.compile("^sha256:[0-9a-f]{64}$");
     private static final String APK_MIME = "application/vnd.android.package-archive";
+    private static final Pattern SHA256_VALUE = Pattern.compile("^[0-9a-f]{64}$");
+    private static final String DOWNLOAD_PREFERENCES = "speedywatch_update_download";
+    private static final String DOWNLOAD_ID = "download_id";
+    private static final String DOWNLOAD_SIZE = "download_size";
+    private static final String DOWNLOAD_SHA256 = "download_sha256";
+    private static final String DOWNLOAD_VERSION = "download_version";
+    private static final String READY_URI = "ready_uri";
+    private static final String READY_VERSION = "ready_version";
+    private static final String UPDATE_CHANNEL_ID = "speedywatch_updates";
+    private static final int UPDATE_NOTIFICATION_ID = 4_208;
 
     private GitHubUpdateChecker() {
     }
@@ -181,11 +209,344 @@ final class GitHubUpdateChecker {
                         Environment.DIRECTORY_DOWNLOADS,
                         "SpeedyWatch-v" + release.versionName + ".apk"
                 );
+        long downloadId;
         try {
-            return manager.enqueue(request);
+            downloadId = manager.enqueue(request);
         } catch (RuntimeException error) {
             throw new UpdateException("Could not start the Android download", error);
         }
+
+        boolean saved = context.getSharedPreferences(DOWNLOAD_PREFERENCES, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(DOWNLOAD_ID, downloadId)
+                .putLong(DOWNLOAD_SIZE, release.assetSize)
+                .putString(DOWNLOAD_SHA256, release.sha256)
+                .putString(DOWNLOAD_VERSION, release.versionName)
+                .commit();
+        if (!saved) {
+            manager.remove(downloadId);
+            throw new UpdateException("Could not track the update download");
+        }
+        return downloadId;
+    }
+
+    static void handleDownloadComplete(Context context, long downloadId) {
+        SharedPreferences downloadPreferences = context.getSharedPreferences(
+                DOWNLOAD_PREFERENCES,
+                Context.MODE_PRIVATE
+        );
+        if (downloadPreferences.getLong(DOWNLOAD_ID, -1L) != downloadId) {
+            return;
+        }
+
+        long expectedSize = downloadPreferences.getLong(DOWNLOAD_SIZE, -1L);
+        String expectedSha256 = downloadPreferences.getString(DOWNLOAD_SHA256, "");
+        String versionName = downloadPreferences.getString(DOWNLOAD_VERSION, "");
+        DownloadManager manager = context.getSystemService(DownloadManager.class);
+        if (manager == null
+                || expectedSize <= 0
+                || !SHA256_VALUE.matcher(expectedSha256).matches()
+                || versionName.isEmpty()) {
+            clearPendingDownload(downloadPreferences);
+            saveUpdateStatus(context, "Downloaded update could not be verified");
+            return;
+        }
+
+        try {
+            if (!isSuccessfulDownload(manager, downloadId, expectedSize)) {
+                clearPendingDownload(downloadPreferences);
+                saveUpdateStatus(context, "Update download did not complete");
+                return;
+            }
+            Uri apkUri = manager.getUriForDownloadedFile(downloadId);
+            if (apkUri == null || !"content".equalsIgnoreCase(apkUri.getScheme())) {
+                throw new IOException("Download Manager did not provide a secure content URI");
+            }
+            try (InputStream input = context.getContentResolver().openInputStream(apkUri)) {
+                if (input == null || !verifyDownloadedApk(input, expectedSize, expectedSha256)) {
+                    throw new IOException("Downloaded APK does not match the GitHub release");
+                }
+            }
+
+            boolean saved = downloadPreferences.edit()
+                    .remove(DOWNLOAD_ID)
+                    .remove(DOWNLOAD_SIZE)
+                    .remove(DOWNLOAD_SHA256)
+                    .remove(DOWNLOAD_VERSION)
+                    .putString(READY_URI, apkUri.toString())
+                    .putString(READY_VERSION, versionName)
+                    .commit();
+            if (!saved) {
+                throw new IOException("Could not persist the verified update");
+            }
+            saveUpdateStatus(
+                    context,
+                    "SpeedyWatch v" + versionName + " verified and ready to install"
+            );
+            openInstallerOrNotify(context, apkUri, versionName);
+        } catch (IOException | RuntimeException error) {
+            clearPendingDownload(downloadPreferences);
+            saveUpdateStatus(context, "Downloaded update failed verification");
+            showUpdateNotification(
+                    context,
+                    "SpeedyWatch update failed verification",
+                    "Download the update again from Settings",
+                    null
+            );
+        }
+    }
+
+    static boolean verifyDownloadedApk(
+            InputStream input,
+            long expectedSize,
+            String expectedSha256
+    ) throws IOException {
+        if (expectedSize <= 0 || !SHA256_VALUE.matcher(expectedSha256).matches()) {
+            return false;
+        }
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+        byte[] buffer = new byte[8192];
+        long total = 0;
+        int read;
+        while ((read = input.read(buffer)) != -1) {
+            total += read;
+            if (total > expectedSize) {
+                return false;
+            }
+            digest.update(buffer, 0, read);
+        }
+        return total == expectedSize
+                && MessageDigest.isEqual(digest.digest(), decodeHex(expectedSha256));
+    }
+    static void resumePendingInstaller(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(
+                DOWNLOAD_PREFERENCES,
+                Context.MODE_PRIVATE
+        );
+        String uriValue = preferences.getString(READY_URI, "");
+        String versionName = preferences.getString(READY_VERSION, "");
+        if (uriValue.isEmpty() || versionName.isEmpty()) {
+            return;
+        }
+        Uri apkUri = Uri.parse(uriValue);
+        if (!"content".equalsIgnoreCase(apkUri.getScheme())) {
+            clearReadyDownload(preferences);
+            return;
+        }
+        if (!context.getPackageManager().canRequestPackageInstalls()) {
+            showInstallPermissionPrompt(context, versionName);
+            return;
+        }
+        try {
+            context.startActivity(createInstallIntent(apkUri));
+            clearReadyDownload(preferences);
+        } catch (RuntimeException error) {
+            showUpdateNotification(
+                    context,
+                    "SpeedyWatch v" + versionName + " is ready",
+                    "Tap to open Android's installer",
+                    createInstallIntent(apkUri)
+            );
+        }
+    }
+
+    private static void showInstallPermissionPrompt(Context context, String versionName) {
+        if (!(context instanceof Activity) || ((Activity) context).isFinishing()) {
+            showUpdateNotification(
+                    context,
+                    "Allow SpeedyWatch to install updates",
+                    "Enable this source, then return to SpeedyWatch",
+                    createInstallPermissionIntent(context)
+            );
+            return;
+        }
+        new AlertDialog.Builder(context)
+                .setTitle("SpeedyWatch v" + versionName + " is ready")
+                .setMessage(
+                        "Allow SpeedyWatch as an install source, then return to open "
+                                + "Android's installer."
+                )
+                .setNegativeButton("Later", null)
+                .setPositiveButton("Open settings", (dialog, which) -> {
+                    try {
+                        context.startActivity(createInstallPermissionIntent(context));
+                    } catch (RuntimeException error) {
+                        Toast.makeText(
+                                context,
+                                "Could not open install-source settings",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                })
+                .show();
+    }
+
+
+    private static boolean isSuccessfulDownload(
+            DownloadManager manager,
+            long downloadId,
+            long expectedSize
+    ) {
+        DownloadManager.Query query = new DownloadManager.Query().setFilterById(downloadId);
+        try (Cursor cursor = manager.query(query)) {
+            if (cursor == null || !cursor.moveToFirst()) {
+                return false;
+            }
+            int status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            long size = cursor.getLong(
+                    cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+            );
+            return status == DownloadManager.STATUS_SUCCESSFUL && size == expectedSize;
+        }
+    }
+
+    private static void openInstallerOrNotify(
+            Context context,
+            Uri apkUri,
+            String versionName
+    ) {
+        Intent installIntent = createInstallIntent(apkUri);
+        if (isAppForeground(context)) {
+            if (!context.getPackageManager().canRequestPackageInstalls()) {
+                Intent permissionIntent = createInstallPermissionIntent(context);
+                showUpdateNotification(
+                        context,
+                        "Allow SpeedyWatch to install updates",
+                        "Enable this source, then return to SpeedyWatch",
+                        permissionIntent
+                );
+                try {
+                    context.startActivity(permissionIntent);
+                    return;
+                } catch (RuntimeException ignored) {
+                    // Fall through to the user-initiated notification path.
+                }
+            } else {
+                try {
+                    context.startActivity(installIntent);
+                    clearReadyDownload(context.getSharedPreferences(
+                            DOWNLOAD_PREFERENCES,
+                            Context.MODE_PRIVATE
+                    ));
+                    return;
+                } catch (RuntimeException ignored) {
+                    // Fall through to the user-initiated notification path.
+                }
+            }
+        }
+        boolean canInstall = context.getPackageManager().canRequestPackageInstalls();
+        showUpdateNotification(
+                context,
+                canInstall
+                        ? "SpeedyWatch v" + versionName + " is ready"
+                        : "Allow SpeedyWatch to install updates",
+                canInstall
+                        ? "Tap to open Android's installer"
+                        : "Enable this source, then return to SpeedyWatch",
+                canInstall ? installIntent : createInstallPermissionIntent(context)
+        );
+    }
+
+    private static Intent createInstallIntent(Uri apkUri) {
+        return new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(apkUri, APK_MIME)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+
+    private static Intent createInstallPermissionIntent(Context context) {
+        return new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                .setData(Uri.parse("package:" + context.getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    }
+
+    private static boolean isAppForeground(Context context) {
+        ActivityManager manager = context.getSystemService(ActivityManager.class);
+        if (manager == null) {
+            return false;
+        }
+        List<ActivityManager.RunningAppProcessInfo> processes =
+                manager.getRunningAppProcesses();
+        if (processes == null) {
+            return false;
+        }
+        int processId = Process.myPid();
+        for (ActivityManager.RunningAppProcessInfo process : processes) {
+            if (process.pid == processId
+                    && process.importance
+                    == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void showUpdateNotification(
+            Context context,
+            String title,
+            String message,
+            Intent intent
+    ) {
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) {
+            return;
+        }
+        manager.createNotificationChannel(new NotificationChannel(
+                UPDATE_CHANNEL_ID,
+                "App updates",
+                NotificationManager.IMPORTANCE_HIGH
+        ));
+        Notification.Builder builder = new Notification.Builder(context, UPDATE_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_download)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setAutoCancel(true);
+        if (intent != null) {
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    context,
+                    UPDATE_NOTIFICATION_ID,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            builder.setContentIntent(pendingIntent);
+        }
+        manager.notify(UPDATE_NOTIFICATION_ID, builder.build());
+    }
+
+    private static void clearPendingDownload(SharedPreferences preferences) {
+        preferences.edit()
+                .remove(DOWNLOAD_ID)
+                .remove(DOWNLOAD_SIZE)
+                .remove(DOWNLOAD_SHA256)
+                .remove(DOWNLOAD_VERSION)
+                .apply();
+    }
+
+    private static void clearReadyDownload(SharedPreferences preferences) {
+        preferences.edit()
+                .remove(READY_URI)
+                .remove(READY_VERSION)
+                .apply();
+    }
+
+    private static void saveUpdateStatus(Context context, String message) {
+        context.getSharedPreferences(UPDATE_PREFERENCES, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(UPDATE_LAST_CHECK, System.currentTimeMillis())
+                .putString(UPDATE_LAST_STATUS, message)
+                .apply();
+    }
+
+    private static byte[] decodeHex(String value) {
+        byte[] decoded = new byte[value.length() / 2];
+        for (int index = 0; index < value.length(); index += 2) {
+            decoded[index / 2] = (byte) Integer.parseInt(value.substring(index, index + 2), 16);
+        }
+        return decoded;
     }
 
     static void validateAssetSize(long size) throws UpdateException {

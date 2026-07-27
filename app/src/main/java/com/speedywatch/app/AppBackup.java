@@ -24,6 +24,7 @@ final class AppBackup {
                 .put("summaryTwoPrompt", settings.getSummaryTwoPrompt())
                 .put("quizPrompt", settings.getQuizPrompt())
                 .put("defaultPlaybackSpeed", settings.getDefaultPlaybackSpeed())
+                .put("defaultMp3Quality", settings.getDefaultMp3Quality())
                 .put("lockIconEnabled", settings.isLockIconEnabled())
                 .put("playbackProfile", settings.getPlaybackProfile())
                 .put("adaptiveSpeedEnabled", settings.isAdaptiveSpeedEnabled())
@@ -70,6 +71,10 @@ final class AppBackup {
         String summaryTwo = boundedString(preferences, "summaryTwoPrompt", MAXIMUM_PROMPT_LENGTH, false);
         String quiz = boundedString(preferences, "quizPrompt", MAXIMUM_PROMPT_LENGTH, false);
         double speed = preferences.optDouble("defaultPlaybackSpeed", Double.NaN);
+        String mp3Quality = preferences.optString(
+                "defaultMp3Quality",
+                SpeedyWatchSettings.MP3_QUALITY_STANDARD
+        );
         boolean lockEnabled = preferences.optBoolean("lockIconEnabled", true);
         String playbackProfile = preferences.optString(
                 "playbackProfile", SpeedyWatchSettings.PROFILE_NORMAL);
@@ -113,7 +118,8 @@ final class AppBackup {
                 lockEnabled,
                 playbackProfile,
                 adaptiveEnabled,
-                adaptiveBoost
+                adaptiveBoost,
+                mp3Quality
         )) {
             try {
                 store.replaceAll(previous);

@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.18**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.19**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -57,7 +57,8 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Export settings plus saved summaries and quizzes to a cross-platform JSON backup, then restore it on Android or iPhone. OpenRouter API keys are never included.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
 - Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions. The live model picker shows context length and per-million-token input/output prices and can filter free or long-context models.
-- On Android, check the official latest stable GitHub Release from Settings, see an explicit up-to-date status when no newer version exists, and manually download its APK to the Downloads folder.
+- On Android, check the official latest stable GitHub Release from Settings. SpeedyWatch downloads the APK to Downloads, verifies its exact GitHub size and SHA-256, and opens Android's installer automatically when permitted; Android still requires per-source permission and final Update or Install confirmation.
+- Choose High (192 kbps), Standard (128 kbps), or Compact (64 kbps) for every Android MP3 download. Settings persists the default quality, and queued downloads retain the quality selected when they were added.
 
 ## Android download and install
 
@@ -72,16 +73,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.18
-Version code: 18
+Version: 0.19
+Version code: 19
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 105,983,906 bytes
-SHA-256: 9c3b4dbffd3ce3a6600f60c5e28561e51f744851fe19dbd000fbdad633dada9d
+APK size: 106,267,718 bytes
+SHA-256: c494e1a0fc62b023b1ee542d2fb84e8c4c8339d4776372afb9c6977cef33bad1
 Signing: Android debug signing key
 ```
 
-This public v0.18 APK is debug-signed with APK Signature Scheme v2. It adds sequential Android MP3 and MP4 download queues with visible waiting counts and active-download cancellation, and fixes downloads that could remain at 100% by showing finalization separately, avoiding unnecessary full MP4 recoding, and advancing the queue after a bounded finalization timeout. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.19 APK is debug-signed with APK Signature Scheme v2. It adds verified in-app update downloads that hand the APK to Android's installer, selectable High (192 kbps), Standard (128 kbps), and Compact (64 kbps) MP3 quality, and more reliable subtitle discovery for summaries when YouTube's fallback player API requires sign-in. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 

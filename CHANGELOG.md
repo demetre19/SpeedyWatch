@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.19 — 2026-07-27
+
+### Added
+
+- Choose High (192 kbps), Standard (128 kbps), or Compact (64 kbps) for each Android MP3 download.
+- Set and back up a default MP3 quality in Settings; the Download dialog lists that preset first and queued jobs retain their chosen quality.
+- After an in-app update download finishes, verify its exact GitHub release size and SHA-256, then open Android's installer automatically when allowed or provide a tap-to-install notification.
+
+### Fixed
+
+- Restore subtitles and summaries when YouTube's Android player fallback selectively requires sign-in by retaining trusted page-observed caption requests for the exact active video.
+- Discover caption tracks from current and legacy mobile player responses, refresh the no-key Android player profile, and prevent a previous video's signed caption URL from crossing navigation.
+
+### Security
+
+- Bind update completion to the exact DownloadManager job and grant Android's installer read access only to the verified `content://` APK.
+- Keep Android's per-source install permission and final Update or Install confirmation mandatory; SpeedyWatch never silently installs an APK.
+
 ## v0.18 — 2026-07-27
 
 ### Added

@@ -307,9 +307,38 @@
         getCaptionTrack() {
             try {
                 const player = playerElement();
-                const response = player && typeof player.getPlayerResponse === "function"
-                    ? player.getPlayerResponse()
-                    : window.ytInitialPlayerResponse;
+                const currentVideoId = new URL(window.location.href).searchParams.get("v") || "";
+                const responses = [];
+                if (player && typeof player.getPlayerResponse === "function") {
+                    responses.push(player.getPlayerResponse());
+                }
+                if (window.ytInitialPlayerResponse) {
+                    responses.push(window.ytInitialPlayerResponse);
+                }
+                const configuredResponse = window.ytplayer
+                    && window.ytplayer.config
+                    && window.ytplayer.config.args
+                    && window.ytplayer.config.args.player_response;
+                if (configuredResponse) {
+                    try {
+                        responses.push(typeof configuredResponse === "string"
+                            ? JSON.parse(configuredResponse) : configuredResponse);
+                    } catch (_) {
+                        // Keep current player responses when a legacy config value is malformed.
+                    }
+                }
+                const response = responses.find((candidate) => {
+                    const candidateVideoId = candidate
+                        && candidate.videoDetails
+                        && candidate.videoDetails.videoId;
+                    const renderer = candidate
+                        && candidate.captions
+                        && candidate.captions.playerCaptionsTracklistRenderer;
+                    return (!currentVideoId || !candidateVideoId || candidateVideoId === currentVideoId)
+                        && renderer
+                        && Array.isArray(renderer.captionTracks)
+                        && renderer.captionTracks.length > 0;
+                });
                 const renderer = response
                     && response.captions
                     && response.captions.playerCaptionsTracklistRenderer;
@@ -334,13 +363,32 @@
             }
         },
         requestCaptions() {
-            const button = document.querySelector("button.ytp-subtitles-button.ytp-button");
-            if (!button) {
-                return "missing";
+            const button = document.querySelector(
+                "button.ytp-subtitles-button, .ytp-subtitles-button"
+            );
+            if (button) {
+                button.click();
+                window.setTimeout(() => button.click(), 150);
+                return "triggered";
             }
-            button.click();
-            window.setTimeout(() => button.click(), 150);
-            return "triggered";
+            try {
+                const player = playerElement();
+                if (player && typeof player.loadModule === "function") {
+                    player.loadModule("captions");
+                }
+                const tracks = player && typeof player.getOption === "function"
+                    ? player.getOption("captions", "tracklist") : null;
+                if (Array.isArray(tracks)
+                        && tracks.length > 0
+                        && typeof player.setOption === "function") {
+                    const track = tracks.find((item) => item.kind !== "asr") || tracks[0];
+                    player.setOption("captions", "track", track);
+                    return "triggered";
+                }
+            } catch (_) {
+                // Fall through to the unavailable result.
+            }
+            return "missing";
         },
         seekTo(value) {
             const parsed = Number(value);

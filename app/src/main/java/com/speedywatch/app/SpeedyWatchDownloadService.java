@@ -39,6 +39,7 @@ public final class SpeedyWatchDownloadService extends Service {
     static final String EXTRA_TITLE = "title";
     static final String EXTRA_KIND = "kind";
     static final String EXTRA_HEIGHT = "height";
+    static final String EXTRA_MP3_QUALITY = "mp3_quality";
     static final String KIND_MP3 = "mp3";
     static final String KIND_MP4 = "mp4";
 
@@ -69,6 +70,7 @@ public final class SpeedyWatchDownloadService extends Service {
         final String title;
         final String kind;
         final int height;
+        final String mp3Quality;
         final String processId = UUID.randomUUID().toString();
         final int resultNotificationId;
         final AtomicBoolean cancelled = new AtomicBoolean();
@@ -77,11 +79,19 @@ public final class SpeedyWatchDownloadService extends Service {
         final AtomicBoolean executionFinished = new AtomicBoolean();
         volatile ScheduledFuture<?> finalizationTimeout;
 
-        DownloadJob(String url, String title, String kind, int height, int resultNotificationId) {
+        DownloadJob(
+                String url,
+                String title,
+                String kind,
+                int height,
+                String mp3Quality,
+                int resultNotificationId
+        ) {
             this.url = url;
             this.title = title;
             this.kind = kind;
             this.height = height;
+            this.mp3Quality = mp3Quality;
             this.resultNotificationId = resultNotificationId;
         }
 
@@ -140,8 +150,13 @@ public final class SpeedyWatchDownloadService extends Service {
         String title = intent.getStringExtra(EXTRA_TITLE);
         String kind = intent.getStringExtra(EXTRA_KIND);
         int height = intent.getIntExtra(EXTRA_HEIGHT, 0);
+        String mp3Quality = intent.getStringExtra(EXTRA_MP3_QUALITY);
+        if (mp3Quality == null) {
+            mp3Quality = SpeedyWatchSettings.MP3_QUALITY_STANDARD;
+        }
         if (!YouTubeDownloadEngine.isSupportedYouTubeUrl(url)
                 || (!KIND_MP3.equals(kind) && !KIND_MP4.equals(kind))
+                || (KIND_MP3.equals(kind) && !SpeedyWatchSettings.isMp3Quality(mp3Quality))
                 || (KIND_MP4.equals(kind) && (height < 144 || height > 4320))) {
             stopIfIdle();
             Toast.makeText(this, "Invalid download request", Toast.LENGTH_LONG).show();
@@ -164,6 +179,7 @@ public final class SpeedyWatchDownloadService extends Service {
                 YouTubeDownloadEngine.safeDisplayName(title),
                 kind,
                 height,
+                mp3Quality,
                 resultNotificationId
         );
         boolean startWorker = false;
@@ -190,7 +206,7 @@ public final class SpeedyWatchDownloadService extends Service {
             beginForeground(job);
             Toast.makeText(
                     this,
-                    formatLabel(job.kind, job.height) + " download started",
+                    formatLabel(job.kind, job.height, job.mp3Quality) + " download started",
                     Toast.LENGTH_LONG
             ).show();
             executor.execute(this::drainQueue);
@@ -198,7 +214,7 @@ public final class SpeedyWatchDownloadService extends Service {
             refreshQueueNotification();
             Toast.makeText(
                     this,
-                    formatLabel(job.kind, job.height)
+                    formatLabel(job.kind, job.height, job.mp3Quality)
                             + " queued — position " + queuePosition,
                     Toast.LENGTH_LONG
             ).show();
@@ -275,10 +291,16 @@ public final class SpeedyWatchDownloadService extends Service {
                 throw new IOException("Download cancelled");
             }
 
-            YoutubeDLRequest request = buildRequest(job.url, job.kind, job.height, jobDir);
+            YoutubeDLRequest request = buildRequest(
+                    job.url,
+                    job.kind,
+                    job.height,
+                    job.mp3Quality,
+                    jobDir
+            );
             updateNotification(
                     job.title,
-                    "Downloading " + formatLabel(job.kind, job.height),
+                    "Downloading " + formatLabel(job.kind, job.height, job.mp3Quality),
                     0,
                     true
             );
@@ -327,7 +349,13 @@ public final class SpeedyWatchDownloadService extends Service {
         }
     }
 
-    private YoutubeDLRequest buildRequest(String url, String kind, int height, File jobDir) {
+    private YoutubeDLRequest buildRequest(
+            String url,
+            String kind,
+            int height,
+            String mp3Quality,
+            File jobDir
+    ) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--no-playlist");
         request.addOption("--newline");
@@ -338,7 +366,10 @@ public final class SpeedyWatchDownloadService extends Service {
             request.addOption("-f", "bestaudio/best");
             request.addOption("-x");
             request.addOption("--audio-format", "mp3");
-            request.addOption("--audio-quality", "0");
+            request.addOption(
+                    "--audio-quality",
+                    SpeedyWatchSettings.mp3BitrateForQuality(mp3Quality)
+            );
         } else {
             String selector = "bestvideo[height<=" + height + "][ext=mp4][vcodec^=avc1]"
                     + "+bestaudio[ext=m4a][acodec^=mp4a]"
@@ -361,7 +392,7 @@ public final class SpeedyWatchDownloadService extends Service {
                 lastProgressUpdate = now;
                 updateNotification(
                         job.title,
-                        "Finishing " + formatLabel(job.kind, job.height),
+                        "Finishing " + formatLabel(job.kind, job.height, job.mp3Quality),
                         100,
                         true
                 );
@@ -373,7 +404,7 @@ public final class SpeedyWatchDownloadService extends Service {
         }
         lastProgress = rounded;
         lastProgressUpdate = now;
-        String detail = "Downloading " + formatLabel(job.kind, job.height)
+        String detail = "Downloading " + formatLabel(job.kind, job.height, job.mp3Quality)
                 + " — " + rounded + "%";
         if (etaSeconds > 0) {
             detail += " — " + etaSeconds + "s left";
@@ -394,8 +425,10 @@ public final class SpeedyWatchDownloadService extends Service {
         }, FINALIZATION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
     }
 
-    private String formatLabel(String kind, int height) {
-        return KIND_MP3.equals(kind) ? "MP3" : height + "p MP4";
+    private String formatLabel(String kind, int height, String mp3Quality) {
+        return KIND_MP3.equals(kind)
+                ? "MP3 · " + SpeedyWatchSettings.mp3QualityLabel(mp3Quality)
+                : height + "p MP4";
     }
 
     private void cancelActiveDownload() {

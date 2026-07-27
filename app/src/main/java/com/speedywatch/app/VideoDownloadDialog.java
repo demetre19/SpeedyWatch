@@ -33,6 +33,7 @@ final class VideoDownloadDialog {
             Arrays.asList(2160, 1440, 1080, 720, 480, 360);
     private final Activity activity;
     private final ExecutorService executor;
+    private final SpeedyWatchSettings settings;
     private final String videoUrl;
     private final boolean fromClipboard;
 
@@ -45,11 +46,13 @@ final class VideoDownloadDialog {
     VideoDownloadDialog(
             Activity activity,
             ExecutorService executor,
+            SpeedyWatchSettings settings,
             String videoUrl,
             boolean fromClipboard
     ) {
         this.activity = activity;
         this.executor = executor;
+        this.settings = settings;
         this.videoUrl = videoUrl;
         this.fromClipboard = fromClipboard;
     }
@@ -110,7 +113,7 @@ final class VideoDownloadDialog {
         content.addView(header);
 
         TextView guidance = text(
-                "Choose MP3 audio or the maximum MP4 resolution you want.",
+                "Choose an MP3 quality or the maximum MP4 resolution you want.",
                 14,
                 Color.WHITE
         );
@@ -165,21 +168,39 @@ final class VideoDownloadDialog {
     private void showChoices(List<Integer> resolutions) {
         choices.removeAllViews();
 
-        Button mp3 = choiceButton("MP3 — best available audio");
-        mp3.setOnClickListener(ignored -> startDownload(
-                SpeedyWatchDownloadService.KIND_MP3,
-                0
-        ));
-        choices.addView(mp3, choiceParams(true));
+        String defaultQuality = settings.getDefaultMp3Quality();
+        addMp3Choice(defaultQuality, true, true);
+        if (!SpeedyWatchSettings.MP3_QUALITY_HIGH.equals(defaultQuality)) {
+            addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_HIGH, false, false);
+        }
+        if (!SpeedyWatchSettings.MP3_QUALITY_STANDARD.equals(defaultQuality)) {
+            addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_STANDARD, false, false);
+        }
+        if (!SpeedyWatchSettings.MP3_QUALITY_COMPACT.equals(defaultQuality)) {
+            addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_COMPACT, false, false);
+        }
 
         for (int height : resolutions) {
             Button mp4 = choiceButton(height + "p MP4");
             mp4.setOnClickListener(ignored -> startDownload(
                     SpeedyWatchDownloadService.KIND_MP4,
-                    height
+                    height,
+                    SpeedyWatchSettings.MP3_QUALITY_STANDARD
             ));
             choices.addView(mp4, choiceParams(false));
         }
+    }
+
+    private void addMp3Choice(String quality, boolean first, boolean isDefault) {
+        String label = "MP3 — " + SpeedyWatchSettings.mp3QualityLabel(quality)
+                + (isDefault ? " · default" : "");
+        Button mp3 = choiceButton(label);
+        mp3.setOnClickListener(ignored -> startDownload(
+                SpeedyWatchDownloadService.KIND_MP3,
+                0,
+                quality
+        ));
+        choices.addView(mp3, choiceParams(first));
     }
 
     private void showStandardOptions() {
@@ -195,13 +216,14 @@ final class VideoDownloadDialog {
         Toast.makeText(activity, "Standard download options are ready", Toast.LENGTH_LONG).show();
     }
 
-    private void startDownload(String kind, int height) {
+    private void startDownload(String kind, int height, String mp3Quality) {
         Intent intent = new Intent(activity, SpeedyWatchDownloadService.class)
                 .setAction(SpeedyWatchDownloadService.ACTION_DOWNLOAD)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_URL, videoUrl)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_TITLE, videoTitle)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_KIND, kind)
-                .putExtra(SpeedyWatchDownloadService.EXTRA_HEIGHT, height);
+                .putExtra(SpeedyWatchDownloadService.EXTRA_HEIGHT, height)
+                .putExtra(SpeedyWatchDownloadService.EXTRA_MP3_QUALITY, mp3Quality);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             activity.startForegroundService(intent);
         } else {
