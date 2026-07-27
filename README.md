@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.17**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.18**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -47,7 +47,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Choose and persist a custom **default playback speed** in Settings for future app launches.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis.
 - Optionally skip community-submitted sponsor, self-promotion, and interaction segments from SponsorBlock, with a brief notice and Undo action after each skip.
-- On Android, tap Download to use a valid YouTube video URL copied to the clipboard—including standard, short, mobile, music, Shorts, Live, embed, no-cookie, and attribution links—or fall back to the current video. Choose MP3 audio or an MP4 up to an available resolution for that exact video. Downloads continue in the background, use the YouTube video title as the filename, and are written to `Downloads/SpeedyWatch`.
+- On Android, tap Download to use a valid YouTube video URL copied to the clipboard—including standard, short, mobile, music, Shorts, Live, embed, no-cookie, and attribution links—or fall back to the current video. Choose MP3 audio or an MP4 up to an available resolution for that exact video. Add more downloads while one is running and SpeedyWatch queues them in order, processes one at a time, and shows the waiting count in the notification. Downloads continue in the background, use the YouTube video title as the filename, and are written to `Downloads/SpeedyWatch`.
 - Choose among available caption languages and manual or auto-generated tracks, search in line or paragraph view, copy the transcript, and optionally follow the current playback position.
 - Tap any transcript line or paragraph to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
@@ -72,16 +72,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.17
-Version code: 17
+Version: 0.18
+Version code: 18
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 105,978,650 bytes
-SHA-256: cefc257dbe2ace44e943770235635985d20487c7666b5f9fe6414864bce0fbee
+APK size: 105,983,906 bytes
+SHA-256: 9c3b4dbffd3ce3a6600f60c5e28561e51f744851fe19dbd000fbdad633dada9d
 Signing: Android debug signing key
 ```
 
-This public v0.17 APK is debug-signed with APK Signature Scheme v2. It adds Android share-to-SpeedyWatch entry, the expanded transcript reader, JSON backup and restore, OpenRouter model cost/context guidance, playback profiles with adaptive caption-gap speed, and optional privacy-preserving SponsorBlock segment skipping. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.18 APK is debug-signed with APK Signature Scheme v2. It adds sequential Android MP3 and MP4 download queues with visible waiting counts and active-download cancellation, and fixes downloads that could remain at 100% by showing finalization separately, avoiding unnecessary full MP4 recoding, and advancing the queue after a bounded finalization timeout. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 

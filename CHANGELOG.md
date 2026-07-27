@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.18 — 2026-07-27
+
+### Added
+
+- Queue up to 50 additional Android MP3 or MP4 downloads and process them one at a time in first-in, first-out order.
+- Show the active format, progress, estimated time, and waiting-download count in the foreground notification.
+- Cancel only the active download from its notification while preserving the remaining queue.
+
+### Fixed
+
+- Stop completed downloads from appearing stuck at 100% by showing a separate finishing state, avoiding unnecessary full MP4 recoding, and timing out stalled finalization so the queue can continue.
+- Keep completed-download notifications distinct across download-service restarts.
+
 ## v0.17 — 2026-07-26
 
 ### Added

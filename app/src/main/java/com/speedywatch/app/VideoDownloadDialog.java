@@ -207,10 +207,6 @@ final class VideoDownloadDialog {
         } else {
             activity.startService(intent);
         }
-        String selection = SpeedyWatchDownloadService.KIND_MP3.equals(kind)
-                ? "MP3"
-                : height + "p MP4";
-        Toast.makeText(activity, selection + " download started", Toast.LENGTH_LONG).show();
         dialog.dismiss();
     }
 
