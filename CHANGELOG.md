@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.20 — 2026-07-28
+
+### Fixed
+
+- Open Android's package installer directly from the resumed SpeedyWatch activity after the official APK passes its exact GitHub size and SHA-256 checks, removing the extra Downloads-folder step.
+- Retain the verified installer handoff across first-time install-source permission, activity changes, and background completion, with a tap-to-install notification only when SpeedyWatch is not open.
+
 ## v0.19 — 2026-07-27
 
 ### Added

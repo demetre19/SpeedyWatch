@@ -1735,6 +1735,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        GitHubUpdateChecker.unregisterResumedActivity(this);
         webView.onPause();
         super.onPause();
     }
@@ -1743,6 +1744,7 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         webView.onResume();
+        GitHubUpdateChecker.registerResumedActivity(this);
         GitHubUpdateChecker.resumePendingInstaller(this);
     }
 

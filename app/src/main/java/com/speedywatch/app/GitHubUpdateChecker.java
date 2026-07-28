@@ -2,7 +2,6 @@ package com.speedywatch.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.ActivityManager;
 import android.app.DownloadManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -14,7 +13,6 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Environment;
-import android.os.Process;
 import android.provider.Settings;
 import android.widget.Toast;
 import org.json.JSONArray;
@@ -24,6 +22,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -31,7 +30,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,9 +59,22 @@ final class GitHubUpdateChecker {
     private static final String READY_VERSION = "ready_version";
     private static final String UPDATE_CHANNEL_ID = "speedywatch_updates";
     private static final int UPDATE_NOTIFICATION_ID = 4_208;
+    private static volatile WeakReference<Activity> resumedActivity =
+            new WeakReference<>(null);
 
     private GitHubUpdateChecker() {
     }
+    static void registerResumedActivity(Activity activity) {
+        resumedActivity = new WeakReference<>(activity);
+    }
+
+    static void unregisterResumedActivity(Activity activity) {
+        WeakReference<Activity> current = resumedActivity;
+        if (current.get() == activity) {
+            resumedActivity = new WeakReference<>(null);
+        }
+    }
+
 
     static final class Release {
         final String tag;
@@ -411,34 +422,42 @@ final class GitHubUpdateChecker {
             String versionName
     ) {
         Intent installIntent = createInstallIntent(apkUri);
-        if (isAppForeground(context)) {
-            if (!context.getPackageManager().canRequestPackageInstalls()) {
-                Intent permissionIntent = createInstallPermissionIntent(context);
-                showUpdateNotification(
-                        context,
-                        "Allow SpeedyWatch to install updates",
-                        "Enable this source, then return to SpeedyWatch",
-                        permissionIntent
-                );
-                try {
-                    context.startActivity(permissionIntent);
+        Activity activity = getResumedActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> {
+                if (getResumedActivity() != activity) {
+                    showInstallerNotification(context, installIntent, versionName);
                     return;
-                } catch (RuntimeException ignored) {
-                    // Fall through to the user-initiated notification path.
                 }
-            } else {
+                if (!activity.getPackageManager().canRequestPackageInstalls()) {
+                    try {
+                        activity.startActivity(createInstallPermissionIntent(activity));
+                        return;
+                    } catch (RuntimeException ignored) {
+                        showInstallerNotification(context, installIntent, versionName);
+                        return;
+                    }
+                }
                 try {
-                    context.startActivity(installIntent);
+                    activity.startActivity(installIntent);
                     clearReadyDownload(context.getSharedPreferences(
                             DOWNLOAD_PREFERENCES,
                             Context.MODE_PRIVATE
                     ));
-                    return;
                 } catch (RuntimeException ignored) {
-                    // Fall through to the user-initiated notification path.
+                    showInstallerNotification(context, installIntent, versionName);
                 }
-            }
+            });
+            return;
         }
+        showInstallerNotification(context, installIntent, versionName);
+    }
+
+    private static void showInstallerNotification(
+            Context context,
+            Intent installIntent,
+            String versionName
+    ) {
         boolean canInstall = context.getPackageManager().canRequestPackageInstalls();
         showUpdateNotification(
                 context,
@@ -464,26 +483,14 @@ final class GitHubUpdateChecker {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     }
 
-    private static boolean isAppForeground(Context context) {
-        ActivityManager manager = context.getSystemService(ActivityManager.class);
-        if (manager == null) {
-            return false;
+    private static Activity getResumedActivity() {
+        Activity activity = resumedActivity.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            return null;
         }
-        List<ActivityManager.RunningAppProcessInfo> processes =
-                manager.getRunningAppProcesses();
-        if (processes == null) {
-            return false;
-        }
-        int processId = Process.myPid();
-        for (ActivityManager.RunningAppProcessInfo process : processes) {
-            if (process.pid == processId
-                    && process.importance
-                    == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
-                return true;
-            }
-        }
-        return false;
+        return activity;
     }
+
 
     private static void showUpdateNotification(
             Context context,
