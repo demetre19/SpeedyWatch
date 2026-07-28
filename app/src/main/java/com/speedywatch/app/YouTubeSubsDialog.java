@@ -112,6 +112,9 @@ final class YouTubeSubsDialog {
     private String currentSummaryText = "";
     private String currentSummaryLabel = "";
     private String currentSummaryPrompt = "";
+    private double playbackPositionBeforeSummary = -1;
+    private boolean restorePlaybackOnDismiss;
+    private boolean transcriptSeekOnDismiss;
 
     YouTubeSubsDialog(
             Activity activity,
@@ -142,9 +145,30 @@ final class YouTubeSubsDialog {
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.CENTER);
         }
-        dialog.setOnDismissListener(ignored -> followHandler.removeCallbacks(followTick));
+        dialog.setOnDismissListener(ignored -> {
+            followHandler.removeCallbacks(followTick);
+            if (restorePlaybackOnDismiss
+                    && !transcriptSeekOnDismiss
+                    && playbackPositionBeforeSummary > 0) {
+                host.seekTo(playbackPositionBeforeSummary);
+            }
+        });
         loadTranscript();
     }
+    private void capturePlaybackPosition(Runnable afterCapture) {
+        playbackPositionBeforeSummary = -1;
+        host.currentTime(seconds -> {
+            if (dialog != null
+                    && dialog.isShowing()
+                    && Double.isFinite(seconds)
+                    && seconds >= 0
+                    && seconds <= 604800) {
+                playbackPositionBeforeSummary = seconds;
+            }
+            afterCapture.run();
+        });
+    }
+
 
     private View buildContent() {
         LinearLayout content = new LinearLayout(activity);
@@ -271,6 +295,7 @@ final class YouTubeSubsDialog {
         transcriptList.setAdapter(transcriptAdapter);
         transcriptList.setOnItemClickListener((parent, view, position, id) -> {
             TranscriptEntry entry = transcriptAdapter.getItem(position);
+            transcriptSeekOnDismiss = true;
             host.seekTo(entry.startSeconds);
             dialog.dismiss();
         });
@@ -471,8 +496,16 @@ final class YouTubeSubsDialog {
         try {
             String cachedSummary = savedSummaryStore.loadCachedSummary(cacheKey);
             if (cachedSummary != null) {
-                useSummary(cachedSummary, summaryName, prompt);
-                status.setText(summaryName + " | " + modelId + " | cached | ask below");
+                summaryOneButton.setEnabled(false);
+                summaryTwoButton.setEnabled(false);
+                status.setText("Opening cached " + summaryName);
+                capturePlaybackPosition(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        restorePlaybackOnDismiss = playbackPositionBeforeSummary > 0;
+                        useSummary(cachedSummary, summaryName, prompt);
+                        status.setText(summaryName + " | " + modelId + " | cached | ask below");
+                    }
+                });
                 return;
             }
         } catch (RuntimeException ignored) {
@@ -490,52 +523,58 @@ final class YouTubeSubsDialog {
             Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
-
         summaryOneButton.setEnabled(false);
         summaryTwoButton.setEnabled(false);
-        status.setText("Sending transcript to " + modelId);
-
-        executor.execute(() -> {
-            try {
-                String result = client.summarize(apiKey, modelId, prompt, userMessage);
-                boolean cacheStored;
-                try {
-                    savedSummaryStore.cacheSummary(cacheKey, result);
-                    cacheStored = true;
-                } catch (RuntimeException ignored) {
-                    cacheStored = false;
-                }
-                boolean finalCacheStored = cacheStored;
-                activity.runOnUiThread(() -> {
-                    if (dialog != null && dialog.isShowing()) {
-                        useSummary(result, summaryName, prompt);
-                        status.setText(summaryName
-                                + " | "
-                                + modelId
-                                + (finalCacheStored ? " | saved for reuse | ask below" : " | ask below"));
-                        if (!finalCacheStored) {
-                            Toast.makeText(
-                                    activity,
-                                    "Summary generated but could not be cached",
-                                    Toast.LENGTH_LONG
-                            ).show();
-                        }
-                    }
-                });
-            } catch (Exception error) {
-                activity.runOnUiThread(() -> {
-                    if (dialog != null && dialog.isShowing()) {
-                        String message = safeMessage(error, "Summary failed");
-                        currentSummaryText = "";
-                        currentSummaryLabel = "";
-                        showSummary(message, false);
-                        status.setText("Summary failed");
-                        summaryOneButton.setEnabled(true);
-                        summaryTwoButton.setEnabled(true);
-                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
-                    }
-                });
+        status.setText("Preparing " + summaryName);
+        capturePlaybackPosition(() -> {
+            if (dialog == null || !dialog.isShowing()) {
+                return;
             }
+            restorePlaybackOnDismiss = playbackPositionBeforeSummary > 0;
+            status.setText("Sending transcript to " + modelId);
+
+            executor.execute(() -> {
+                try {
+                    String result = client.summarize(apiKey, modelId, prompt, userMessage);
+                    boolean cacheStored;
+                    try {
+                        savedSummaryStore.cacheSummary(cacheKey, result);
+                        cacheStored = true;
+                    } catch (RuntimeException ignored) {
+                        cacheStored = false;
+                    }
+                    boolean finalCacheStored = cacheStored;
+                    activity.runOnUiThread(() -> {
+                        if (dialog != null && dialog.isShowing()) {
+                            useSummary(result, summaryName, prompt);
+                            status.setText(summaryName
+                                    + " | "
+                                    + modelId
+                                    + (finalCacheStored ? " | saved for reuse | ask below" : " | ask below"));
+                            if (!finalCacheStored) {
+                                Toast.makeText(
+                                        activity,
+                                        "Summary generated but could not be cached",
+                                        Toast.LENGTH_LONG
+                                ).show();
+                            }
+                        }
+                    });
+                } catch (Exception error) {
+                    activity.runOnUiThread(() -> {
+                        if (dialog != null && dialog.isShowing()) {
+                            String message = safeMessage(error, "Summary failed");
+                            currentSummaryText = "";
+                            currentSummaryLabel = "";
+                            showSummary(message, false);
+                            status.setText("Summary failed");
+                            summaryOneButton.setEnabled(true);
+                            summaryTwoButton.setEnabled(true);
+                            Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            });
         });
     }
 

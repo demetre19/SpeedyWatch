@@ -51,6 +51,7 @@ SpeedyWatch is a focused Android and iPhone YouTube browser for people who want 
 - Choose among available caption languages and manual or auto-generated tracks, search in line or paragraph view, copy the transcript, and optionally follow the current playback position.
 - Tap any transcript line or paragraph to jump to that moment and return to the video.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
+- On Android, returning from a requested summary resumes the same video at the playback position captured when Summary One or Summary Two was pressed instead of restarting from the beginning.
 - Successful Summary One and Summary Two results are cached automatically in app-private storage. Pressing the same Summary button again immediately renders the cached result without another OpenRouter request when the summary type, prompt, model, source URL, and transcript are unchanged.
 - Save summaries and generated quiz guides locally with their original YouTube URL, then search titles, types, headings, and body text from the bookmark library.
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original YouTube URL.
@@ -77,12 +78,12 @@ Version: 0.20
 Version code: 20
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 105,999,406 bytes
-SHA-256: 4ee4a2336578ce82898aaf445815bf12759f04f3f3a77df3b22d6bb83e677f4c
+APK size: 106,276,390 bytes
+SHA-256: cde0583b244884c289a078857502ba453b20c13615f06b24b6c0ddb3b3c67d77
 Signing: Android debug signing key
 ```
 
-This public v0.20 APK is debug-signed with APK Signature Scheme v2. It fixes verified in-app updates so Android's package installer opens directly from the resumed SpeedyWatch activity after download, with no extra Downloads-folder step. It also includes selectable High (192 kbps), Standard (128 kbps), and Compact (64 kbps) MP3 quality plus the v0.19 subtitle-discovery fixes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.20 APK is debug-signed with APK Signature Scheme v2. It fixes verified in-app updates so Android's package installer opens directly from the resumed SpeedyWatch activity after download, with no extra Downloads-folder step, and restores the active video's playback position after returning from a requested summary. It also includes selectable High (192 kbps), Standard (128 kbps), and Compact (64 kbps) MP3 quality plus the v0.19 subtitle-discovery fixes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
 
 ## iPhone source and build
 
@@ -112,6 +113,7 @@ The API key is encrypted with Android Keystore AES-GCM on Android and stored in 
 3. Switch between line and paragraph view, search or copy the transcript, optionally follow playback, or tap a timestamp to seek the video.
 4. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
    If you close the modal and choose the same summary again, SpeedyWatch reuses its private cached result when the generation context is unchanged.
+   On Android, closing the modal after requesting a summary returns the video to the position captured when that Summary button was pressed.
 5. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
 6. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
 7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.

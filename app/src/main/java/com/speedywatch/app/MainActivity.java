@@ -973,14 +973,16 @@ public final class MainActivity extends Activity {
                 String script = "window.__speedyWatchController "
                         + "? window.__speedyWatchController.currentTime() : null";
                 webView.evaluateJavascript(script, result -> {
+                    double seconds = Double.NaN;
                     try {
                         Object value = new JSONTokener(result == null ? "null" : result).nextValue();
                         if (value instanceof Number number) {
-                            callback.onTime(number.doubleValue());
+                            seconds = number.doubleValue();
                         }
                     } catch (Exception ignored) {
                         // The transcript remains usable when playback time is unavailable.
                     }
+                    callback.onTime(seconds);
                 });
             }
         };

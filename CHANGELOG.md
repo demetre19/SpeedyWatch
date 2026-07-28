@@ -6,6 +6,7 @@
 
 - Open Android's package installer directly from the resumed SpeedyWatch activity after the official APK passes its exact GitHub size and SHA-256 checks, removing the extra Downloads-folder step.
 - Retain the verified installer handoff across first-time install-source permission, activity changes, and background completion, with a tap-to-install notification only when SpeedyWatch is not open.
+- Restore the active video's captured playback position when the Android summary modal closes, while preserving an intentional transcript timestamp seek.
 
 ## v0.19 — 2026-07-27
 
