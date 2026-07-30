@@ -5,11 +5,9 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.net.Uri;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 final class SavedSummaryStore extends SQLiteOpenHelper {
 
@@ -92,7 +90,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         String normalizedSummary = requireText(summaryText, "Saved item content");
         String normalizedUrl = requireText(sourceUrl, "Source URL");
         if (!isSupportedSourceUrl(normalizedUrl)) {
-            throw new IllegalArgumentException("Original YouTube URL is unavailable");
+            throw new IllegalArgumentException("Original video URL is unavailable");
         }
 
         SQLiteDatabase database = getWritableDatabase();
@@ -213,18 +211,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
     }
 
     static boolean isSupportedSourceUrl(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return false;
-        }
-        Uri uri = Uri.parse(value.trim());
-        String host = uri.getHost();
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null) {
-            return false;
-        }
-        String normalizedHost = host.toLowerCase(Locale.US);
-        return normalizedHost.equals("youtube.com")
-                || normalizedHost.endsWith(".youtube.com")
-                || normalizedHost.equals("youtu.be");
+        return SupportedSite.isSupportedDownloadUrl(value);
     }
 
     private static String requireText(String value, String label) {

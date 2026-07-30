@@ -39,6 +39,21 @@
                 <data android:host="youtu.be" />
                 <data android:host="youtube-nocookie.com" />
                 <data android:host="*.youtube-nocookie.com" />
+                <data android:host="bilibili.com" />
+                <data android:host="*.bilibili.com" />
+                <data android:host="b23.tv" />
+                <data android:host="instagram.com" />
+                <data android:host="*.instagram.com" />
+                <data android:host="vimeo.com" />
+                <data android:host="*.vimeo.com" />
+                <data android:host="x.com" />
+                <data android:host="*.x.com" />
+                <data android:host="twitter.com" />
+                <data android:host="*.twitter.com" />
+                <data android:host="facebook.com" />
+                <data android:host="*.facebook.com" />
+                <data android:host="fb.watch" />
+                <data android:host="mega.nz" />
             </intent-filter>
         </activity>
         <service

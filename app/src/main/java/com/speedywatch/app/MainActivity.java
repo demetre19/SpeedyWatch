@@ -34,7 +34,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -81,6 +83,7 @@ public final class MainActivity extends Activity {
     private WebView webView;
     private TextView statusText;
     private String controllerScript;
+    private String chineseTranslatorScript;
     private double selectedSpeed = 1.0;
     private final Map<Double, Button> speedButtons = new LinkedHashMap<>();
     private final OpenRouterClient openRouterClient = new OpenRouterClient();
@@ -111,6 +114,10 @@ public final class MainActivity extends Activity {
     private volatile String activeCaptionRequestUrl = "";
     private volatile String lastSponsorLookupKey = "";
     private Runnable pendingNotificationPermissionAction;
+    private SupportedSite selectedSite = SupportedSite.YOUTUBE;
+    private ImageButton siteButton;
+    private volatile String activeMainFrameUrl = "";
+    private volatile CapturedMediaRequest capturedMediaRequest;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -122,6 +129,7 @@ public final class MainActivity extends Activity {
         selectedSpeed = appSettings.getDefaultPlaybackSpeed();
         savedSummaryStore = new SavedSummaryStore(this);
         controllerScript = readAsset("speedywatch.js");
+        chineseTranslatorScript = readAsset("chinese_translate.js");
         appRoot = buildUi();
         setContentView(appRoot);
         applySystemBarInsets(appRoot);
@@ -166,6 +174,11 @@ public final class MainActivity extends Activity {
                     WebView view,
                     WebResourceRequest request
             ) {
+                if (request.isForMainFrame()) {
+                    rememberMainFrameUrl(request.getUrl().toString());
+                } else {
+                    captureMediaRequest(request);
+                }
                 captureCaptionRequest(request.getUrl());
                 return null;
             }
@@ -184,6 +197,8 @@ public final class MainActivity extends Activity {
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                rememberMainFrameUrl(url);
+                updateSelectedSiteForUrl(url);
                 clearObservedCaptionRequestForNavigation(url);
                 refreshSponsorSegments(url);
             }
@@ -191,6 +206,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                rememberMainFrameUrl(url);
                 injectController();
             }
 
@@ -207,12 +223,15 @@ public final class MainActivity extends Activity {
                     WebResourceError error
             ) {
                 if (request.isForMainFrame()) {
-                    Toast.makeText(MainActivity.this, "YouTube could not be loaded", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "This site could not be loaded", Toast.LENGTH_SHORT).show();
                 }
             }
         });
 
         String incomingVideoUrl = incomingVideoUrl(getIntent());
+        if (incomingVideoUrl != null) {
+            updateSelectedSiteForUrl(incomingVideoUrl);
+        }
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
             webView.loadUrl(incomingVideoUrl == null ? HOME_URL : incomingVideoUrl);
         } else if (incomingVideoUrl != null) {
@@ -226,10 +245,10 @@ public final class MainActivity extends Activity {
         setIntent(intent);
         String videoUrl = incomingVideoUrl(intent);
         if (videoUrl != null) {
-            webView.loadUrl(videoUrl);
+            loadSupportedUrl(videoUrl);
         } else if (Intent.ACTION_SEND.equals(intent.getAction())
                 || Intent.ACTION_VIEW.equals(intent.getAction())) {
-            Toast.makeText(this, "Share an HTTPS YouTube video link", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Share an HTTPS link from a supported site", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -293,23 +312,23 @@ public final class MainActivity extends Activity {
         }
         if (Intent.ACTION_VIEW.equals(intent.getAction())) {
             Uri data = intent.getData();
-            return data == null ? null : YouTubeUrls.canonicalVideoUrl(data.toString());
+            return SupportedSite.supportedUrlFromText(data == null ? null : data.toString());
         }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) {
             return null;
         }
 
         CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-        String canonical = YouTubeUrls.canonicalVideoUrlFromText(
+        String supported = SupportedSite.supportedUrlFromText(
                 text == null ? null : text.toString()
         );
-        if (canonical != null) {
-            return canonical;
+        if (supported != null) {
+            return supported;
         }
         String html = intent.getStringExtra(Intent.EXTRA_HTML_TEXT);
-        canonical = YouTubeUrls.canonicalVideoUrlFromText(html);
-        if (canonical != null) {
-            return canonical;
+        supported = SupportedSite.supportedUrlFromText(html);
+        if (supported != null) {
+            return supported;
         }
         ClipData clipData = intent.getClipData();
         if (clipData == null) {
@@ -319,12 +338,14 @@ public final class MainActivity extends Activity {
         for (int index = 0; index < itemCount; index++) {
             ClipData.Item item = clipData.getItemAt(index);
             Uri uri = item.getUri();
-            canonical = YouTubeUrls.canonicalVideoUrl(uri == null ? null : uri.toString());
-            if (canonical == null && item.getText() != null) {
-                canonical = YouTubeUrls.canonicalVideoUrlFromText(item.getText().toString());
+            supported = SupportedSite.supportedUrlFromText(
+                    uri == null ? null : uri.toString()
+            );
+            if (supported == null && item.getText() != null) {
+                supported = SupportedSite.supportedUrlFromText(item.getText().toString());
             }
-            if (canonical != null) {
-                return canonical;
+            if (supported != null) {
+                return supported;
             }
         }
         return null;
@@ -338,9 +359,11 @@ public final class MainActivity extends Activity {
         LinearLayout navigation = horizontalRow();
         navigation.addView(makeIconButton(
                 R.drawable.ic_search,
-                "Search YouTube by URL or keywords",
-                ignored -> showYouTubeSearch()
+                "Search the selected site by URL or keywords",
+                ignored -> showSiteSearch()
         ));
+        siteButton = makeSiteButton();
+        navigation.addView(siteButton);
         navigation.addView(makeIconButton(R.drawable.ic_back, "Back", ignored -> {
             if (webView.canGoBack()) {
                 webView.goBack();
@@ -358,7 +381,7 @@ public final class MainActivity extends Activity {
         ));
         navigation.addView(makeIconButton(
                 R.drawable.ic_subtitles,
-                "YouTube subtitles",
+                "Video captions",
                 ignored -> showYouTubeSubs()
         ));
         navigation.addView(makeIconButton(
@@ -381,7 +404,7 @@ public final class MainActivity extends Activity {
                 "Settings",
                 ignored -> showSettings()
         ));
-        root.addView(navigation, new LinearLayout.LayoutParams(
+        root.addView(scrollingRow(navigation), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -504,6 +527,20 @@ public final class MainActivity extends Activity {
         button.setOnClickListener(listener);
         return button;
     }
+    private ImageButton makeSiteButton() {
+        ImageButton button = new ImageButton(this);
+        button.setScaleType(ImageButton.ScaleType.CENTER);
+        button.setMinimumWidth(0);
+        button.setMinimumHeight(0);
+        button.setPadding(dp(10), dp(10), dp(10), dp(10));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(52), dp(44));
+        params.setMargins(dp(3), 0, dp(3), 0);
+        button.setLayoutParams(params);
+        button.setOnClickListener(ignored -> showSitePicker());
+        updateSiteButton(button);
+        return button;
+    }
+
     private ImageButton makeIconButton(
             int drawableResource,
             String description,
@@ -520,14 +557,15 @@ public final class MainActivity extends Activity {
                 shape,
                 null
         ));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(44), dp(44));
+        params.setMargins(dp(3), 0, dp(3), 0);
         button.setLayoutParams(params);
         button.setOnClickListener(listener);
         return button;
     }
 
 
-    private void setButtonBackground(Button button, int fill, int stroke, int strokeWidthDp) {
+    private void setButtonBackground(View button, int fill, int stroke, int strokeWidthDp) {
         GradientDrawable shape = outlinedBackground(fill, stroke, strokeWidthDp);
         button.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
@@ -589,6 +627,17 @@ public final class MainActivity extends Activity {
         webView.evaluateJavascript(controllerScript, ignored -> {
             applyControllerState();
             refreshSponsorSegments(webView.getUrl());
+            injectChineseTranslator();
+        });
+    }
+
+    private void injectChineseTranslator() {
+        String currentUrl = webView.getUrl();
+        if (!SupportedSite.isInAppNavigationUrl(currentUrl)
+                || SupportedSite.forUrl(currentUrl) != SupportedSite.BILIBILI) {
+            return;
+        }
+        webView.evaluateJavascript(chineseTranslatorScript, ignored -> {
         });
     }
 
@@ -609,7 +658,7 @@ public final class MainActivity extends Activity {
             String label = result != null && result.equals(liveResult)
                     ? formatRate(selectedSpeed) + " live"
                             + (appSettings.isAdaptiveSpeedEnabled() ? " | adaptive" : "")
-                            + " | ads blocked"
+                            + siteStatusSuffix()
                     : statusLabel();
             statusText.setText(ready ? label : formatRate(selectedSpeed) + " | loading");
         });
@@ -618,7 +667,13 @@ public final class MainActivity extends Activity {
     private String statusLabel() {
         return formatRate(selectedSpeed)
                 + (appSettings.isAdaptiveSpeedEnabled() ? " | adaptive" : "")
-                + " | ads blocked";
+                + siteStatusSuffix();
+    }
+
+    private String siteStatusSuffix() {
+        return selectedSite == SupportedSite.YOUTUBE
+                ? " | ads blocked"
+                : " | " + selectedSite.label;
     }
 
     private static String formatRate(double rate) {
@@ -649,34 +704,131 @@ public final class MainActivity extends Activity {
 
     private static boolean isAllowedNavigation(Uri uri) {
         if ("about".equals(uri.getScheme())) {
-            return true;
+            return "about:blank".equals(uri.toString());
         }
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
             return false;
+        }
+        if (SupportedSite.isInAppNavigationUrl(uri.toString())) {
+            return true;
         }
         String host = uri.getHost();
         if (host == null) {
             return false;
         }
         host = host.toLowerCase(Locale.US);
-        return host.equals("youtube.com")
-                || host.endsWith(".youtube.com")
-                || host.equals("youtu.be")
-                || host.equals("accounts.google.com")
-                || host.equals("consent.google.com");
+        return host.equals("accounts.google.com") || host.equals("consent.google.com");
+    }
+    private void showSitePicker() {
+        SupportedSite[] sites = SupportedSite.browsableValues();
+        int selectedIndex = 0;
+        for (int index = 0; index < sites.length; index++) {
+            if (sites[index] == selectedSite) {
+                selectedIndex = index;
+            }
+        }
+        ArrayAdapter<SupportedSite> adapter = new ArrayAdapter<SupportedSite>(
+                this,
+                android.R.layout.select_dialog_singlechoice,
+                android.R.id.text1,
+                sites
+        ) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                CheckedTextView row = (CheckedTextView) super.getView(position, convertView, parent);
+                SupportedSite site = getItem(position);
+                if (site != null) {
+                    row.setText(site.label);
+                    row.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                            site.iconResource,
+                            0,
+                            0,
+                            0
+                    );
+                    row.setCompoundDrawablePadding(dp(12));
+                    row.setMinHeight(dp(48));
+                }
+                return row;
+            }
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Choose site")
+                .setSingleChoiceItems(adapter, selectedIndex, (dialog, which) -> {
+                    selectedSite = sites[which];
+                    updateSiteButton(siteButton);
+                    statusText.setText(statusLabel());
+                    dialog.dismiss();
+                    if (selectedSite == SupportedSite.MEGA) {
+                        showSiteSearch();
+                    } else {
+                        webView.loadUrl(selectedSite.homeUrl);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
-    private void showYouTubeSearch() {
+    private void updateSiteButton(ImageButton button) {
+        if (button == null) {
+            return;
+        }
+        button.setImageResource(selectedSite.iconResource);
+        button.setContentDescription("Current site: " + selectedSite.label + ". Choose site");
+        setButtonBackground(button, ACTIVE, ACTIVE, 0);
+    }
+
+    private void updateSelectedSiteForUrl(String url) {
+        SupportedSite site = SupportedSite.forUrl(url);
+        if (site == null || site == selectedSite) {
+            return;
+        }
+        selectedSite = site;
+        updateSiteButton(siteButton);
+        if (statusText != null) {
+            statusText.setText(statusLabel());
+        }
+    }
+
+    private void loadSupportedUrl(String value) {
+        String supportedUrl = SupportedSite.supportedUrlFromText(value);
+        if (supportedUrl == null) {
+            Toast.makeText(this, "This HTTPS site is not supported", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        updateSelectedSiteForUrl(supportedUrl);
+        webView.loadUrl(supportedUrl);
+    }
+
+    private void openExternalUrl(String value) {
+        String httpsUrl = SupportedSite.validatedHttpsUrl(value);
+        if (httpsUrl == null) {
+            Toast.makeText(this, "This link cannot be opened", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(httpsUrl)));
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "No app can open this link", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+    private void showSiteSearch() {
+        boolean supportsKeywordSearch = selectedSite.supportsKeywordSearch();
         EditText input = new EditText(this);
         input.setSingleLine(true);
-        input.setHint("YouTube URL or keywords");
+        input.setHint(supportsKeywordSearch
+                ? selectedSite.label + " URL or keywords"
+                : "Complete " + selectedSite.label + " link");
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.rgb(180, 180, 180));
         input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        input.setImeOptions(supportsKeywordSearch
+                ? EditorInfo.IME_ACTION_SEARCH
+                : EditorInfo.IME_ACTION_GO);
         input.setSelectAllOnFocus(true);
 
-        String clipboardUrl = clipboardVideoUrl();
+        String clipboardUrl = clipboardSupportedUrl();
         if (clipboardUrl != null) {
             input.setText(clipboardUrl);
             input.setSelection(input.length());
@@ -690,27 +842,39 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Search YouTube")
-                .setMessage("Enter a video URL to open it directly, or enter keywords to search YouTube.")
+                .setTitle((supportsKeywordSearch ? "Search " : "Open ") + selectedSite.label)
+                .setMessage(supportsKeywordSearch
+                        ? "Enter a supported video URL or keywords."
+                        : "Paste a complete MEGA folder or file link.")
                 .setView(container)
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton("Search", null)
+                .setPositiveButton(supportsKeywordSearch ? "Search" : "Open", null)
                 .create();
         dialog.setOnShowListener(ignored -> dialog
                 .getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(button -> {
-                    String destination = YouTubeUrls.searchOrVideoUrl(
-                            input.getText().toString()
-                    );
-                    if (destination == null) {
-                        input.setError("Enter a valid YouTube video URL or search words");
+                    String value = input.getText().toString().trim();
+                    String enteredUrl = SupportedSite.supportedUrlFromText(value);
+                    if (enteredUrl != null) {
+                        loadSupportedUrl(enteredUrl);
+                        dialog.dismiss();
                         return;
                     }
+                    if (!supportsKeywordSearch) {
+                        input.setError("Paste a complete MEGA folder or file link");
+                        return;
+                    }
+                    if (value.isEmpty() || value.contains("://")) {
+                        input.setError("Enter a supported HTTPS URL or search words");
+                        return;
+                    }
+                    String destination = selectedSite.searchUrl(value);
                     webView.loadUrl(destination);
                     dialog.dismiss();
                 }));
         input.setOnEditorActionListener((view, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH
+                    || actionId == EditorInfo.IME_ACTION_GO) {
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
                 return true;
             }
@@ -725,19 +889,67 @@ public final class MainActivity extends Activity {
 
     private void showDownloadDialog() {
         String clipboardUrl = clipboardVideoUrl();
-        String videoUrl = clipboardUrl != null
-                ? clipboardUrl
-                : YouTubeUrls.canonicalVideoUrl(webView.getUrl());
+        String currentUrl = SupportedSite.isSupportedDownloadUrl(webView.getUrl())
+                ? SupportedSite.validatedHttpsUrl(webView.getUrl())
+                : null;
+        String videoUrl = clipboardUrl != null ? clipboardUrl : currentUrl;
+        String cookieHeader = videoUrl == null
+                ? null
+                : CookieManager.getInstance().getCookie(videoUrl);
+        CapturedMediaRequest mediaRequest = clipboardUrl == null
+                && capturedMediaRequest != null
+                && capturedMediaRequest.matches(videoUrl)
+                ? capturedMediaRequest
+                : null;
+        String mediaCookieHeader = mediaRequest == null ? null : mediaRequest.cookieHeader;
+        if (mediaRequest != null && mediaCookieHeader == null) {
+            mediaCookieHeader = CookieManager.getInstance().getCookie(mediaRequest.mediaUrl);
+        }
+        String initialTitle = clipboardUrl == null ? webView.getTitle() : "Video";
         new VideoDownloadDialog(
                 this,
                 ioExecutor,
                 appSettings,
                 videoUrl,
-                clipboardUrl != null
+                clipboardUrl != null,
+                cookieHeader,
+                webView.getSettings().getUserAgentString(),
+                videoUrl,
+                mediaRequest,
+                mediaCookieHeader,
+                initialTitle,
+                false
         ).show();
+    }
+    private void rememberMainFrameUrl(String value) {
+        String valid = SupportedSite.validatedHttpsUrl(value);
+        String next = valid == null ? "" : valid;
+        if (!next.equals(activeMainFrameUrl)) {
+            activeMainFrameUrl = next;
+            capturedMediaRequest = null;
+        }
+    }
+
+    private void captureMediaRequest(WebResourceRequest request) {
+        CapturedMediaRequest previous = capturedMediaRequest;
+        capturedMediaRequest = CapturedMediaRequest.observe(
+                activeMainFrameUrl,
+                request.getUrl().toString(),
+                request.getMethod(),
+                request.getRequestHeaders(),
+                previous
+        );
     }
 
     private String clipboardVideoUrl() {
+        return clipboardUrl(true);
+    }
+
+    private String clipboardSupportedUrl() {
+        return clipboardUrl(false);
+    }
+
+    private String clipboardUrl(boolean downloadOnly) {
         ClipboardManager clipboard =
                 (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null || !clipboard.hasPrimaryClip()) {
@@ -747,23 +959,31 @@ public final class MainActivity extends Activity {
         if (clip == null) {
             return null;
         }
-        for (int index = 0; index < clip.getItemCount(); index++) {
+        int itemCount = Math.min(clip.getItemCount(), 10);
+        for (int index = 0; index < itemCount; index++) {
             ClipData.Item item = clip.getItemAt(index);
             CharSequence text = item.getText();
-            String videoUrl = YouTubeUrls.canonicalVideoUrlFromText(
-                    text == null ? null : text.toString()
+            String url = clipboardUrlFromText(
+                    text == null ? null : text.toString(),
+                    downloadOnly
             );
-            if (videoUrl == null) {
-                videoUrl = YouTubeUrls.canonicalVideoUrlFromText(item.getHtmlText());
+            if (url == null) {
+                url = clipboardUrlFromText(item.getHtmlText(), downloadOnly);
             }
-            if (videoUrl == null && item.getUri() != null) {
-                videoUrl = YouTubeUrls.canonicalVideoUrl(item.getUri().toString());
+            if (url == null && item.getUri() != null) {
+                url = clipboardUrlFromText(item.getUri().toString(), downloadOnly);
             }
-            if (videoUrl != null) {
-                return videoUrl;
+            if (url != null) {
+                return url;
             }
         }
         return null;
+    }
+
+    private static String clipboardUrlFromText(String value, boolean downloadOnly) {
+        return downloadOnly
+                ? SupportedSite.downloadUrlFromText(value)
+                : SupportedSite.supportedUrlFromText(value);
     }
 
     private void showSavedSummaries() {
@@ -985,6 +1205,12 @@ public final class MainActivity extends Activity {
                     callback.onTime(seconds);
                 });
             }
+
+            @Override
+            public String sourceLabel() {
+                SupportedSite site = SupportedSite.forUrl(webView.getUrl());
+                return (site == null ? "Video" : site.label) + " captions";
+            }
         };
     }
 
@@ -995,13 +1221,19 @@ public final class MainActivity extends Activity {
         String pageUrl = webView.getUrl();
         Uri pageUri = pageUrl == null ? null : Uri.parse(pageUrl);
         String videoId = pageUri == null ? null : pageUri.getQueryParameter("v");
-        if (pageUri == null
-                || pageUri.getHost() == null
-                || !pageUri.getHost().toLowerCase(Locale.US).endsWith("youtube.com")
-                || !"/watch".equals(pageUri.getPath())
-                || videoId == null
-                || !videoId.matches("[A-Za-z0-9_-]{11}")) {
-            callback.onError("Open a YouTube video first");
+        boolean isYouTubeWatch = pageUri != null
+                && pageUri.getHost() != null
+                && pageUri.getHost().toLowerCase(Locale.US).endsWith("youtube.com")
+                && "/watch".equals(pageUri.getPath())
+                && videoId != null
+                && videoId.matches("[A-Za-z0-9_-]{11}");
+        if (!isYouTubeWatch) {
+            if (SupportedSite.forUrl(pageUrl) != SupportedSite.YOUTUBE
+                    && SupportedSite.isSupportedDownloadUrl(pageUrl)) {
+                requestGenericTranscript(pageUrl, languageCode, callback);
+            } else {
+                callback.onError("Open a supported video first");
+            }
             return;
         }
 
@@ -1027,6 +1259,53 @@ public final class MainActivity extends Activity {
                 + "? window.__speedyWatchController.getCaptionTrack() : null";
         webView.evaluateJavascript(script, result -> handleCaptionTrackResult(requestId, result));
     }
+    private void requestGenericTranscript(
+            String pageUrl,
+            String languageCode,
+            YouTubeSubsDialog.TranscriptCallback callback
+    ) {
+        String validPageUrl = SupportedSite.validatedHttpsUrl(pageUrl);
+        if (!SupportedSite.isSupportedDownloadUrl(validPageUrl)) {
+            callback.onError("Open a supported video first");
+            return;
+        }
+        long requestId = transcriptRequestCounter.incrementAndGet();
+        activeTranscriptRequestId = requestId;
+        activeTranscriptCallback = callback;
+        activeTranscriptDelivered = false;
+        activeTranscriptTitle = "Video";
+        activeTranscriptPageUrl = validPageUrl;
+        activeVideoId = "";
+        activeCaptionRequestUrl = "";
+        String cookieHeader = CookieManager.getInstance().getCookie(validPageUrl);
+        String userAgent = webView.getSettings().getUserAgentString();
+        ioExecutor.execute(() -> {
+            try {
+                MediaTranscriptEngine.Result result = MediaTranscriptEngine.loadTranscript(
+                        this,
+                        validPageUrl,
+                        languageCode,
+                        cookieHeader,
+                        userAgent
+                );
+                activeTranscriptTitle = result.title;
+                activeTranscriptPageUrl = result.pageUrl;
+                deliverTranscript(requestId, result.entries);
+            } catch (Exception error) {
+                deliverTranscriptError(requestId, readableTranscriptError(error));
+            }
+        });
+    }
+
+    private static String readableTranscriptError(Exception error) {
+        String message = error.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return "Captions could not be loaded";
+        }
+        String firstLine = message.trim().split("\\R", 2)[0];
+        return firstLine.length() > 140 ? firstLine.substring(0, 140) : firstLine;
+    }
+
 
     private void handleCaptionTrackResult(long requestId, String evaluationResult) {
         if (requestId != activeTranscriptRequestId || activeTranscriptDelivered) {
@@ -1092,6 +1371,33 @@ public final class MainActivity extends Activity {
     }
 
     private void requestCaptionOptions(YouTubeSubsDialog.CaptionOptionsCallback callback) {
+        String pageUrl = webView.getUrl();
+        if (SupportedSite.forUrl(pageUrl) != SupportedSite.YOUTUBE) {
+            String validPageUrl = SupportedSite.validatedHttpsUrl(pageUrl);
+            if (!SupportedSite.isSupportedDownloadUrl(validPageUrl)) {
+                callback.onError("Open a supported video first");
+                return;
+            }
+            String cookieHeader = CookieManager.getInstance().getCookie(validPageUrl);
+            String userAgent = webView.getSettings().getUserAgentString();
+            ioExecutor.execute(() -> {
+                try {
+                    List<YouTubeSubsDialog.CaptionOption> options =
+                            MediaTranscriptEngine.loadOptions(
+                                    this,
+                                    validPageUrl,
+                                    cookieHeader,
+                                    userAgent
+                            );
+                    runOnUiThread(() -> callback.onLoaded(options));
+                } catch (Exception error) {
+                    runOnUiThread(() ->
+                            callback.onError("Caption languages could not be loaded"));
+                }
+            });
+            return;
+        }
+
         String videoId = activeVideoId;
         if (videoId == null || !videoId.matches("[A-Za-z0-9_-]{11}")) {
             callback.onError("Open a YouTube video first");

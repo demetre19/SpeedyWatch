@@ -3,6 +3,7 @@ package com.speedywatch.app;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -15,6 +16,7 @@ import android.view.Window;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -36,32 +38,53 @@ final class VideoDownloadDialog {
     private final SpeedyWatchSettings settings;
     private final String videoUrl;
     private final boolean fromClipboard;
+    private final String cookieHeader;
+    private final String userAgent;
+    private final String referer;
+    private final CapturedMediaRequest capturedMediaRequest;
+    private final String capturedCookieHeader;
 
     private Dialog dialog;
     private TextView status;
+    private ProgressBar checkingProgress;
     private TextView title;
     private LinearLayout choices;
-    private String videoTitle = "YouTube Video";
+    private String videoTitle = "Video";
+    private boolean titleVerified;
 
     VideoDownloadDialog(
             Activity activity,
             ExecutorService executor,
             SpeedyWatchSettings settings,
             String videoUrl,
-            boolean fromClipboard
+            boolean fromClipboard,
+            String cookieHeader,
+            String userAgent,
+            String referer,
+            CapturedMediaRequest capturedMediaRequest,
+            String capturedCookieHeader,
+            String initialTitle,
+            boolean initialTitleVerified
     ) {
         this.activity = activity;
         this.executor = executor;
         this.settings = settings;
         this.videoUrl = videoUrl;
         this.fromClipboard = fromClipboard;
+        this.cookieHeader = cookieHeader;
+        this.userAgent = userAgent;
+        this.referer = referer;
+        this.capturedMediaRequest = capturedMediaRequest;
+        this.capturedCookieHeader = capturedCookieHeader;
+        this.videoTitle = MediaDownloadEngine.safeDisplayName(initialTitle);
+        this.titleVerified = initialTitleVerified;
     }
 
     void show() {
-        if (!YouTubeDownloadEngine.isSupportedYouTubeUrl(videoUrl)) {
+        if (!MediaDownloadEngine.isSupportedDownloadUrl(videoUrl)) {
             Toast.makeText(
                     activity,
-                    "Copy a YouTube video URL or open a video first",
+                    "Copy a supported video URL or open a supported video first",
                     Toast.LENGTH_LONG
             ).show();
             return;
@@ -112,6 +135,21 @@ final class VideoDownloadDialog {
         header.addView(close, closeParams);
         content.addView(header);
 
+        checkingProgress = new ProgressBar(
+                activity,
+                null,
+                android.R.attr.progressBarStyleHorizontal
+        );
+        checkingProgress.setIndeterminate(true);
+        checkingProgress.setIndeterminateTintList(ColorStateList.valueOf(ACTIVE));
+        checkingProgress.setContentDescription("Checking video formats");
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(3)
+        );
+        progressParams.setMargins(0, dp(8), 0, 0);
+        content.addView(checkingProgress, progressParams);
+
         TextView guidance = text(
                 "Choose an MP3 quality or the maximum MP4 resolution you want.",
                 14,
@@ -143,7 +181,15 @@ final class VideoDownloadDialog {
     private void loadFormats() {
         executor.execute(() -> {
             try {
-                YouTubeDownloadEngine.Metadata metadata = YouTubeDownloadEngine.loadMetadata(activity, videoUrl);
+                MediaDownloadEngine.Metadata metadata = MediaDownloadEngine.loadMetadata(
+                        activity,
+                        videoUrl,
+                        cookieHeader,
+                        userAgent,
+                        referer,
+                        capturedMediaRequest,
+                        capturedCookieHeader
+                );
                 activity.runOnUiThread(() -> showFormats(metadata));
             } catch (Exception error) {
                 activity.runOnUiThread(this::showStandardOptions);
@@ -151,12 +197,14 @@ final class VideoDownloadDialog {
         });
     }
 
-    private void showFormats(YouTubeDownloadEngine.Metadata metadata) {
+    private void showFormats(MediaDownloadEngine.Metadata metadata) {
         if (dialog == null || !dialog.isShowing()) {
             return;
         }
         videoTitle = metadata.title;
+        titleVerified = true;
         title.setText(metadata.title);
+        checkingProgress.setVisibility(View.GONE);
         status.setText(
                 (fromClipboard ? "Clipboard video • " : "")
                         + metadata.resolutions.size()
@@ -207,6 +255,7 @@ final class VideoDownloadDialog {
         if (dialog == null || !dialog.isShowing()) {
             return;
         }
+        checkingProgress.setVisibility(View.GONE);
         status.setText(
                 fromClipboard
                         ? "Clipboard video • standard download options ready"
@@ -221,9 +270,42 @@ final class VideoDownloadDialog {
                 .setAction(SpeedyWatchDownloadService.ACTION_DOWNLOAD)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_URL, videoUrl)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_TITLE, videoTitle)
+                .putExtra(
+                        SpeedyWatchDownloadService.EXTRA_TITLE_VERIFIED,
+                        titleVerified
+                )
                 .putExtra(SpeedyWatchDownloadService.EXTRA_KIND, kind)
                 .putExtra(SpeedyWatchDownloadService.EXTRA_HEIGHT, height)
-                .putExtra(SpeedyWatchDownloadService.EXTRA_MP3_QUALITY, mp3Quality);
+                .putExtra(SpeedyWatchDownloadService.EXTRA_MP3_QUALITY, mp3Quality)
+                .putExtra(SpeedyWatchDownloadService.EXTRA_COOKIE_HEADER, cookieHeader)
+                .putExtra(SpeedyWatchDownloadService.EXTRA_USER_AGENT, userAgent)
+                .putExtra(SpeedyWatchDownloadService.EXTRA_REFERER, referer);
+        if (capturedMediaRequest != null) {
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_MEDIA_URL,
+                    capturedMediaRequest.mediaUrl
+            );
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_COOKIE_HEADER,
+                    capturedCookieHeader
+            );
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_USER_AGENT,
+                    capturedMediaRequest.userAgent
+            );
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_REFERER,
+                    capturedMediaRequest.referer
+            );
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_ORIGIN,
+                    capturedMediaRequest.origin
+            );
+            intent.putExtra(
+                    SpeedyWatchDownloadService.EXTRA_CAPTURED_AUTHORIZATION,
+                    capturedMediaRequest.authorization
+            );
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             activity.startForegroundService(intent);
         } else {

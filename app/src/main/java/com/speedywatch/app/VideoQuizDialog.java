@@ -46,7 +46,7 @@ final class VideoQuizDialog {
     private Button saveQuizButton;
     private Button shareQuizButton;
     private int questionCount = 10;
-    private String videoTitle = "YouTube Video";
+    private String videoTitle = "Video";
     private String videoUrl = "";
     private String currentQuizText = "";
     private String currentQuizLabel = "";
@@ -190,7 +190,7 @@ final class VideoQuizDialog {
                 }
                 entries.clear();
                 entries.addAll(loaded);
-                videoTitle = title == null || title.trim().isEmpty() ? "YouTube Video" : title;
+                videoTitle = title == null || title.trim().isEmpty() ? "Video" : title;
                 videoUrl = url == null ? "" : url;
                 status.setText(entries.size() + " subtitles ready");
                 createButton.setEnabled(!entries.isEmpty());
@@ -308,7 +308,7 @@ final class VideoQuizDialog {
         for (TranscriptEntry entry : entries) {
             transcript.append(entry.text).append('\n');
         }
-        return "Source: YouTube Subtitles\nTitle: "
+        return "Source: " + host.sourceLabel() + "\nTitle: "
                 + videoTitle
                 + "\nURL: "
                 + videoUrl

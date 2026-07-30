@@ -49,6 +49,9 @@ final class YouTubeSubsDialog {
         void loadCaptionOptions(CaptionOptionsCallback callback);
         void seekTo(double seconds);
         void currentTime(CurrentTimeCallback callback);
+        default String sourceLabel() {
+            return "Video captions";
+        }
     }
 
     interface CaptionOptionsCallback {
@@ -80,7 +83,9 @@ final class YouTubeSubsDialog {
     private final List<TranscriptEntry> entries = new ArrayList<>();
     private final List<ChatTurn> chatTurns = new ArrayList<>();
     private final Handler followHandler = new Handler(Looper.getMainLooper());
+    private final Handler filterHandler = new Handler(Looper.getMainLooper());
     private final Runnable followTick = this::updateFollowPosition;
+    private final Runnable filterTick = this::applyTranscriptFilter;
     private final List<CaptionOption> captionOptions = new ArrayList<>();
 
     private Dialog dialog;
@@ -107,7 +112,7 @@ final class YouTubeSubsDialog {
     private Button languageButton;
     private String selectedLanguageCode = "";
     private double currentPlaybackTime = -1;
-    private String videoTitle = "YouTube Video";
+    private String videoTitle = "Video";
     private String videoUrl = "";
     private String currentSummaryText = "";
     private String currentSummaryLabel = "";
@@ -147,6 +152,7 @@ final class YouTubeSubsDialog {
         }
         dialog.setOnDismissListener(ignored -> {
             followHandler.removeCallbacks(followTick);
+            filterHandler.removeCallbacks(filterTick);
             if (restorePlaybackOnDismiss
                     && !transcriptSeekOnDismiss
                     && playbackPositionBeforeSummary > 0) {
@@ -179,7 +185,7 @@ final class YouTubeSubsDialog {
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = new LinearLayout(activity);
         headerText.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("YouTube Subs", 21, Color.WHITE);
+        TextView title = text("Video Subs", 21, Color.WHITE);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         headerText.addView(title);
         status = text("Loading subtitles...", 12, MUTED);
@@ -187,7 +193,7 @@ final class YouTubeSubsDialog {
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
-        close.setContentDescription("Close YouTube Subs");
+        close.setContentDescription("Close Video Subs");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> dialog.dismiss());
@@ -379,12 +385,17 @@ final class YouTubeSubsDialog {
         search.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
-                transcriptAdapter.filter(editable.toString());
-                updateTranscriptStatus();
+                filterHandler.removeCallbacks(filterTick);
+                filterHandler.postDelayed(filterTick, 150);
             }
         });
         return content;
     }
+    private void applyTranscriptFilter() {
+        transcriptAdapter.filter(search.getText().toString());
+        updateTranscriptStatus();
+    }
+
 
     private void loadTranscript() {
         loadTranscript("");
@@ -401,7 +412,7 @@ final class YouTubeSubsDialog {
                 }
                 entries.clear();
                 entries.addAll(loaded);
-                videoTitle = title == null || title.trim().isEmpty() ? "YouTube Video" : title;
+                videoTitle = title == null || title.trim().isEmpty() ? "Video" : title;
                 videoUrl = url == null ? "" : url;
                 transcriptAdapter.setEntries(entries);
                 summaryOneButton.setEnabled(!entries.isEmpty());
@@ -709,7 +720,7 @@ final class YouTubeSubsDialog {
         for (TranscriptEntry entry : entries) {
             transcript.append(entry.timestamp()).append(' ').append(entry.text).append('\n');
         }
-        return "Source: YouTube Subtitles\nTitle: "
+        return "Source: " + host.sourceLabel() + "\nTitle: "
                 + videoTitle
                 + "\nURL: "
                 + videoUrl

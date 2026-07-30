@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.21 — 2026-07-30
+
+### Added
+
+- Browse, search, share, and open strictly validated Android media pages for YouTube, Bilibili, Instagram, Vimeo, X, and Facebook while keeping unsupported destinations outside the app.
+- Download available MP3 audio and bounded MP4 resolutions from each supported Android media service, with completed files organized by source under `Downloads/SpeedyWatch`.
+- Load available non-YouTube caption tracks for transcripts, summaries, and quizzes without sending one service's authenticated context to another.
+- Show visible progress while the Download dialog checks available formats.
+- Open complete public MEGA folder and file links for playback through a dedicated URL-only picker entry, while keeping MEGA outside downloads and AI transcript features.
+
+### Fixed
+
+- Download authenticated Vimeo videos by preserving same-owner WebView context for page extraction and captured-media fallbacks.
+- Accept Vimeo AAC audio streams even when they are not labeled with an M4A container, while keeping every MP4 fallback at or below the selected resolution.
+- Prevent captured Vimeo manifests from bypassing the selected MP4 resolution ceiling.
+
 ## v0.20 — 2026-07-28
 
 ### Fixed

@@ -27,7 +27,7 @@ final class TextShare {
         }
 
         String title = videoTitle == null || videoTitle.trim().isEmpty()
-                ? "YouTube Video"
+                ? "Video"
                 : videoTitle.trim();
         String label = contentLabel == null ? "" : contentLabel.trim();
         String subject = label.isEmpty() ? title : title + " - " + label;
