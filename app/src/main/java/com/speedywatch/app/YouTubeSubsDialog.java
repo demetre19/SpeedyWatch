@@ -49,6 +49,7 @@ final class YouTubeSubsDialog {
         void loadCaptionOptions(CaptionOptionsCallback callback);
         void seekTo(double seconds);
         void currentTime(CurrentTimeCallback callback);
+        void startWatchPath(WatchPathPlan plan);
         default String sourceLabel() {
             return "Video captions";
         }
@@ -73,6 +74,7 @@ final class YouTubeSubsDialog {
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(185, 185, 185);
+    private static final int[] WATCH_PATH_BUDGETS = {5, 10, 20};
 
     private final Activity activity;
     private final TranscriptHost host;
@@ -99,6 +101,8 @@ final class YouTubeSubsDialog {
     private Button summaryOneButton;
     private Button summaryTwoButton;
     private Button transcriptButton;
+    private Button watchPathButton;
+    private LinearLayout readingActions;
     private Button copySummaryButton;
     private Button saveSummaryButton;
     private Button shareSummaryButton;
@@ -108,6 +112,14 @@ final class YouTubeSubsDialog {
     private Button sendChatButton;
     private Button readingModeButton;
     private Button followButton;
+    private ScrollView watchPathScroll;
+    private LinearLayout watchPathContent;
+    private LinearLayout watchPathResults;
+    private EditText watchPathGoal;
+    private Button createWatchPathButton;
+    private final List<Button> watchPathBudgetButtons = new ArrayList<>();
+    private int selectedWatchPathBudget = 10;
+    private WatchPathPlan currentWatchPath;
     private boolean followPlayback;
     private Button languageButton;
     private String selectedLanguageCode = "";
@@ -201,6 +213,23 @@ final class YouTubeSubsDialog {
         closeParams.setMarginStart(dp(8));
         header.addView(close, closeParams);
         content.addView(header);
+        LinearLayout modeActions = horizontalLayout();
+        transcriptButton = button("Transcript");
+        transcriptButton.setEnabled(false);
+        transcriptButton.setOnClickListener(ignored -> showTranscript());
+        watchPathButton = button("WatchPath");
+        watchPathButton.setEnabled(false);
+        watchPathButton.setOnClickListener(ignored -> showWatchPath());
+        addWeighted(modeActions, transcriptButton, 1f, 0);
+        addWeighted(modeActions, watchPathButton, 1f, dp(8));
+        LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        modeParams.setMargins(0, dp(10), 0, 0);
+        content.addView(modeActions, modeParams);
+        updateModeButtons(0);
+
 
         search = new EditText(activity);
         search.setSingleLine(true);
@@ -215,7 +244,7 @@ final class YouTubeSubsDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
         );
-        searchParams.setMargins(0, dp(10), 0, dp(8));
+        searchParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(search, searchParams);
 
         languageButton = button("Language: Auto");
@@ -228,7 +257,7 @@ final class YouTubeSubsDialog {
         languageParams.setMargins(0, 0, 0, dp(8));
         content.addView(languageButton, languageParams);
 
-        LinearLayout readingActions = horizontalLayout();
+        readingActions = horizontalLayout();
         readingModeButton = button("Lines");
         readingModeButton.setOnClickListener(ignored -> {
             boolean paragraphs = !transcriptAdapter.isParagraphMode();
@@ -263,7 +292,6 @@ final class YouTubeSubsDialog {
         LinearLayout actions = horizontalLayout();
         summaryOneButton = button("Summary One");
         summaryTwoButton = button("Summary Two");
-        transcriptButton = button("Transcript");
         copySummaryButton = button("Copy summary");
         saveSummaryButton = button("Save summary");
         shareSummaryButton = button("Share summary");
@@ -273,7 +301,6 @@ final class YouTubeSubsDialog {
                 summarize(settings.getSummaryOnePrompt(), "Summary One"));
         summaryTwoButton.setOnClickListener(ignored ->
                 summarize(settings.getSummaryTwoPrompt(), "Summary Two"));
-        transcriptButton.setOnClickListener(ignored -> showTranscript());
         copySummaryButton.setOnClickListener(ignored -> copySummary());
         saveSummaryButton.setOnClickListener(ignored -> saveSummary());
         shareSummaryButton.setOnClickListener(ignored -> TextShare.showChooser(
@@ -285,7 +312,6 @@ final class YouTubeSubsDialog {
         ));
         addWeighted(actions, summaryOneButton, 1f, 0);
         addWeighted(actions, summaryTwoButton, 1f, dp(8));
-        addWeighted(actions, transcriptButton, 1f, dp(8));
         LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -326,6 +352,14 @@ final class YouTubeSubsDialog {
         summaryScroll.addView(summaryContent);
         summaryScroll.setVisibility(View.GONE);
         body.addView(summaryScroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        watchPathContent = buildWatchPathContent();
+        watchPathScroll = new ScrollView(activity);
+        watchPathScroll.addView(watchPathContent);
+        watchPathScroll.setVisibility(View.GONE);
+        body.addView(watchPathScroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
@@ -391,10 +425,368 @@ final class YouTubeSubsDialog {
         });
         return content;
     }
+    private LinearLayout buildWatchPathContent() {
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(2), dp(2), dp(2), dp(8));
+
+        TextView intro = text(
+                "Choose what you need from this video and how long you have.",
+                13,
+                MUTED
+        );
+        content.addView(intro);
+
+        TextView goalLabel = text("Goal", 14, Color.WHITE);
+        goalLabel.setTypeface(goalLabel.getTypeface(), android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams goalLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        goalLabelParams.setMargins(0, dp(12), 0, dp(6));
+        content.addView(goalLabel, goalLabelParams);
+
+        watchPathGoal = new EditText(activity);
+        watchPathGoal.setSingleLine(true);
+        watchPathGoal.setHint("Example: Show me the implementation steps");
+        watchPathGoal.setTextColor(Color.WHITE);
+        watchPathGoal.setHintTextColor(Color.rgb(175, 175, 175));
+        watchPathGoal.setTextSize(14);
+        watchPathGoal.setPadding(dp(10), 0, dp(10), 0);
+        watchPathGoal.setFilters(new InputFilter[]{new InputFilter.LengthFilter(500)});
+        watchPathGoal.setInputType(
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        watchPathGoal.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        watchPathGoal.setOnEditorActionListener((view, actionId, event) -> {
+            generateWatchPath();
+            return true;
+        });
+        content.addView(watchPathGoal, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        ));
+
+        TextView budgetLabel = text("Time", 14, Color.WHITE);
+        budgetLabel.setTypeface(budgetLabel.getTypeface(), android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams budgetLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        budgetLabelParams.setMargins(0, dp(12), 0, dp(6));
+        content.addView(budgetLabel, budgetLabelParams);
+
+        LinearLayout budgets = horizontalLayout();
+        for (int index = 0; index < WATCH_PATH_BUDGETS.length; index++) {
+            int budget = WATCH_PATH_BUDGETS[index];
+            Button budgetButton = button(budget + " min");
+            budgetButton.setContentDescription(budget + " minute WatchPath");
+            budgetButton.setOnClickListener(ignored -> {
+                selectedWatchPathBudget = budget;
+                updateWatchPathBudgetButtons();
+            });
+            watchPathBudgetButtons.add(budgetButton);
+            addWeighted(budgets, budgetButton, 1f, index == 0 ? 0 : dp(8));
+        }
+        updateWatchPathBudgetButtons();
+        content.addView(budgets);
+
+        createWatchPathButton = button("Create WatchPath");
+        createWatchPathButton.setBackground(panelBackground(ACTIVE, ACTIVE));
+        createWatchPathButton.setOnClickListener(ignored -> generateWatchPath());
+        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        createParams.setMargins(0, dp(12), 0, 0);
+        content.addView(createWatchPathButton, createParams);
+
+        watchPathResults = new LinearLayout(activity);
+        watchPathResults.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams resultsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        resultsParams.setMargins(0, dp(8), 0, 0);
+        content.addView(watchPathResults, resultsParams);
+        return content;
+    }
+
+    private void updateWatchPathBudgetButtons() {
+        for (int index = 0; index < watchPathBudgetButtons.size(); index++) {
+            int budget = WATCH_PATH_BUDGETS[index];
+            boolean selected = budget == selectedWatchPathBudget;
+            watchPathBudgetButtons.get(index).setBackground(panelBackground(
+                    selected ? ACTIVE : BUTTON,
+                    selected ? ACTIVE : Color.rgb(85, 85, 85)
+            ));
+        }
+    }
+
+    private void updateModeButtons(int selectedMode) {
+        boolean transcriptSelected = selectedMode == 0;
+        boolean watchPathSelected = selectedMode == 1;
+        transcriptButton.setBackground(panelBackground(
+                transcriptSelected ? ACTIVE : BUTTON,
+                transcriptSelected ? ACTIVE : Color.rgb(85, 85, 85)
+        ));
+        watchPathButton.setBackground(panelBackground(
+                watchPathSelected ? ACTIVE : BUTTON,
+                watchPathSelected ? ACTIVE : Color.rgb(85, 85, 85)
+        ));
+    }
+
     private void applyTranscriptFilter() {
         transcriptAdapter.filter(search.getText().toString());
         updateTranscriptStatus();
     }
+    private void generateWatchPath() {
+        if (entries.isEmpty()) {
+            Toast.makeText(activity, "No subtitles found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String goal = watchPathGoal.getText().toString().trim();
+        if (goal.isEmpty()) {
+            Toast.makeText(activity, "Enter what you need from this video", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String prompt = settings.getWatchPathPrompt();
+        if (prompt == null || prompt.trim().isEmpty()) {
+            Toast.makeText(activity, "WatchPath prompt is empty", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String modelId = settings.getModelId();
+        if (modelId == null || modelId.trim().isEmpty()) {
+            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final int budgetMinutes = selectedWatchPathBudget;
+        final double transcriptDuration;
+        final String userMessage;
+        try {
+            transcriptDuration = WatchPathPlan.transcriptDuration(entries);
+            userMessage = WatchPathPlan.buildUserMessage(
+                    host.sourceLabel(),
+                    videoTitle,
+                    videoUrl,
+                    goal,
+                    budgetMinutes,
+                    entries
+            );
+        } catch (IllegalArgumentException error) {
+            Toast.makeText(activity, error.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        String cacheKey = summaryCacheKey(
+                "WatchPath",
+                prompt,
+                modelId,
+                videoUrl,
+                userMessage
+        );
+        currentWatchPath = null;
+        watchPathResults.removeAllViews();
+
+        try {
+            String cached = savedSummaryStore.loadCachedSummary(cacheKey);
+            if (cached != null) {
+                WatchPathPlan plan = WatchPathPlan.parse(
+                        cached,
+                        videoUrl,
+                        goal,
+                        budgetMinutes,
+                        transcriptDuration
+                );
+                renderWatchPathPlan(plan);
+                status.setText("WatchPath | " + modelId + " | cached");
+                return;
+            }
+        } catch (RuntimeException ignored) {
+            // Invalid or unavailable cache data falls through to a fresh request.
+        }
+
+        final String apiKey;
+        try {
+            apiKey = settings.getApiKey();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (apiKey.trim().isEmpty()) {
+            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        setWatchPathBusy(true);
+        status.setText("Creating WatchPath with " + modelId);
+        executor.execute(() -> {
+            try {
+                String response = client.summarize(apiKey, modelId, prompt, userMessage);
+                WatchPathPlan plan = WatchPathPlan.parse(
+                        response,
+                        videoUrl,
+                        goal,
+                        budgetMinutes,
+                        transcriptDuration
+                );
+                boolean cacheStored;
+                try {
+                    savedSummaryStore.cacheSummary(cacheKey, response);
+                    cacheStored = true;
+                } catch (RuntimeException ignored) {
+                    cacheStored = false;
+                }
+                boolean finalCacheStored = cacheStored;
+                activity.runOnUiThread(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        setWatchPathBusy(false);
+                        renderWatchPathPlan(plan);
+                        status.setText("WatchPath | "
+                                + modelId
+                                + (finalCacheStored ? " | saved for reuse" : ""));
+                    }
+                });
+            } catch (Exception error) {
+                activity.runOnUiThread(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        setWatchPathBusy(false);
+                        String message = safeMessage(error, "WatchPath failed");
+                        status.setText("WatchPath failed: " + message);
+                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+    }
+
+    private void setWatchPathBusy(boolean busy) {
+        createWatchPathButton.setEnabled(!busy);
+        watchPathGoal.setEnabled(!busy);
+        for (Button budgetButton : watchPathBudgetButtons) {
+            budgetButton.setEnabled(!busy);
+        }
+        summaryOneButton.setEnabled(!busy && !entries.isEmpty());
+        summaryTwoButton.setEnabled(!busy && !entries.isEmpty());
+    }
+
+    private void renderWatchPathPlan(WatchPathPlan plan) {
+        currentWatchPath = plan;
+        watchPathResults.removeAllViews();
+
+        TextView routeTitle = text(
+                "Proposed route • "
+                        + WatchPathPlan.timestamp(plan.selectedDurationSeconds())
+                        + " total",
+                16,
+                Color.WHITE
+        );
+        routeTitle.setTypeface(routeTitle.getTypeface(), android.graphics.Typeface.BOLD);
+        watchPathResults.addView(routeTitle);
+
+        for (WatchPathPlan.Segment segment : plan.segments) {
+            LinearLayout row = horizontalLayout();
+            row.setPadding(dp(8), dp(8), dp(8), dp(8));
+            row.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+
+            LinearLayout details = new LinearLayout(activity);
+            details.setOrientation(LinearLayout.VERTICAL);
+            TextView heading = text(
+                    WatchPathPlan.timestamp(segment.startSeconds)
+                            + "–"
+                            + WatchPathPlan.timestamp(segment.endSeconds)
+                            + "  "
+                            + segment.title,
+                    14,
+                    Color.WHITE
+            );
+            heading.setTypeface(heading.getTypeface(), android.graphics.Typeface.BOLD);
+            details.addView(heading);
+            TextView reason = text(segment.reason, 12, MUTED);
+            reason.setPadding(0, dp(4), 0, 0);
+            details.addView(reason);
+            row.addView(details, new LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
+            ));
+
+            Button play = button("Play");
+            play.setContentDescription("Play " + segment.title);
+            play.setOnClickListener(ignored -> {
+                transcriptSeekOnDismiss = true;
+                restorePlaybackOnDismiss = false;
+                host.seekTo(segment.startSeconds);
+                dialog.dismiss();
+            });
+            LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(dp(72), dp(44));
+            playParams.setMarginStart(dp(8));
+            row.addView(play, playParams);
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            rowParams.setMargins(0, dp(8), 0, 0);
+            watchPathResults.addView(row, rowParams);
+        }
+
+        LinearLayout actions = horizontalLayout();
+        Button skipped = button("What I skipped");
+        skipped.setOnClickListener(ignored -> showSkippedWatchPathRanges());
+        addWeighted(actions, skipped, 1f, 0);
+        Button start = button("Start WatchPath");
+        start.setBackground(panelBackground(ACTIVE, ACTIVE));
+        start.setOnClickListener(ignored -> {
+            if (currentWatchPath == null) {
+                return;
+            }
+            transcriptSeekOnDismiss = true;
+            restorePlaybackOnDismiss = false;
+            host.startWatchPath(currentWatchPath);
+            dialog.dismiss();
+        });
+        addWeighted(actions, start, 1f, dp(8));
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionParams.setMargins(0, dp(10), 0, 0);
+        watchPathResults.addView(actions, actionParams);
+    }
+
+    private void showSkippedWatchPathRanges() {
+        if (currentWatchPath == null) {
+            return;
+        }
+        List<WatchPathPlan.Gap> gaps = currentWatchPath.skippedRanges();
+        if (gaps.isEmpty()) {
+            Toast.makeText(activity, "This route covers the full transcript", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[gaps.size()];
+        for (int index = 0; index < gaps.size(); index++) {
+            WatchPathPlan.Gap gap = gaps.get(index);
+            labels[index] = WatchPathPlan.timestamp(gap.startSeconds)
+                    + "–"
+                    + WatchPathPlan.timestamp(gap.endSeconds)
+                    + "  ("
+                    + WatchPathPlan.timestamp(gap.endSeconds - gap.startSeconds)
+                    + ")";
+        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Skipped sections")
+                .setItems(labels, (picker, index) -> {
+                    WatchPathPlan.Gap gap = gaps.get(index);
+                    transcriptSeekOnDismiss = true;
+                    restorePlaybackOnDismiss = false;
+                    host.seekTo(gap.startSeconds);
+                    picker.dismiss();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
 
 
     private void loadTranscript() {
@@ -418,6 +810,12 @@ final class YouTubeSubsDialog {
                 summaryOneButton.setEnabled(!entries.isEmpty());
                 summaryTwoButton.setEnabled(!entries.isEmpty());
                 updateTranscriptStatus();
+                transcriptButton.setEnabled(!entries.isEmpty());
+                watchPathButton.setEnabled(!entries.isEmpty());
+                currentWatchPath = null;
+                if (watchPathResults != null) {
+                    watchPathResults.removeAllViews();
+                }
                 if (captionOptions.isEmpty()) {
                     loadCaptionOptions();
                 }
@@ -772,6 +1170,10 @@ final class YouTubeSubsDialog {
     private void showSummary(String value, boolean actionsAvailable) {
         transcriptList.setVisibility(View.GONE);
         search.setVisibility(View.GONE);
+        languageButton.setVisibility(View.GONE);
+        readingActions.setVisibility(View.GONE);
+        watchPathScroll.setVisibility(View.GONE);
+        updateModeButtons(-1);
         summaryOutput.setText(MarkdownRenderer.render(
                 value,
                 activity.getResources().getDisplayMetrics().density
@@ -780,7 +1182,6 @@ final class YouTubeSubsDialog {
             summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
         }
         summaryScroll.setVisibility(View.VISIBLE);
-        transcriptButton.setVisibility(View.VISIBLE);
         chatTitle.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         chatRow.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
         copySummaryButton.setVisibility(actionsAvailable ? View.VISIBLE : View.GONE);
@@ -835,6 +1236,7 @@ final class YouTubeSubsDialog {
 
     private void showTranscript() {
         summaryScroll.setVisibility(View.GONE);
+        watchPathScroll.setVisibility(View.GONE);
         chatTitle.setVisibility(View.GONE);
         chatRow.setVisibility(View.GONE);
         copySummaryButton.setVisibility(View.GONE);
@@ -842,7 +1244,32 @@ final class YouTubeSubsDialog {
         shareSummaryButton.setVisibility(View.GONE);
         transcriptList.setVisibility(View.VISIBLE);
         search.setVisibility(View.VISIBLE);
+        languageButton.setVisibility(View.VISIBLE);
+        readingActions.setVisibility(View.VISIBLE);
+        updateModeButtons(0);
         updateTranscriptStatus();
+    }
+
+    private void showWatchPath() {
+        if (entries.isEmpty()) {
+            Toast.makeText(activity, "No subtitles found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        transcriptList.setVisibility(View.GONE);
+        search.setVisibility(View.GONE);
+        languageButton.setVisibility(View.GONE);
+        readingActions.setVisibility(View.GONE);
+        summaryScroll.setVisibility(View.GONE);
+        chatTitle.setVisibility(View.GONE);
+        chatRow.setVisibility(View.GONE);
+        copySummaryButton.setVisibility(View.GONE);
+        saveSummaryButton.setVisibility(View.GONE);
+        shareSummaryButton.setVisibility(View.GONE);
+        watchPathScroll.setVisibility(View.VISIBLE);
+        updateModeButtons(1);
+        status.setText(currentWatchPath == null
+                ? "Create a route from this transcript"
+                : "WatchPath ready");
     }
 
     private void copySummary() {

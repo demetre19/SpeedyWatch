@@ -23,6 +23,7 @@ final class AppBackup {
                 .put("summaryOnePrompt", settings.getSummaryOnePrompt())
                 .put("summaryTwoPrompt", settings.getSummaryTwoPrompt())
                 .put("quizPrompt", settings.getQuizPrompt())
+                .put("watchPathPrompt", settings.getWatchPathPrompt())
                 .put("defaultPlaybackSpeed", settings.getDefaultPlaybackSpeed())
                 .put("defaultMp3Quality", settings.getDefaultMp3Quality())
                 .put("lockIconEnabled", settings.isLockIconEnabled())
@@ -70,6 +71,9 @@ final class AppBackup {
         String summaryOne = boundedString(preferences, "summaryOnePrompt", MAXIMUM_PROMPT_LENGTH, false);
         String summaryTwo = boundedString(preferences, "summaryTwoPrompt", MAXIMUM_PROMPT_LENGTH, false);
         String quiz = boundedString(preferences, "quizPrompt", MAXIMUM_PROMPT_LENGTH, false);
+        String watchPath = preferences.has("watchPathPrompt")
+                ? boundedString(preferences, "watchPathPrompt", MAXIMUM_PROMPT_LENGTH, false)
+                : settings.getWatchPathPrompt();
         double speed = preferences.optDouble("defaultPlaybackSpeed", Double.NaN);
         String mp3Quality = preferences.optString(
                 "defaultMp3Quality",
@@ -114,6 +118,7 @@ final class AppBackup {
                 summaryOne,
                 summaryTwo,
                 quiz,
+                watchPath,
                 speed,
                 lockEnabled,
                 playbackProfile,

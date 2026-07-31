@@ -26,6 +26,7 @@ final class SpeedyWatchSettings {
     private static final String SUMMARY_ONE = "summary_one_prompt";
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
+    private static final String WATCH_PATH = "watch_path_prompt";
     private static final String DEFAULT_PLAYBACK_SPEED = "default_playback_speed";
     private static final String DEFAULT_MP3_QUALITY = "default_mp3_quality";
     private static final String LOCK_ICON_ENABLED = "lock_icon_enabled";
@@ -285,13 +286,21 @@ final class SpeedyWatchSettings {
                 ? context.getString(R.string.quiz_prompt_default)
                 : prompt;
     }
+    String getWatchPathPrompt() {
+        String prompt = preferences.getString(WATCH_PATH, "");
+        return prompt == null || prompt.trim().isEmpty()
+                ? context.getString(R.string.watch_path_prompt_default)
+                : prompt;
+    }
 
 
-    void setPrompts(String summaryOne, String summaryTwo, String quiz) {
+
+    void setPrompts(String summaryOne, String summaryTwo, String quiz, String watchPath) {
         preferences.edit()
                 .putString(SUMMARY_ONE, summaryOne == null ? "" : summaryOne)
                 .putString(SUMMARY_TWO, summaryTwo == null ? "" : summaryTwo)
                 .putString(QUIZ, quiz == null ? "" : quiz)
+                .putString(WATCH_PATH, watchPath == null ? "" : watchPath)
                 .apply();
     }
 
@@ -300,6 +309,7 @@ final class SpeedyWatchSettings {
             String summaryOne,
             String summaryTwo,
             String quiz,
+            String watchPath,
             double defaultSpeed,
             boolean lockEnabled,
             String playbackProfile,
@@ -312,6 +322,7 @@ final class SpeedyWatchSettings {
                 || summaryOne == null || summaryOne.trim().isEmpty()
                 || summaryTwo == null || summaryTwo.trim().isEmpty()
                 || quiz == null || quiz.trim().isEmpty()
+                || watchPath == null || watchPath.trim().isEmpty()
                 || !Double.isFinite(defaultSpeed)
                 || defaultSpeed < 0.25 || defaultSpeed > 4
                 || !isPlaybackProfile(playbackProfile)
@@ -325,6 +336,7 @@ final class SpeedyWatchSettings {
                 .putString(SUMMARY_ONE, summaryOne)
                 .putString(SUMMARY_TWO, summaryTwo)
                 .putString(QUIZ, quiz)
+                .putString(WATCH_PATH, watchPath)
                 .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(defaultSpeed))
                 .putBoolean(LOCK_ICON_ENABLED, lockEnabled)
                 .putString(PLAYBACK_PROFILE, playbackProfile)

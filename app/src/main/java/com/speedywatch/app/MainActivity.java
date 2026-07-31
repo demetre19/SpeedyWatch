@@ -18,6 +18,8 @@ import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -95,6 +97,15 @@ public final class MainActivity extends Activity {
     private SavedSummaryStore savedSummaryStore;
     private LinearLayout appRoot;
     private LinearLayout speedControls;
+    private LinearLayout watchPathControls;
+    private TextView watchPathStatus;
+    private Button watchPathPreviousButton;
+    private Button watchPathNextButton;
+    private Button watchPathUndoButton;
+    private final Handler watchPathHandler = new Handler(Looper.getMainLooper());
+    private final Runnable watchPathTick = this::pollWatchPath;
+    private WatchPathPlayback activeWatchPath;
+    private boolean watchPathForeground;
     private EditText customSpeedInput;
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
@@ -201,6 +212,9 @@ public final class MainActivity extends Activity {
                 updateSelectedSiteForUrl(url);
                 clearObservedCaptionRequestForNavigation(url);
                 refreshSponsorSegments(url);
+                if (activeWatchPath != null && !watchPathSourceMatches(url)) {
+                    stopWatchPath(false);
+                }
             }
 
 
@@ -417,6 +431,13 @@ public final class MainActivity extends Activity {
                 1f
         ));
 
+        watchPathControls = buildWatchPathControls();
+        watchPathControls.setVisibility(View.GONE);
+        root.addView(watchPathControls, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
         speedControls = new LinearLayout(this);
         speedControls.setOrientation(LinearLayout.VERTICAL);
         speedControls.setPadding(dp(8), dp(6), dp(8), dp(8));
@@ -485,6 +506,61 @@ public final class MainActivity extends Activity {
         ));
         refreshSpeedSelection();
         return root;
+    }
+
+    private LinearLayout buildWatchPathControls() {
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setPadding(dp(8), dp(6), dp(8), dp(6));
+        controls.setBackground(outlinedBackground(PANEL, ACTIVE, 1));
+
+        watchPathStatus = new TextView(this);
+        watchPathStatus.setTextColor(Color.WHITE);
+        watchPathStatus.setTextSize(13);
+        watchPathStatus.setSingleLine(true);
+        watchPathStatus.setPadding(dp(6), 0, dp(6), dp(4));
+        controls.addView(watchPathStatus, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout actions = horizontalRow();
+        watchPathPreviousButton = addWatchPathButton(
+                actions,
+                "Previous",
+                ignored -> applyWatchPathAction(activeWatchPath == null
+                        ? WatchPathPlayback.Action.NONE
+                        : activeWatchPath.previous())
+        );
+        watchPathNextButton = addWatchPathButton(
+                actions,
+                "Next",
+                ignored -> applyWatchPathAction(activeWatchPath == null
+                        ? WatchPathPlayback.Action.NONE
+                        : activeWatchPath.next())
+        );
+        watchPathUndoButton = addWatchPathButton(
+                actions,
+                "Undo",
+                ignored -> applyWatchPathAction(activeWatchPath == null
+                        ? WatchPathPlayback.Action.NONE
+                        : activeWatchPath.undo())
+        );
+        addWatchPathButton(actions, "Stop", ignored -> stopWatchPath(false));
+        controls.addView(actions);
+        return controls;
+    }
+
+    private Button addWatchPathButton(
+            LinearLayout row,
+            String label,
+            View.OnClickListener listener
+    ) {
+        Button button = makeButton(label, listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        params.setMargins(dp(3), 0, dp(3), 0);
+        row.addView(button, params);
+        return button;
     }
 
     private LinearLayout horizontalRow() {
@@ -1187,23 +1263,15 @@ public final class MainActivity extends Activity {
             public void seekTo(double seconds) {
                 seekVideo(seconds);
             }
+            @Override
+            public void startWatchPath(WatchPathPlan plan) {
+                MainActivity.this.startWatchPath(plan);
+            }
+
 
             @Override
             public void currentTime(YouTubeSubsDialog.CurrentTimeCallback callback) {
-                String script = "window.__speedyWatchController "
-                        + "? window.__speedyWatchController.currentTime() : null";
-                webView.evaluateJavascript(script, result -> {
-                    double seconds = Double.NaN;
-                    try {
-                        Object value = new JSONTokener(result == null ? "null" : result).nextValue();
-                        if (value instanceof Number number) {
-                            seconds = number.doubleValue();
-                        }
-                    } catch (Exception ignored) {
-                        // The transcript remains usable when playback time is unavailable.
-                    }
-                    callback.onTime(seconds);
-                });
+                queryCurrentTime(callback);
             }
 
             @Override
@@ -1817,6 +1885,144 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void queryCurrentTime(YouTubeSubsDialog.CurrentTimeCallback callback) {
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.currentTime() : null";
+        webView.evaluateJavascript(script, result -> {
+            double seconds = Double.NaN;
+            try {
+                Object value = new JSONTokener(result == null ? "null" : result).nextValue();
+                if (value instanceof Number number) {
+                    seconds = number.doubleValue();
+                }
+            } catch (Exception ignored) {
+                // Playback controls remain available when current time is unavailable.
+            }
+            callback.onTime(seconds);
+        });
+    }
+
+    private void startWatchPath(WatchPathPlan plan) {
+        if (plan == null || !watchPathSourceMatches(plan.sourceUrl)) {
+            Toast.makeText(this, "The video changed. Create a new WatchPath.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        stopWatchPath(false);
+        activeWatchPath = new WatchPathPlayback(plan);
+        watchPathControls.setVisibility(View.VISIBLE);
+        updateWatchPathControls();
+        applyWatchPathAction(activeWatchPath.start());
+        scheduleWatchPathTick();
+    }
+
+    private void pollWatchPath() {
+        watchPathHandler.removeCallbacks(watchPathTick);
+        WatchPathPlayback playback = activeWatchPath;
+        if (!watchPathForeground || playback == null || !playback.isActive()) {
+            return;
+        }
+        if (!watchPathSourceMatches(playback.sourceUrl())) {
+            stopWatchPath(false);
+            return;
+        }
+        queryCurrentTime(seconds -> {
+            if (!watchPathForeground
+                    || activeWatchPath != playback
+                    || !watchPathSourceMatches(playback.sourceUrl())) {
+                if (activeWatchPath == playback) {
+                    stopWatchPath(false);
+                }
+                return;
+            }
+            applyWatchPathAction(playback.onPlaybackTime(seconds));
+            if (activeWatchPath == playback && playback.isActive()) {
+                watchPathHandler.postDelayed(watchPathTick, 650);
+            }
+        });
+    }
+
+    private void scheduleWatchPathTick() {
+        watchPathHandler.removeCallbacks(watchPathTick);
+        if (watchPathForeground && activeWatchPath != null && activeWatchPath.isActive()) {
+            watchPathHandler.postDelayed(watchPathTick, 650);
+        }
+    }
+
+    private void applyWatchPathAction(WatchPathPlayback.Action action) {
+        WatchPathPlayback playback = activeWatchPath;
+        if (playback == null) {
+            return;
+        }
+        if (!watchPathSourceMatches(playback.sourceUrl())) {
+            stopWatchPath(false);
+            return;
+        }
+        if (action.completed) {
+            stopWatchPath(false);
+            Toast.makeText(this, "WatchPath complete", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (action.shouldSeek()) {
+            seekVideo(action.seekSeconds);
+        }
+        updateWatchPathControls();
+    }
+
+    private void updateWatchPathControls() {
+        WatchPathPlayback playback = activeWatchPath;
+        if (playback == null) {
+            return;
+        }
+        String status = playback.isReviewingSkippedSection()
+                ? "WatchPath • reviewing skipped section • resumes "
+                        + playback.currentTitle()
+                : "WatchPath "
+                        + (playback.segmentIndex() + 1)
+                        + "/"
+                        + playback.segmentCount()
+                        + " • "
+                        + playback.currentTitle();
+        watchPathStatus.setText(status);
+        watchPathPreviousButton.setEnabled(true);
+        watchPathNextButton.setEnabled(playback.canGoNext());
+        watchPathUndoButton.setEnabled(playback.canUndo());
+    }
+
+    private void stopWatchPath(boolean completed) {
+        watchPathHandler.removeCallbacks(watchPathTick);
+        if (activeWatchPath != null) {
+            activeWatchPath.stop();
+        }
+        activeWatchPath = null;
+        if (watchPathControls != null) {
+            watchPathControls.setVisibility(View.GONE);
+        }
+        if (completed) {
+            Toast.makeText(this, "WatchPath complete", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean watchPathSourceMatches(String expectedUrl) {
+        String expected = SupportedSite.validatedHttpsUrl(expectedUrl);
+        String current = SupportedSite.validatedHttpsUrl(
+                activeMainFrameUrl.isEmpty() ? webView.getUrl() : activeMainFrameUrl
+        );
+        if (expected == null || current == null) {
+            return false;
+        }
+        String expectedYouTube = YouTubeUrls.canonicalVideoUrl(expected);
+        String currentYouTube = YouTubeUrls.canonicalVideoUrl(current);
+        if (expectedYouTube != null || currentYouTube != null) {
+            return expectedYouTube != null && expectedYouTube.equals(currentYouTube);
+        }
+        return withoutFragment(expected).equals(withoutFragment(current));
+    }
+
+    private static String withoutFragment(String value) {
+        return Uri.parse(value).buildUpon().fragment(null).build().toString();
+    }
+
+
     private String readAsset(String name) {
         StringBuilder result = new StringBuilder();
         try (InputStream stream = getAssets().open(name);
@@ -2043,6 +2249,8 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        watchPathForeground = false;
+        watchPathHandler.removeCallbacks(watchPathTick);
         GitHubUpdateChecker.unregisterResumedActivity(this);
         webView.onPause();
         super.onPause();
@@ -2051,14 +2259,17 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        watchPathForeground = true;
         webView.onResume();
         GitHubUpdateChecker.registerResumedActivity(this);
         GitHubUpdateChecker.resumePendingInstaller(this);
+        scheduleWatchPathTick();
     }
 
     @Override
     protected void onDestroy() {
         hideFullscreenView();
+        stopWatchPath(false);
         ioExecutor.shutdownNow();
         savedSummaryStore.close();
         webView.loadUrl("about:blank");

@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.21**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.22**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -50,6 +50,7 @@ SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube bro
 - On Android, tap Download to use a valid copied media URL from YouTube, Bilibili, Instagram, Vimeo, X, or Facebook, or fall back to the current supported page. Choose MP3 audio or an MP4 up to an available resolution for that exact media item. Add more downloads while one is running and SpeedyWatch queues them in order, processes one at a time, and shows the waiting count in the notification. Downloads continue in the background, use the extracted title as the filename, and are written to `Downloads/SpeedyWatch`.
 - Where the selected service exposes captions, choose among available languages and manual or auto-generated tracks, search in line or paragraph view, copy the transcript, and optionally follow the current playback position.
 - Tap any transcript line or paragraph to jump to that moment and return to the video.
+- On Android, use **WatchPath** in Video Subs to describe a goal and choose a 5, 10, or 20 minute budget. SpeedyWatch asks the selected OpenRouter model for a validated route through the transcript, previews the chosen and skipped ranges, and provides native Previous, Next, Undo, and Stop controls while the route plays.
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
 - On Android, returning from a requested summary resumes the same video at the playback position captured when Summary One or Summary Two was pressed instead of restarting from the beginning.
 - Successful Summary One and Summary Two results are cached automatically in app-private storage. Pressing the same Summary button again immediately renders the cached result without another OpenRouter request when the summary type, prompt, model, source URL, and transcript are unchanged.
@@ -57,7 +58,7 @@ SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube bro
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original validated source URL.
 - Export settings plus saved summaries and quizzes to a cross-platform JSON backup, then restore it on Android or iPhone. OpenRouter API keys are never included.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
-- Edit the Summary One, Summary Two, and Quiz prompts in Settings. These fields are the only source of AI output instructions. The live model picker shows context length and per-million-token input/output prices and can filter free or long-context models.
+- Edit the Summary One, Summary Two, WatchPath, and Quiz prompts in Settings. These fields are the only source of AI output instructions. The live model picker shows context length and per-million-token input/output prices and can filter free or long-context models.
 - On Android, check the official latest stable GitHub Release from Settings. SpeedyWatch downloads the APK, verifies its exact GitHub size and SHA-256, and opens Android's installer automatically while the app remains open, so there is no extra Downloads-folder step. Android still requires per-source permission and final Update or Install confirmation.
 - Choose High (192 kbps), Standard (128 kbps), or Compact (64 kbps) for every Android MP3 download. Settings persists the default quality, and queued downloads retain the quality selected when they were added.
 
@@ -74,16 +75,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.21
-Version code: 21
+Version: 0.22
+Version code: 22
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,391,266 bytes
-SHA-256: 53564798ffd268f1d28e1cdcdebcffd3c2f788720ab562c1e0fb00babd7cfe10
+APK size: 106,093,954 bytes
+SHA-256: 1d3074854315bfd137a543cb45be1d2300a3b4f804b23d6f80efea0bf25fbd36
 Signing: Android debug signing key
 ```
 
-This public v0.21 APK is debug-signed with APK Signature Scheme v2. It adds the Android multi-site browser for YouTube, Bilibili, Instagram, Vimeo, X, and Facebook, including selected-site search, strictly validated in-app media URLs, source-organized MP3/MP4 downloads, and available transcript support. Complete public MEGA folder and file links are also supported for playback through a dedicated URL-only picker entry. It fixes authenticated Vimeo downloads, preserves the selected MP4 resolution ceiling, accepts compatible AAC audio without requiring an M4A container, and shows visible progress while formats are checked. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this build before installing the newly signed version.
+This public v0.22 APK is debug-signed with APK Signature Scheme v2. It adds Android WatchPath for creating a validated route through a captioned video from a user goal and a 5, 10, or 20 minute budget. Users can review selected and skipped ranges before playback, then use native Previous, Next, Undo, and Stop controls above the speed controls. The exact saved WatchPath prompt is editable and included in non-secret backups, while successful exact-context routes remain in private cache rather than Saved. The exact release candidate was installed on the API 36 verification device with version code 22 and an installed APK hash matching the release bytes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 
@@ -96,28 +97,30 @@ The iPhone project requires Xcode 26 or newer. It can run in the iPhone Simulato
 
 ## OpenRouter setup
 
-Summaries, follow-up questions, and quizzes require your own OpenRouter API key.
+Summaries, follow-up questions, WatchPath routes, and quizzes require your own OpenRouter API key.
 
 1. Open **Settings** in SpeedyWatch.
 2. Paste your OpenRouter API key.
 3. Refresh the model list.
 4. Choose a text model. SpeedyWatch prefers **Inception: Mercury 2** when it is available and shows each model's context length and advertised per-million-token input/output prices. Use the model picker filters to narrow the list to free or long-context options.
-5. Edit the summary or quiz prompts if needed, then tap **Save**.
+5. Edit the summary, WatchPath, or quiz prompts if needed, then tap **Save**.
 
 The API key is encrypted with Android Keystore AES-GCM on Android and stored in Keychain on iPhone. Settings masks the key by default and shows only a short prefix and suffix check.
 
-## Using transcripts, summaries, and quizzes
+## Using transcripts, WatchPath, summaries, and quizzes
 
 1. Open a captioned supported video in SpeedyWatch. Android supports the listed media services; iPhone remains YouTube-only.
 2. Tap the **Video Subs** icon, choose an available caption language or manual/auto-generated track, and load the transcript.
 3. Switch between line and paragraph view, search or copy the transcript, optionally follow playback, or tap a timestamp to seek the video.
-4. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
+4. On Android, choose **WatchPath**, enter what you need from the video, select a 5, 10, or 20 minute budget, and tap **Create WatchPath**.
+5. Review the proposed segments or **What I skipped**, then tap **Start WatchPath**. Use Previous, Next, Undo, or Stop from the native strip above the speed controls.
+6. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
    If you close the modal and choose the same summary again, SpeedyWatch reuses its private cached result when the generation context is unchanged.
    On Android, closing the modal after requesting a summary returns the video to the position captured when that Summary button was pressed.
-5. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
-6. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
-7. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
-8. Use the bookmark icon beside Settings to search saved summaries and quizzes, reopen their original videos, or share a saved item.
+7. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
+8. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
+9. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
+10. Use the bookmark icon beside Settings to search saved summaries and quizzes, reopen their original videos, or share a saved item.
 
 Transcript availability depends on the captions exposed by the selected service for that video.
 
@@ -128,10 +131,10 @@ Transcript availability depends on the captions exposed by the selected service 
 - Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
 - Your OpenRouter API key remains in platform-protected storage: Android Keystore-encrypted app storage or iPhone Keychain.
-- Transcript text and any follow-up question you submit are sent to OpenRouter only when you request a summary, follow-up answer, or quiz.
+- Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to OpenRouter only when you request a summary, WatchPath route, follow-up answer, or quiz.
 - Saved summaries, saved quizzes, and their source URLs remain in app-private local storage until you delete them. Follow-up chat history is not saved.
 - Exported backup files contain settings plus saved summaries and quizzes, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
-- Automatically cached summary results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
+- Automatically cached summary and WatchPath results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
 - Unsupported main-frame links open through the platform's external app handler; approved media CDN hosts cannot become browsable destinations.
 
 ## Build from source

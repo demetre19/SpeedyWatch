@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.22 — 2026-07-30
+
+### Added
+
+- Create Android WatchPath routes from a caption transcript, a user goal, and a 5, 10, or 20 minute budget; preview selected and skipped ranges, then control route playback with Previous, Next, Undo, and Stop.
+- Edit and back up the exact WatchPath prompt alongside the existing Summary and Quiz prompts.
+
+### Fixed
+
+- Keep WatchPath generation failures visible in the modal so invalid credentials, service errors, and rejected route output remain actionable.
+
 ## v0.21 — 2026-07-30
 
 ### Added

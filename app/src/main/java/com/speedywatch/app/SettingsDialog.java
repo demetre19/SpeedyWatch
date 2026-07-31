@@ -87,6 +87,7 @@ final class SettingsDialog {
     private EditText summaryOneInput;
     private EditText summaryTwoInput;
     private EditText quizInput;
+    private EditText watchPathInput;
     private String selectedModelId;
     private TextView updateStatus;
     private Button checkUpdatesButton;
@@ -398,6 +399,12 @@ final class SettingsDialog {
         quizInput.setText(promptFieldValue(
                 settings.getQuizPrompt(), R.string.quiz_prompt_default));
         content.addView(quizInput, matchWrap(dp(8), dp(14)));
+        content.addView(label("WatchPath prompt"));
+        watchPathInput = input(true, 8);
+        watchPathInput.setText(promptFieldValue(
+                settings.getWatchPathPrompt(), R.string.watch_path_prompt_default));
+        content.addView(watchPathInput, matchWrap(dp(8), dp(14)));
+
 
         LinearLayout actions = horizontalLayout();
         Button cancel = button("Cancel");
@@ -871,14 +878,18 @@ final class SettingsDialog {
         String summaryOne = summaryOneInput.getText().toString();
         String summaryTwo = summaryTwoInput.getText().toString();
         String quiz = quizInput.getText().toString();
-        if (summaryOne.trim().isEmpty() || summaryTwo.trim().isEmpty() || quiz.trim().isEmpty()) {
+        String watchPath = watchPathInput.getText().toString();
+        if (summaryOne.trim().isEmpty()
+                || summaryTwo.trim().isEmpty()
+                || quiz.trim().isEmpty()
+                || watchPath.trim().isEmpty()) {
             Toast.makeText(activity, "Prompt fields cannot be empty", Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             settings.setApiKey(apiKeyInput.getText().toString());
             settings.setModelId(selectedModelId);
-            settings.setPrompts(summaryOne, summaryTwo, quiz);
+            settings.setPrompts(summaryOne, summaryTwo, quiz, watchPath);
             Toast.makeText(activity, "Settings saved", Toast.LENGTH_SHORT).show();
             dialog.dismiss();
         } catch (GeneralSecurityException error) {
