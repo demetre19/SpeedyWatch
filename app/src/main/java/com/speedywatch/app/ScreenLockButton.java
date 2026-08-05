@@ -24,6 +24,8 @@ final class ScreenLockButton extends View {
 
     private static final long UNLOCK_HOLD_MILLIS = 1_200L;
     private static final int ACTIVE = Color.rgb(255, 0, 51);
+    private static final float HOLD_SCALE = 2f;
+    private static final long HOLD_SCALE_MILLIS = 120L;
 
     private final Listener listener;
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -33,6 +35,7 @@ final class ScreenLockButton extends View {
     private final Drawable unlockedIcon;
     private final Drawable lockedIcon;
     private final ValueAnimator holdAnimator;
+    private final float holdTranslation;
 
     private boolean locked;
     private boolean holdCancelled;
@@ -43,6 +46,7 @@ final class ScreenLockButton extends View {
         super(context);
         this.listener = listener;
         float density = getResources().getDisplayMetrics().density;
+        holdTranslation = -18f * density;
 
         backgroundPaint.setColor(Color.argb(150, 15, 15, 15));
         backgroundPaint.setStyle(Paint.Style.FILL);
@@ -185,6 +189,7 @@ final class ScreenLockButton extends View {
         }
         holdCancelled = false;
         holdProgress = 0f;
+        setHoldEmphasis(true);
         holdAnimator.start();
     }
 
@@ -193,7 +198,19 @@ final class ScreenLockButton extends View {
             holdAnimator.cancel();
         }
         holdProgress = 0f;
+        setHoldEmphasis(false);
         invalidate();
+    }
+
+    private void setHoldEmphasis(boolean emphasized) {
+        animate().cancel();
+        animate()
+                .scaleX(emphasized ? HOLD_SCALE : 1f)
+                .scaleY(emphasized ? HOLD_SCALE : 1f)
+                .translationX(emphasized ? holdTranslation : 0f)
+                .translationY(emphasized ? holdTranslation : 0f)
+                .setDuration(HOLD_SCALE_MILLIS)
+                .start();
     }
 
     private boolean contains(float x, float y) {

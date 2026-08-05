@@ -1,12 +1,32 @@
 package com.speedywatch.app;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.TreeMap;
 
 final class SavedListOrder {
+    static final class CreatorCount {
+        final String channelName;
+        final int count;
+
+        CreatorCount(String channelName, int count) {
+            this.channelName = channelName;
+            this.count = count;
+        }
+
+        String displayName() {
+            return channelName == null
+                    ? "All creators"
+                    : (channelName.isEmpty() ? "Unknown creator" : channelName);
+        }
+    }
+
     private SavedListOrder() {
     }
 
@@ -31,26 +51,8 @@ final class SavedListOrder {
     static int compareEntries(
             SavedSummaryStore.Entry left,
             SavedSummaryStore.Entry right,
-            boolean byChannel,
             boolean descending
     ) {
-        if (byChannel) {
-            boolean leftUnknown = left.channelName.isEmpty();
-            boolean rightUnknown = right.channelName.isEmpty();
-            if (leftUnknown != rightUnknown) {
-                return leftUnknown ? 1 : -1;
-            }
-            int channelOrder = descending
-                    ? String.CASE_INSENSITIVE_ORDER.compare(right.channelName, left.channelName)
-                    : String.CASE_INSENSITIVE_ORDER.compare(left.channelName, right.channelName);
-            if (channelOrder != 0) {
-                return channelOrder;
-            }
-            int newestWithinChannel = Long.compare(right.createdAt, left.createdAt);
-            return newestWithinChannel != 0
-                    ? newestWithinChannel
-                    : Long.compare(right.id, left.id);
-        }
         int dateOrder = descending
                 ? Long.compare(right.createdAt, left.createdAt)
                 : Long.compare(left.createdAt, right.createdAt);
@@ -59,5 +61,51 @@ final class SavedListOrder {
                 : (descending
                         ? Long.compare(right.id, left.id)
                         : Long.compare(left.id, right.id));
+    }
+
+    static boolean matchesEntry(
+            SavedSummaryStore.Entry entry,
+            String query,
+            String selectedCreator
+    ) {
+        if (selectedCreator != null) {
+            boolean creatorMatches = selectedCreator.isEmpty()
+                    ? entry.channelName.isEmpty()
+                    : selectedCreator.equalsIgnoreCase(entry.channelName);
+            if (!creatorMatches) {
+                return false;
+            }
+        }
+        String normalized = query == null ? "" : query.toLowerCase(Locale.US).trim();
+        if (normalized.isEmpty()) {
+            return true;
+        }
+        String searchable = (
+                entry.videoTitle + " "
+                        + entry.summaryLabel + " "
+                        + entry.channelName + " "
+                        + entry.summaryText
+        ).toLowerCase(Locale.US);
+        return searchable.contains(normalized);
+    }
+
+    static List<CreatorCount> creatorCounts(List<SavedSummaryStore.Entry> entries) {
+        TreeMap<String, Integer> known = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        int unknown = 0;
+        for (SavedSummaryStore.Entry entry : entries) {
+            if (entry.channelName.isEmpty()) {
+                unknown++;
+            } else {
+                known.merge(entry.channelName, 1, Integer::sum);
+            }
+        }
+        List<CreatorCount> counts = new ArrayList<>(known.size() + (unknown == 0 ? 0 : 1));
+        for (Map.Entry<String, Integer> creator : known.entrySet()) {
+            counts.add(new CreatorCount(creator.getKey(), creator.getValue()));
+        }
+        if (unknown > 0) {
+            counts.add(new CreatorCount("", unknown));
+        }
+        return counts;
     }
 }

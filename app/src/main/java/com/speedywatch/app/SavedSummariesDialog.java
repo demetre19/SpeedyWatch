@@ -54,9 +54,9 @@ final class SavedSummariesDialog {
     private TextView status;
     private EditText search;
     private SavedSummaryAdapter adapter;
-    private Button sortKeyButton;
+    private Button creatorFilterButton;
     private Button sortDirectionButton;
-    private boolean sortByChannel;
+    private String selectedCreator;
     private boolean sortDescending = true;
 
     SavedSummariesDialog(Activity activity, SavedSummaryStore store, Host host) {
@@ -108,7 +108,7 @@ final class SavedSummariesDialog {
 
         search = new EditText(activity);
         search.setSingleLine(true);
-        search.setHint("Search saved content...");
+        search.setHint("Search saved content or creator...");
         search.setTextColor(Color.WHITE);
         search.setHintTextColor(Color.rgb(175, 175, 175));
         search.setTextSize(14);
@@ -122,15 +122,12 @@ final class SavedSummariesDialog {
         searchParams.setMargins(0, dp(10), 0, dp(8));
         content.addView(search, searchParams);
         LinearLayout sorting = horizontalLayout();
-        sortKeyButton = button("Date");
-        sortKeyButton.setContentDescription("Sort saved items by date");
-        sortKeyButton.setOnClickListener(ignored -> {
-            sortByChannel = !sortByChannel;
-            sortDescending = !sortByChannel;
-            updateSortControls();
-            adapter.filter(search.getText().toString());
-        });
-        sorting.addView(sortKeyButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        creatorFilterButton = button("All creators ▾");
+        creatorFilterButton.setSingleLine(true);
+        creatorFilterButton.setEllipsize(TextUtils.TruncateAt.END);
+        creatorFilterButton.setContentDescription("Filter saved items by creator");
+        creatorFilterButton.setOnClickListener(ignored -> showCreatorPicker());
+        sorting.addView(creatorFilterButton, new LinearLayout.LayoutParams(0, dp(44), 2f));
 
         sortDirectionButton = button("Newest");
         sortDirectionButton.setContentDescription("Show oldest saved items first");
@@ -188,6 +185,11 @@ final class SavedSummariesDialog {
     private void refresh() {
         try {
             adapter.setEntries(store.loadAll());
+            if (selectedCreator != null && !adapter.hasCreator(selectedCreator)) {
+                selectedCreator = null;
+                updateSortControls();
+                adapter.filter(search == null ? "" : search.getText().toString());
+            }
             updateStatus();
         } catch (RuntimeException error) {
             adapter.setEntries(new ArrayList<>());
@@ -205,20 +207,99 @@ final class SavedSummariesDialog {
     }
 
     private void updateSortControls() {
-        sortKeyButton.setText(sortByChannel ? "Channel" : "Date");
-        sortKeyButton.setContentDescription(sortByChannel
-                ? "Sort saved items by channel. Tap to sort by date"
-                : "Sort saved items by date. Tap to sort by channel");
-        if (sortByChannel) {
-            sortDirectionButton.setText(sortDescending ? "Z–A" : "A–Z");
-            sortDirectionButton.setContentDescription(sortDescending
-                    ? "Sort channels A to Z"
-                    : "Sort channels Z to A");
-        } else {
-            sortDirectionButton.setText(sortDescending ? "Newest" : "Oldest");
-            sortDirectionButton.setContentDescription(sortDescending
-                    ? "Show oldest saved items first"
-                    : "Show newest saved items first");
+        String creatorLabel = selectedCreator == null
+                ? "All creators"
+                : (selectedCreator.isEmpty() ? "Unknown creator" : selectedCreator);
+        creatorFilterButton.setText(creatorLabel + " ▾");
+        creatorFilterButton.setContentDescription(
+                "Filter saved items by creator. Current selection: " + creatorLabel
+        );
+        sortDirectionButton.setText(sortDescending ? "Newest" : "Oldest");
+        sortDirectionButton.setContentDescription(sortDescending
+                ? "Show oldest saved items first"
+                : "Show newest saved items first");
+    }
+
+    private void showCreatorPicker() {
+        Dialog picker = new Dialog(activity);
+        picker.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        LinearLayout content = verticalLayout();
+        content.setPadding(dp(14), dp(12), dp(14), dp(12));
+        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+
+        LinearLayout header = horizontalLayout();
+        TextView title = text("Choose creator", 20, Color.WHITE);
+        title.setTypeface(title.getTypeface(), Typeface.BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        ImageButton close = new ImageButton(activity);
+        close.setImageResource(R.drawable.ic_close);
+        close.setContentDescription("Close creator picker");
+        close.setPadding(dp(9), dp(9), dp(9), dp(9));
+        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setOnClickListener(ignored -> picker.dismiss());
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
+        content.addView(header);
+
+        EditText creatorSearch = new EditText(activity);
+        creatorSearch.setSingleLine(true);
+        creatorSearch.setHint("Search creators...");
+        creatorSearch.setTextColor(Color.WHITE);
+        creatorSearch.setHintTextColor(Color.rgb(175, 175, 175));
+        creatorSearch.setTextSize(14);
+        creatorSearch.setPadding(dp(10), 0, dp(10), 0);
+        creatorSearch.setInputType(
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        );
+        creatorSearch.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        LinearLayout.LayoutParams creatorSearchParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        creatorSearchParams.setMargins(0, dp(10), 0, dp(8));
+        content.addView(creatorSearch, creatorSearchParams);
+
+        CreatorPickerAdapter creatorAdapter = new CreatorPickerAdapter();
+        creatorAdapter.setCreators(adapter.creatorCounts(), adapter.getTotalCount());
+        ListView creators = new ListView(activity);
+        creators.setDivider(null);
+        creators.setDividerHeight(0);
+        creators.setAdapter(creatorAdapter);
+        creators.setOnItemClickListener((parent, view, position, id) -> {
+            selectedCreator = creatorAdapter.getItem(position).channelName;
+            updateSortControls();
+            adapter.filter(search.getText().toString());
+            updateStatus();
+            picker.dismiss();
+        });
+        int availableHeight = activity.getResources().getDisplayMetrics().heightPixels - dp(260);
+        content.addView(creators, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.min(dp(440), Math.max(dp(132), availableHeight))
+        ));
+
+        creatorSearch.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                creatorAdapter.filter(editable.toString());
+            }
+        });
+
+        picker.setContentView(content);
+        Window window = picker.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        picker.show();
+        if (window != null) {
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.CENTER);
         }
     }
 
@@ -456,26 +537,34 @@ final class SavedSummariesDialog {
         }
 
         void filter(String query) {
-            String normalized = query == null ? "" : query.toLowerCase(Locale.US).trim();
             visible.clear();
             for (SavedSummaryStore.Entry entry : all) {
-                String searchable = (
-                        entry.videoTitle + " "
-                                + entry.summaryLabel + " "
-                                + entry.channelName + " "
-                                + entry.summaryText
-                ).toLowerCase(Locale.US);
-                if (normalized.isEmpty() || searchable.contains(normalized)) {
+                if (SavedListOrder.matchesEntry(entry, query, selectedCreator)) {
                     visible.add(entry);
                 }
             }
             visible.sort((left, right) ->
-                    SavedListOrder.compareEntries(left, right, sortByChannel, sortDescending));
+                    SavedListOrder.compareEntries(left, right, sortDescending));
             notifyDataSetChanged();
         }
 
         int getTotalCount() {
             return all.size();
+        }
+
+        List<SavedListOrder.CreatorCount> creatorCounts() {
+            return SavedListOrder.creatorCounts(all);
+        }
+
+        boolean hasCreator(String creator) {
+            for (SavedSummaryStore.Entry entry : all) {
+                if (creator.isEmpty()
+                        ? entry.channelName.isEmpty()
+                        : creator.equalsIgnoreCase(entry.channelName)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -558,9 +647,6 @@ final class SavedSummariesDialog {
                 SavedSummaryStore.Entry left,
                 SavedSummaryStore.Entry right
         ) {
-            if (sortByChannel) {
-                return left.channelName.equalsIgnoreCase(right.channelName);
-            }
             Calendar leftDate = Calendar.getInstance();
             leftDate.setTimeInMillis(left.createdAt);
             Calendar rightDate = Calendar.getInstance();
@@ -571,9 +657,6 @@ final class SavedSummariesDialog {
         }
 
         private String groupLabel(SavedSummaryStore.Entry entry) {
-            if (sortByChannel) {
-                return entry.channelName.isEmpty() ? "Unknown channel" : entry.channelName;
-            }
             return SavedListOrder.dayLabel(
                     entry.createdAt,
                     System.currentTimeMillis(),
@@ -583,11 +666,73 @@ final class SavedSummariesDialog {
         }
 
         private String listMetadata(SavedSummaryStore.Entry entry) {
-            if (sortByChannel) {
-                return entry.summaryLabel + " | " + formatDate(entry.createdAt);
-            }
             String channel = entry.channelName.isEmpty() ? "" : " | " + entry.channelName;
             return entry.summaryLabel + channel + " | " + formatTime(entry.createdAt);
+        }
+    }
+
+    private final class CreatorPickerAdapter extends BaseAdapter {
+        private final List<SavedListOrder.CreatorCount> all = new ArrayList<>();
+        private final List<SavedListOrder.CreatorCount> visible = new ArrayList<>();
+
+        void setCreators(List<SavedListOrder.CreatorCount> creators, int totalCount) {
+            all.clear();
+            all.add(new SavedListOrder.CreatorCount(null, totalCount));
+            all.addAll(creators);
+            filter("");
+        }
+
+        void filter(String query) {
+            String normalized = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+            visible.clear();
+            for (SavedListOrder.CreatorCount creator : all) {
+                if (normalized.isEmpty()
+                        || creator.displayName().toLowerCase(Locale.ROOT).contains(normalized)) {
+                    visible.add(creator);
+                }
+            }
+            notifyDataSetChanged();
+        }
+
+        @Override
+        public int getCount() {
+            return visible.size();
+        }
+
+        @Override
+        public SavedListOrder.CreatorCount getItem(int position) {
+            return visible.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            TextView row = convertView instanceof TextView existing
+                    ? existing
+                    : text("", 14, Color.WHITE);
+            SavedListOrder.CreatorCount creator = getItem(position);
+            boolean selected = selectedCreator == null
+                    ? creator.channelName == null
+                    : creator.channelName != null
+                    && selectedCreator.equalsIgnoreCase(creator.channelName);
+            row.setText(
+                    (selected ? "✓ " : "")
+                            + creator.displayName()
+                            + " ("
+                            + creator.count
+                            + ")"
+            );
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setMinHeight(dp(44));
+            row.setPadding(dp(10), 0, dp(10), 0);
+            row.setBackground(selected
+                    ? panelBackground(PANEL, ACTIVE)
+                    : panelBackground(BACKGROUND, BACKGROUND));
+            return row;
         }
     }
 
