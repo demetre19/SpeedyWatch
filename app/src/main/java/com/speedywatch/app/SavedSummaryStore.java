@@ -17,6 +17,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         final String summaryLabel;
         final String summaryText;
         final String sourceUrl;
+        final String channelName;
         final long createdAt;
 
         Entry(
@@ -25,6 +26,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                 String summaryLabel,
                 String summaryText,
                 String sourceUrl,
+                String channelName,
                 long createdAt
         ) {
             this.id = id;
@@ -32,12 +34,13 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             this.summaryLabel = summaryLabel;
             this.summaryText = summaryText;
             this.sourceUrl = sourceUrl;
+            this.channelName = channelName;
             this.createdAt = createdAt;
         }
     }
 
     private static final String DATABASE_NAME = "saved_summaries.db";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;
     private static final String TABLE = "saved_summaries";
     private static final String CACHE_TABLE = "summary_cache";
 
@@ -54,6 +57,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         + "summary_label TEXT NOT NULL,"
                         + "summary_text TEXT NOT NULL,"
                         + "source_url TEXT NOT NULL,"
+                        + "channel_name TEXT NOT NULL DEFAULT '',"
                         + "created_at INTEGER NOT NULL)"
         );
         database.execSQL(
@@ -66,6 +70,12 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase database, int oldVersion, int newVersion) {
         if (oldVersion < 3) {
             createCacheTable(database);
+        }
+        if (oldVersion < 4) {
+            database.execSQL(
+                    "ALTER TABLE " + TABLE
+                            + " ADD COLUMN channel_name TEXT NOT NULL DEFAULT ''"
+            );
         }
     }
 
@@ -83,12 +93,14 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             String videoTitle,
             String summaryLabel,
             String summaryText,
-            String sourceUrl
+            String sourceUrl,
+            String channelName
     ) {
         String normalizedTitle = requireText(videoTitle, "Video title");
         String normalizedLabel = requireText(summaryLabel, "Saved item label");
         String normalizedSummary = requireText(summaryText, "Saved item content");
         String normalizedUrl = requireText(sourceUrl, "Source URL");
+        String normalizedChannel = normalizeChannel(channelName);
         if (!isSupportedSourceUrl(normalizedUrl)) {
             throw new IllegalArgumentException("Original video URL is unavailable");
         }
@@ -99,6 +111,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         values.put("summary_label", normalizedLabel);
         values.put("summary_text", normalizedSummary);
         values.put("source_url", normalizedUrl);
+        values.put("channel_name", normalizedChannel);
         values.put("created_at", System.currentTimeMillis());
         if (database.insertOrThrow(TABLE, null, values) < 0) {
             throw new IllegalStateException("Item could not be saved");
@@ -149,6 +162,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         "summary_label",
                         "summary_text",
                         "source_url",
+                        "channel_name",
                         "created_at"
                 },
                 null,
@@ -164,7 +178,8 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         cursor.getString(2),
                         cursor.getString(3),
                         cursor.getString(4),
-                        cursor.getLong(5)
+                        cursor.getString(5),
+                        cursor.getLong(6)
                 ));
             }
         }
@@ -181,10 +196,11 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             String label = requireText(entry.summaryLabel, "Saved item label");
             String text = requireText(entry.summaryText, "Saved item content");
             String sourceUrl = requireText(entry.sourceUrl, "Source URL");
+            String channelName = normalizeChannel(entry.channelName);
             if (!isSupportedSourceUrl(sourceUrl) || entry.createdAt <= 0) {
                 throw new IllegalArgumentException("Saved item data is invalid");
             }
-            validated.add(new Entry(0, title, label, text, sourceUrl, entry.createdAt));
+            validated.add(new Entry(0, title, label, text, sourceUrl, channelName, entry.createdAt));
         }
 
         SQLiteDatabase database = getWritableDatabase();
@@ -197,6 +213,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                 values.put("summary_label", entry.summaryLabel);
                 values.put("summary_text", entry.summaryText);
                 values.put("source_url", entry.sourceUrl);
+                values.put("channel_name", entry.channelName);
                 values.put("created_at", entry.createdAt);
                 database.insertOrThrow(TABLE, null, values);
             }
@@ -208,6 +225,16 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
 
     synchronized boolean delete(long id) {
         return id > 0 && getWritableDatabase().delete(TABLE, "id = ?", new String[]{Long.toString(id)}) > 0;
+    }
+
+    static String normalizeChannel(String value) {
+        String normalized = value == null ? "" : value
+                .replaceAll("\\p{Cntrl}", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return normalized.length() > 300
+                ? normalized.substring(0, 300).trim()
+                : normalized;
     }
 
     static boolean isSupportedSourceUrl(String value) {

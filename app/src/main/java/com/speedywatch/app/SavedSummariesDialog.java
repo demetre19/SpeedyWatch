@@ -29,9 +29,11 @@ import android.widget.Toast;
 
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 
 final class SavedSummariesDialog {
     interface Host {
@@ -52,6 +54,10 @@ final class SavedSummariesDialog {
     private TextView status;
     private EditText search;
     private SavedSummaryAdapter adapter;
+    private Button sortKeyButton;
+    private Button sortDirectionButton;
+    private boolean sortByChannel;
+    private boolean sortDescending = true;
 
     SavedSummariesDialog(Activity activity, SavedSummaryStore store, Host host) {
         this.activity = activity;
@@ -115,11 +121,38 @@ final class SavedSummariesDialog {
         );
         searchParams.setMargins(0, dp(10), 0, dp(8));
         content.addView(search, searchParams);
+        LinearLayout sorting = horizontalLayout();
+        sortKeyButton = button("Date");
+        sortKeyButton.setContentDescription("Sort saved items by date");
+        sortKeyButton.setOnClickListener(ignored -> {
+            sortByChannel = !sortByChannel;
+            sortDescending = !sortByChannel;
+            updateSortControls();
+            adapter.filter(search.getText().toString());
+        });
+        sorting.addView(sortKeyButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
+
+        sortDirectionButton = button("Newest");
+        sortDirectionButton.setContentDescription("Show oldest saved items first");
+        sortDirectionButton.setOnClickListener(ignored -> {
+            sortDescending = !sortDescending;
+            updateSortControls();
+            adapter.filter(search.getText().toString());
+        });
+        LinearLayout.LayoutParams directionParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        directionParams.setMarginStart(dp(8));
+        sorting.addView(sortDirectionButton, directionParams);
+        LinearLayout.LayoutParams sortingParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        sortingParams.setMargins(0, 0, 0, dp(8));
+        content.addView(sorting, sortingParams);
 
         FrameLayout body = new FrameLayout(activity);
         ListView list = new ListView(activity);
-        list.setDivider(new ColorDrawable(Color.rgb(50, 50, 50)));
-        list.setDividerHeight(dp(1));
+        list.setDivider(null);
+        list.setDividerHeight(0);
         adapter = new SavedSummaryAdapter();
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) -> showDetail(adapter.getItem(position)));
@@ -171,6 +204,24 @@ final class SavedSummariesDialog {
                 : visible + " of " + total + " saved items");
     }
 
+    private void updateSortControls() {
+        sortKeyButton.setText(sortByChannel ? "Channel" : "Date");
+        sortKeyButton.setContentDescription(sortByChannel
+                ? "Sort saved items by channel. Tap to sort by date"
+                : "Sort saved items by date. Tap to sort by channel");
+        if (sortByChannel) {
+            sortDirectionButton.setText(sortDescending ? "Z–A" : "A–Z");
+            sortDirectionButton.setContentDescription(sortDescending
+                    ? "Sort channels A to Z"
+                    : "Sort channels Z to A");
+        } else {
+            sortDirectionButton.setText(sortDescending ? "Newest" : "Oldest");
+            sortDirectionButton.setContentDescription(sortDescending
+                    ? "Show oldest saved items first"
+                    : "Show newest saved items first");
+        }
+    }
+
     private void showDetail(SavedSummaryStore.Entry entry) {
         Dialog detail = new Dialog(activity);
         detail.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -186,7 +237,7 @@ final class SavedSummariesDialog {
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         headerText.addView(title);
-        TextView metadata = text(entry.summaryLabel + " | " + formatDate(entry.createdAt), 12, MUTED);
+        TextView metadata = text(detailMetadata(entry), 12, MUTED);
         headerText.addView(metadata);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -316,6 +367,17 @@ final class SavedSummariesDialog {
                 .format(new Date(timestamp));
     }
 
+    private String formatTime(long timestamp) {
+        return DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(timestamp));
+    }
+
+    private String detailMetadata(SavedSummaryStore.Entry entry) {
+        String channel = entry.channelName.isEmpty() ? "" : " | " + entry.channelName;
+        return entry.summaryLabel + channel + " | " + formatDate(entry.createdAt);
+    }
+
+
+
     private LinearLayout verticalLayout() {
         LinearLayout layout = new LinearLayout(activity);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -362,6 +424,27 @@ final class SavedSummariesDialog {
         return Math.round(value * activity.getResources().getDisplayMetrics().density);
     }
 
+    private LinearLayout groupDivider() {
+        LinearLayout divider = horizontalLayout();
+        divider.setPadding(dp(10), dp(8), dp(10), dp(4));
+        View leadingLine = new View(activity);
+        leadingLine.setBackgroundColor(Color.rgb(70, 70, 70));
+        divider.addView(leadingLine, new LinearLayout.LayoutParams(0, dp(1), 1f));
+        TextView label = text("", 10, MUTED);
+        label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        label.setPadding(dp(8), 0, dp(8), 0);
+        divider.addView(label, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        View trailingLine = new View(activity);
+        trailingLine.setBackgroundColor(Color.rgb(70, 70, 70));
+        divider.addView(trailingLine, new LinearLayout.LayoutParams(0, dp(1), 1f));
+        return divider;
+    }
+
     private final class SavedSummaryAdapter extends BaseAdapter {
         private final List<SavedSummaryStore.Entry> all = new ArrayList<>();
         private final List<SavedSummaryStore.Entry> visible = new ArrayList<>();
@@ -376,12 +459,18 @@ final class SavedSummariesDialog {
             String normalized = query == null ? "" : query.toLowerCase(Locale.US).trim();
             visible.clear();
             for (SavedSummaryStore.Entry entry : all) {
-                String searchable = (entry.videoTitle + " " + entry.summaryLabel + " " + entry.summaryText)
-                        .toLowerCase(Locale.US);
+                String searchable = (
+                        entry.videoTitle + " "
+                                + entry.summaryLabel + " "
+                                + entry.channelName + " "
+                                + entry.summaryText
+                ).toLowerCase(Locale.US);
                 if (normalized.isEmpty() || searchable.contains(normalized)) {
                     visible.add(entry);
                 }
             }
+            visible.sort((left, right) ->
+                    SavedListOrder.compareEntries(left, right, sortByChannel, sortDescending));
             notifyDataSetChanged();
         }
 
@@ -407,42 +496,98 @@ final class SavedSummariesDialog {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             LinearLayout row;
+            LinearLayout divider;
+            TextView dividerLabel;
+            LinearLayout item;
             TextView title;
             TextView metadata;
             TextView excerpt;
             if (convertView instanceof LinearLayout existing) {
                 row = existing;
-                title = (TextView) row.getChildAt(0);
-                metadata = (TextView) row.getChildAt(1);
-                excerpt = (TextView) row.getChildAt(2);
+                divider = (LinearLayout) row.getChildAt(0);
+                dividerLabel = (TextView) divider.getChildAt(1);
+                item = (LinearLayout) row.getChildAt(1);
+                title = (TextView) item.getChildAt(0);
+                metadata = (TextView) item.getChildAt(1);
+                excerpt = (TextView) item.getChildAt(2);
             } else {
                 row = verticalLayout();
-                row.setPadding(dp(10), dp(10), dp(10), dp(10));
+                divider = groupDivider();
+                dividerLabel = (TextView) divider.getChildAt(1);
+                row.addView(divider);
+
+                item = verticalLayout();
+                item.setPadding(dp(10), dp(8), dp(10), dp(10));
                 title = text("", 15, Color.WHITE);
                 title.setTypeface(title.getTypeface(), Typeface.BOLD);
                 title.setMaxLines(2);
                 title.setEllipsize(TextUtils.TruncateAt.END);
-                row.addView(title);
+                item.addView(title);
                 metadata = text("", 12, MUTED);
                 LinearLayout.LayoutParams metadataParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
                 metadataParams.setMargins(0, dp(2), 0, dp(5));
-                row.addView(metadata, metadataParams);
+                item.addView(metadata, metadataParams);
                 excerpt = text("", 13, Color.rgb(225, 225, 225));
                 excerpt.setMaxLines(3);
                 excerpt.setEllipsize(TextUtils.TruncateAt.END);
                 excerpt.setLineSpacing(0, 1.1f);
-                row.addView(excerpt);
+                item.addView(excerpt);
+                row.addView(item, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                ));
             }
 
             SavedSummaryStore.Entry entry = getItem(position);
+            boolean startsGroup = position == 0 || !sameGroup(entry, getItem(position - 1));
+            divider.setVisibility(startsGroup ? View.VISIBLE : View.GONE);
+            if (startsGroup) {
+                dividerLabel.setText(groupLabel(entry));
+            }
             title.setText(entry.videoTitle);
-            metadata.setText(entry.summaryLabel + " | " + formatDate(entry.createdAt));
+            metadata.setText(listMetadata(entry));
             excerpt.setText(preview(entry.summaryText));
             row.setBackgroundColor(BACKGROUND);
             return row;
+        }
+
+        private boolean sameGroup(
+                SavedSummaryStore.Entry left,
+                SavedSummaryStore.Entry right
+        ) {
+            if (sortByChannel) {
+                return left.channelName.equalsIgnoreCase(right.channelName);
+            }
+            Calendar leftDate = Calendar.getInstance();
+            leftDate.setTimeInMillis(left.createdAt);
+            Calendar rightDate = Calendar.getInstance();
+            rightDate.setTimeInMillis(right.createdAt);
+            return leftDate.get(Calendar.ERA) == rightDate.get(Calendar.ERA)
+                    && leftDate.get(Calendar.YEAR) == rightDate.get(Calendar.YEAR)
+                    && leftDate.get(Calendar.DAY_OF_YEAR) == rightDate.get(Calendar.DAY_OF_YEAR);
+        }
+
+        private String groupLabel(SavedSummaryStore.Entry entry) {
+            if (sortByChannel) {
+                return entry.channelName.isEmpty() ? "Unknown channel" : entry.channelName;
+            }
+            return SavedListOrder.dayLabel(
+                    entry.createdAt,
+                    System.currentTimeMillis(),
+                    Locale.getDefault(),
+                    TimeZone.getDefault()
+            );
+        }
+
+        private String listMetadata(SavedSummaryStore.Entry entry) {
+            if (sortByChannel) {
+                return entry.summaryLabel + " | " + formatDate(entry.createdAt);
+            }
+            String channel = entry.channelName.isEmpty() ? "" : " | " + entry.channelName;
+            return entry.summaryLabel + channel + " | " + formatTime(entry.createdAt);
         }
     }
 

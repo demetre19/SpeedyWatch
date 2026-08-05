@@ -41,6 +41,7 @@ final class AppBackup {
                     .put("contentLabel", entry.summaryLabel)
                     .put("content", entry.summaryText)
                     .put("sourceURL", entry.sourceUrl)
+                    .put("channelName", entry.channelName)
                     .put("createdAt", entry.createdAt));
         }
         return new JSONObject()
@@ -104,11 +105,22 @@ final class AppBackup {
             String label = boundedString(item, "contentLabel", 500, false);
             String content = boundedString(item, "content", MAXIMUM_CONTENT_LENGTH, false);
             String sourceURL = boundedString(item, "sourceURL", 4_000, false);
+            String channelName = item.has("channelName")
+                    ? boundedString(item, "channelName", 300, true)
+                    : "";
             long createdAt = item.optLong("createdAt", -1);
             if (!SavedSummaryStore.isSupportedSourceUrl(sourceURL) || createdAt <= 0) {
                 throw new JSONException("Backup saved item source is invalid");
             }
-            restored.add(new SavedSummaryStore.Entry(0, title, label, content, sourceURL, createdAt));
+            restored.add(new SavedSummaryStore.Entry(
+                    0,
+                    title,
+                    label,
+                    content,
+                    sourceURL,
+                    channelName,
+                    createdAt
+            ));
         }
 
         List<SavedSummaryStore.Entry> previous = store.loadAll();

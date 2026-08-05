@@ -65,7 +65,12 @@ final class YouTubeSubsDialog {
     }
 
     interface TranscriptCallback {
-        void onLoaded(List<TranscriptEntry> entries, String videoTitle, String videoUrl);
+        void onLoaded(
+                List<TranscriptEntry> entries,
+                String videoTitle,
+                String videoUrl,
+                String channelName
+        );
         void onError(String message);
     }
 
@@ -126,6 +131,7 @@ final class YouTubeSubsDialog {
     private double currentPlaybackTime = -1;
     private String videoTitle = "Video";
     private String videoUrl = "";
+    private String channelName = "";
     private String currentSummaryText = "";
     private String currentSummaryLabel = "";
     private String currentSummaryPrompt = "";
@@ -798,7 +804,12 @@ final class YouTubeSubsDialog {
         selectedLanguageCode = languageCode == null ? "" : languageCode;
         host.loadTranscript(selectedLanguageCode, new TranscriptCallback() {
             @Override
-            public void onLoaded(List<TranscriptEntry> loaded, String title, String url) {
+            public void onLoaded(
+                    List<TranscriptEntry> loaded,
+                    String title,
+                    String url,
+                    String channel
+            ) {
                 if (dialog == null || !dialog.isShowing()) {
                     return;
                 }
@@ -806,6 +817,7 @@ final class YouTubeSubsDialog {
                 entries.addAll(loaded);
                 videoTitle = title == null || title.trim().isEmpty() ? "Video" : title;
                 videoUrl = url == null ? "" : url;
+                channelName = SavedSummaryStore.normalizeChannel(channel);
                 transcriptAdapter.setEntries(entries);
                 summaryOneButton.setEnabled(!entries.isEmpty());
                 summaryTwoButton.setEnabled(!entries.isEmpty());
@@ -1291,7 +1303,8 @@ final class YouTubeSubsDialog {
                     videoTitle,
                     currentSummaryLabel,
                     currentSummaryText,
-                    videoUrl
+                    videoUrl,
+                    channelName
             );
             Toast.makeText(activity, "Summary saved", Toast.LENGTH_SHORT).show();
         } catch (IllegalArgumentException error) {

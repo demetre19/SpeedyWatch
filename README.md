@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.22**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.23**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -54,7 +54,7 @@ SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube bro
 - Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
 - On Android, returning from a requested summary resumes the same video at the playback position captured when Summary One or Summary Two was pressed instead of restarting from the beginning.
 - Successful Summary One and Summary Two results are cached automatically in app-private storage. Pressing the same Summary button again immediately renders the cached result without another OpenRouter request when the summary type, prompt, model, source URL, and transcript are unchanged.
-- Save summaries and generated quiz guides locally with their original validated source URL, then search titles, types, headings, and body text from the bookmark library.
+- Save summaries and generated quiz guides locally with their original validated source URL. In the Android bookmark library, compact day dividers separate saved dates, Date sorting switches between newest and oldest, Channel sorting switches between A–Z and Z–A when channel metadata is available, and search covers titles, types, channels, headings, and body text.
 - Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original validated source URL.
 - Export settings plus saved summaries and quizzes to a cross-platform JSON backup, then restore it on Android or iPhone. OpenRouter API keys are never included.
 - Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
@@ -75,16 +75,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.22
-Version code: 22
+Version: 0.23
+Version code: 23
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,093,954 bytes
-SHA-256: 1d3074854315bfd137a543cb45be1d2300a3b4f804b23d6f80efea0bf25fbd36
+APK size: 106,101,542 bytes
+SHA-256: 2612ea19be3121b57cf576dbf60c5acb758b754600224ba2c2461a2e1ebaa8b3
 Signing: Android debug signing key
 ```
 
-This public v0.22 APK is debug-signed with APK Signature Scheme v2. It adds Android WatchPath for creating a validated route through a captioned video from a user goal and a 5, 10, or 20 minute budget. Users can review selected and skipped ranges before playback, then use native Previous, Next, Undo, and Stop controls above the speed controls. The exact saved WatchPath prompt is editable and included in non-secret backups, while successful exact-context routes remain in private cache rather than Saved. The exact release candidate was installed on the API 36 verification device with version code 22 and an installed APK hash matching the release bytes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.23 APK is debug-signed with APK Signature Scheme v2. It adds compact dated dividers to the Android Saved library, with current-year dates shown without the year and older dates including it. Saved summaries and quizzes can be ordered newest or oldest, or grouped by their captured YouTube channel or cross-site publisher identity in A–Z or Z–A order. Older saved records remain under Unknown channel because previous versions did not store publisher metadata. The exact release candidate was installed on the Samsung verification phone with version code 23 and an installed APK hash matching the release bytes; the Saved sorting and search flows were also exercised on the API 36 emulator. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 
@@ -120,7 +120,7 @@ The API key is encrypted with Android Keystore AES-GCM on Android and stored in 
 7. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
 8. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
 9. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
-10. Use the bookmark icon beside Settings to search saved summaries and quizzes, reopen their original videos, or share a saved item.
+10. Use the bookmark icon beside Settings to search saved summaries and quizzes, sort by date or channel, reopen their original videos, or share a saved item.
 
 Transcript availability depends on the captions exposed by the selected service for that video.
 

@@ -118,6 +118,7 @@ public final class MainActivity extends Activity {
     private volatile long activeTranscriptRequestId;
     private volatile boolean activeTranscriptDelivered;
     private volatile String activeTranscriptTitle = "YouTube Video";
+    private volatile String activeTranscriptChannel = "";
     private volatile String activeTranscriptPageUrl = "";
     private volatile String activeVideoId = "";
     private volatile String observedCaptionRequestUrl = "";
@@ -1310,6 +1311,7 @@ public final class MainActivity extends Activity {
         activeTranscriptCallback = callback;
         activeTranscriptDelivered = false;
         activeTranscriptTitle = "YouTube Video";
+        activeTranscriptChannel = "";
         activeTranscriptPageUrl = pageUrl;
         activeVideoId = videoId;
         activeCaptionRequestUrl = "";
@@ -1342,6 +1344,7 @@ public final class MainActivity extends Activity {
         activeTranscriptCallback = callback;
         activeTranscriptDelivered = false;
         activeTranscriptTitle = "Video";
+        activeTranscriptChannel = "";
         activeTranscriptPageUrl = validPageUrl;
         activeVideoId = "";
         activeCaptionRequestUrl = "";
@@ -1357,6 +1360,7 @@ public final class MainActivity extends Activity {
                         userAgent
                 );
                 activeTranscriptTitle = result.title;
+                activeTranscriptChannel = result.channelName;
                 activeTranscriptPageUrl = result.pageUrl;
                 deliverTranscript(requestId, result.entries);
             } catch (Exception error) {
@@ -1390,6 +1394,9 @@ public final class MainActivity extends Activity {
             if (!title.isEmpty()) {
                 activeTranscriptTitle = title;
             }
+            activeTranscriptChannel = SavedSummaryStore.normalizeChannel(
+                    metadata.optString("channel", "")
+            );
             String baseUrl = metadata.optString("baseUrl", "").trim();
             if (baseUrl.isEmpty() || !isTrustedCaptionUri(Uri.parse(baseUrl))) {
                 loadObservedCaptionTrackOrInnerTube(requestId);
@@ -1853,7 +1860,12 @@ public final class MainActivity extends Activity {
             YouTubeSubsDialog.TranscriptCallback callback = activeTranscriptCallback;
             activeTranscriptCallback = null;
             if (callback != null) {
-                callback.onLoaded(entries, activeTranscriptTitle, activeTranscriptPageUrl);
+                callback.onLoaded(
+                        entries,
+                        activeTranscriptTitle,
+                        activeTranscriptPageUrl,
+                        activeTranscriptChannel
+                );
             }
         });
     }

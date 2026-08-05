@@ -349,14 +349,24 @@
                 const title = heading && heading.textContent.trim()
                     ? heading.textContent.trim()
                     : document.title.replace(/ - YouTube$/, "");
+                const details = response && response.videoDetails;
+                const microformat = response
+                    && response.microformat
+                    && response.microformat.playerMicroformatRenderer;
+                const channel = String(
+                    (details && details.author)
+                    || (microformat && microformat.ownerChannelName)
+                    || ""
+                ).replace(/\s+/g, " ").trim().slice(0, 300);
                 if (!Array.isArray(tracks) || tracks.length === 0) {
-                    return JSON.stringify({ error: "missing", title });
+                    return JSON.stringify({ error: "missing", title, channel });
                 }
                 const track = tracks.find((item) => item.kind !== "asr") || tracks[0];
                 return JSON.stringify({
                     baseUrl: track.baseUrl || "",
                     languageCode: track.languageCode || "",
-                    title
+                    title,
+                    channel
                 });
             } catch (_) {
                 return JSON.stringify({ error: "unavailable" });

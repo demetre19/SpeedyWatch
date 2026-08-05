@@ -91,7 +91,24 @@ final class MediaTranscriptEngine {
             throw new IOException("This caption track contained no readable text");
         }
         String title = MediaDownloadEngine.safeDisplayName(info.optString("title", "Video"));
-        return new Result(entries, title, pageUrl);
+        return new Result(entries, title, pageUrl, publisherName(info));
+    }
+
+    static String publisherName(JSONObject info) {
+        if (info == null) {
+            return "";
+        }
+        String publisher = info.optString("channel", "").trim();
+        if (publisher.isEmpty()) {
+            publisher = info.optString("uploader", "").trim();
+        }
+        if (publisher.isEmpty()) {
+            publisher = info.optString("creator", "").trim();
+        }
+        publisher = publisher.replaceAll("\\p{Cntrl}", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return publisher.length() > 300 ? publisher.substring(0, 300).trim() : publisher;
     }
 
     private static List<Track> tracks(JSONObject info) {
@@ -394,11 +411,18 @@ final class MediaTranscriptEngine {
         final List<TranscriptEntry> entries;
         final String title;
         final String pageUrl;
+        final String channelName;
 
-        Result(List<TranscriptEntry> entries, String title, String pageUrl) {
+        Result(
+                List<TranscriptEntry> entries,
+                String title,
+                String pageUrl,
+                String channelName
+        ) {
             this.entries = Collections.unmodifiableList(new ArrayList<>(entries));
             this.title = title;
             this.pageUrl = pageUrl;
+            this.channelName = channelName;
         }
     }
 

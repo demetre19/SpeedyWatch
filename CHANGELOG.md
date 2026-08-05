@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.23 — 2026-08-05
+
+### Added
+
+- Group Android Saved summaries and quizzes under compact day dividers, with the year omitted for current-year dates and included for older dates.
+- Sort Saved content newest or oldest, or group it by captured YouTube channel and cross-site publisher identity in A–Z or Z–A order.
+- Include publisher identity in Saved search and cross-platform backup data for newly saved content; older records remain under Unknown channel.
+
 ## v0.22 — 2026-07-30
 
 ### Added

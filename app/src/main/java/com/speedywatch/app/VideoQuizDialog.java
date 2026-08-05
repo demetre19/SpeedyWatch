@@ -48,6 +48,7 @@ final class VideoQuizDialog {
     private int questionCount = 10;
     private String videoTitle = "Video";
     private String videoUrl = "";
+    private String channelName = "";
     private String currentQuizText = "";
     private String currentQuizLabel = "";
 
@@ -184,7 +185,12 @@ final class VideoQuizDialog {
     private void loadTranscript() {
         host.loadTranscript(new YouTubeSubsDialog.TranscriptCallback() {
             @Override
-            public void onLoaded(List<TranscriptEntry> loaded, String title, String url) {
+            public void onLoaded(
+                    List<TranscriptEntry> loaded,
+                    String title,
+                    String url,
+                    String channel
+            ) {
                 if (dialog == null || !dialog.isShowing()) {
                     return;
                 }
@@ -192,6 +198,7 @@ final class VideoQuizDialog {
                 entries.addAll(loaded);
                 videoTitle = title == null || title.trim().isEmpty() ? "Video" : title;
                 videoUrl = url == null ? "" : url;
+                channelName = SavedSummaryStore.normalizeChannel(channel);
                 status.setText(entries.size() + " subtitles ready");
                 createButton.setEnabled(!entries.isEmpty());
             }
@@ -292,7 +299,8 @@ final class VideoQuizDialog {
                     videoTitle,
                     currentQuizLabel,
                     currentQuizText,
-                    videoUrl
+                    videoUrl,
+                    channelName
             );
             Toast.makeText(activity, "Quiz saved", Toast.LENGTH_SHORT).show();
         } catch (IllegalArgumentException error) {
