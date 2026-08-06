@@ -15,6 +15,9 @@ public final class SupportedSiteTest {
         assertTrue(SupportedSite.isInAppNavigationUrl("https://x.com/example/status/1234567890"));
         assertTrue(SupportedSite.isInAppNavigationUrl("https://www.facebook.com/example/videos/1234567890"));
         assertTrue(SupportedSite.isInAppNavigationUrl(
+                "https://soundcloud.com/example-artist/example-track"
+        ));
+        assertTrue(SupportedSite.isInAppNavigationUrl(
                 "https://www.bilibili.tv/en/video/4800271834815488"
         ));
         assertTrue(SupportedSite.isInAppNavigationUrl(
@@ -25,6 +28,9 @@ public final class SupportedSiteTest {
         assertFalse(SupportedSite.isInAppNavigationUrl("http://vimeo.com/76979871"));
         assertFalse(SupportedSite.isInAppNavigationUrl("https://cdninstagram.com/video.mp4"));
         assertFalse(SupportedSite.isInAppNavigationUrl("https://googlevideo.com/videoplayback"));
+        assertFalse(SupportedSite.isInAppNavigationUrl(
+                "https://cf-media.sndcdn.com/audio.mp3"
+        ));
         assertFalse(SupportedSite.isInAppNavigationUrl("https://example.com/video/123"));
         assertFalse(SupportedSite.isInAppNavigationUrl(
                 "https://www.loom.com/share/40d92b478f4e4381a25d32da4709c68b"
@@ -52,12 +58,24 @@ public final class SupportedSiteTest {
                 "https://www.loom.com/share/40d92b478f4e4381a25d32da4709c68b"
                         + "?requester_email=mitko19%40gmail.com"
         ));
+        assertTrue(SupportedSite.isSupportedDownloadUrl(
+                "https://soundcloud.com/example-artist/example-track"
+        ));
+        assertTrue(SupportedSite.isSupportedDownloadUrl(
+                "https://on.soundcloud.com/Example123"
+        ));
 
         assertFalse(SupportedSite.isSupportedDownloadUrl("https://www.bilibili.com/"));
         assertFalse(SupportedSite.isSupportedDownloadUrl("https://vimeo.com/search?q=captions"));
         assertFalse(SupportedSite.isSupportedDownloadUrl("https://x.com/search?q=video"));
         assertFalse(SupportedSite.isSupportedDownloadUrl("https://vimeocdn.com/segment.mp4"));
         assertFalse(SupportedSite.isSupportedDownloadUrl("https://www.loom.com/"));
+        assertFalse(SupportedSite.isSupportedDownloadUrl(
+                "https://soundcloud.com/example-artist/tracks"
+        ));
+        assertFalse(SupportedSite.isSupportedDownloadUrl(
+                "https://soundcloud.com/search?q=example"
+        ));
         assertFalse(SupportedSite.isSupportedDownloadUrl(
                 "https://cdn.loom.com/assets/video.mp4"
         ));
@@ -80,11 +98,12 @@ public final class SupportedSiteTest {
     @Test
     public void pickerContainsOnlyInAppServices() {
         SupportedSite[] sites = SupportedSite.browsableValues();
-        assertEquals(7, sites.length);
+        assertEquals(8, sites.length);
         assertEquals(SupportedSite.YOUTUBE, sites[0]);
         assertEquals(SupportedSite.BILIBILI, sites[1]);
         assertEquals(SupportedSite.FACEBOOK, sites[5]);
-        assertEquals(SupportedSite.MEGA, sites[6]);
+        assertEquals(SupportedSite.SOUNDCLOUD, sites[6]);
+        assertEquals(SupportedSite.MEGA, sites[7]);
         assertFalse(SupportedSite.MEGA.supportsKeywordSearch());
         assertNull(SupportedSite.MEGA.searchUrl("anything"));
     }
@@ -148,6 +167,14 @@ public final class SupportedSiteTest {
                         "https://www.loom.com/share/40d92b478f4e4381a25d32da4709c68b",
                         SpeedyWatchDownloadService.KIND_MP4,
                         null
+                )
+        );
+        assertEquals(
+                "Download/SpeedyWatch/SoundCloud/Example Artist",
+                SpeedyWatchDownloadService.relativeDownloadPath(
+                        "https://soundcloud.com/example-artist/example-track",
+                        SpeedyWatchDownloadService.KIND_MP3,
+                        "Example Artist"
                 )
         );
     }

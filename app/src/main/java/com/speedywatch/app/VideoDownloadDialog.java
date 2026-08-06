@@ -43,6 +43,7 @@ final class VideoDownloadDialog {
     private final String referer;
     private final CapturedMediaRequest capturedMediaRequest;
     private final String capturedCookieHeader;
+    private final boolean soundCloud;
 
     private Dialog dialog;
     private TextView status;
@@ -76,6 +77,7 @@ final class VideoDownloadDialog {
         this.referer = referer;
         this.capturedMediaRequest = capturedMediaRequest;
         this.capturedCookieHeader = capturedCookieHeader;
+        this.soundCloud = SupportedSite.forUrl(videoUrl) == SupportedSite.SOUNDCLOUD;
         this.videoTitle = MediaDownloadEngine.safeDisplayName(initialTitle);
         this.titleVerified = initialTitleVerified;
     }
@@ -84,7 +86,7 @@ final class VideoDownloadDialog {
         if (!MediaDownloadEngine.isSupportedDownloadUrl(videoUrl)) {
             Toast.makeText(
                     activity,
-                    "Copy a supported video URL or open a supported video first",
+                    "Copy a supported media URL or open supported media first",
                     Toast.LENGTH_LONG
             ).show();
             return;
@@ -113,11 +115,13 @@ final class VideoDownloadDialog {
         LinearLayout header = horizontalLayout();
         LinearLayout heading = new LinearLayout(activity);
         heading.setOrientation(LinearLayout.VERTICAL);
-        title = text("Download video", 21, Color.WHITE);
+        title = text(soundCloud ? "Download audio" : "Download video", 21, Color.WHITE);
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         heading.addView(title);
         status = text(
-                fromClipboard ? "Checking clipboard video..." : "Checking this video...",
+                fromClipboard
+                        ? (soundCloud ? "Checking clipboard track..." : "Checking clipboard video...")
+                        : (soundCloud ? "Checking this track..." : "Checking this video..."),
                 12,
                 MUTED
         );
@@ -142,7 +146,7 @@ final class VideoDownloadDialog {
         );
         checkingProgress.setIndeterminate(true);
         checkingProgress.setIndeterminateTintList(ColorStateList.valueOf(ACTIVE));
-        checkingProgress.setContentDescription("Checking video formats");
+        checkingProgress.setContentDescription(soundCloud ? "Checking audio" : "Checking video formats");
         LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(3)
@@ -151,7 +155,9 @@ final class VideoDownloadDialog {
         content.addView(checkingProgress, progressParams);
 
         TextView guidance = text(
-                "Choose an MP3 quality or the maximum MP4 resolution you want.",
+                soundCloud
+                        ? "Choose an MP3 quality."
+                        : "Choose an MP3 quality or the maximum MP4 resolution you want.",
                 14,
                 Color.WHITE
         );
@@ -160,7 +166,7 @@ final class VideoDownloadDialog {
 
         choices = new LinearLayout(activity);
         choices.setOrientation(LinearLayout.VERTICAL);
-        showChoices(STANDARD_RESOLUTIONS);
+        showChoices(soundCloud ? java.util.Collections.emptyList() : STANDARD_RESOLUTIONS);
 
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
@@ -172,8 +178,13 @@ final class VideoDownloadDialog {
                 1f
         ));
 
-        TextView destination = text("Downloads continue in notifications and save to Downloads/SpeedyWatch.", 12, MUTED);
-        destination.setPadding(0, dp(10), 0, 0);
+        TextView destination = text(
+                soundCloud
+                        ? "Saves by artist in Downloads/SpeedyWatch/SoundCloud."
+                        : "Downloads continue in notifications and save to Downloads/SpeedyWatch.",
+                12,
+                MUTED
+        );
         content.addView(destination);
         return content;
     }
@@ -206,9 +217,10 @@ final class VideoDownloadDialog {
         title.setText(metadata.title);
         checkingProgress.setVisibility(View.GONE);
         status.setText(
-                (fromClipboard ? "Clipboard video • " : "")
-                        + metadata.resolutions.size()
-                        + " video quality options ready"
+                (fromClipboard ? (soundCloud ? "Clipboard track • " : "Clipboard video • ") : "")
+                        + (soundCloud
+                        ? "MP3 options ready"
+                        : metadata.resolutions.size() + " video quality options ready")
         );
         showChoices(metadata.resolutions);
     }
@@ -258,11 +270,17 @@ final class VideoDownloadDialog {
         checkingProgress.setVisibility(View.GONE);
         status.setText(
                 fromClipboard
-                        ? "Clipboard video • standard download options ready"
-                        : "Standard download options ready"
+                        ? (soundCloud
+                        ? "Clipboard track • MP3 options ready"
+                        : "Clipboard video • standard download options ready")
+                        : (soundCloud ? "MP3 options ready" : "Standard download options ready")
         );
-        showChoices(STANDARD_RESOLUTIONS);
-        Toast.makeText(activity, "Standard download options are ready", Toast.LENGTH_LONG).show();
+        showChoices(soundCloud ? java.util.Collections.emptyList() : STANDARD_RESOLUTIONS);
+        Toast.makeText(
+                activity,
+                soundCloud ? "MP3 download options are ready" : "Standard download options are ready",
+                Toast.LENGTH_LONG
+        ).show();
     }
 
     private void startDownload(String kind, int height, String mp3Quality) {

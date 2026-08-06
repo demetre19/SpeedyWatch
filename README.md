@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.24**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.25**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -39,8 +39,8 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube browser for people who want faster playback and useful transcript tools without leaving the video.
 
-- On Android, use the site icon immediately after **Search** to choose YouTube, Bilibili, Instagram, Vimeo, X, Facebook, MEGA, or an external Web search. Keywords search services that support them; selecting MEGA opens a URL-only field for a complete public folder or file link. A strictly validated supported HTTPS media URL opens that exact page for playback and, where supported, captions, summaries, quizzes, or downloading.
-- Open shared supported media links, including complete public MEGA folder/file links, directly in SpeedyWatch on Android. MEGA support is playback-only; the iPhone share extension remains YouTube-only.
+- On Android, use the site icon immediately after **Search** to choose YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, MEGA, or an external Web search. Keywords search services that support them; selecting MEGA opens a URL-only field for a complete public folder or file link. A strictly validated supported HTTPS media URL opens that exact page for playback and, where supported, captions, summaries, quizzes, or downloading.
+- Open shared supported media links, including SoundCloud tracks and complete public MEGA folder/file links, directly in SpeedyWatch on Android. MEGA support is playback-only; the iPhone share extension remains YouTube-only.
 - Set playback speed from **0.25x to 4x** with common presets, direct decimal entry, or **0.1x** adjustments.
 - Choose a **Normal**, **Careful**, **Lecture**, or **Podcast** profile, and optionally add 0.5x only during caption gaps with adaptive speed.
 - Keep the chosen baseline speed when a supported site replaces or resets its media element; adaptive YouTube caption-gap boosts never replace that saved baseline.
@@ -48,7 +48,7 @@ SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube bro
 - Skip known YouTube ads and feed-ad elements on a best-effort basis. Ad skipping is inactive on other sites.
 - Optionally skip YouTube community-submitted sponsor, self-promotion, and interaction segments from SponsorBlock, with a brief notice and Undo action after each skip.
 - On Android, the optional native screen lock blocks accidental toolbar and page touches. Holding the closed lock to unlock immediately doubles the icon and red progress ring so the full 1.2-second hold remains visible around your thumb.
-- On Android, tap Download to use a valid copied media URL from YouTube, Bilibili, Instagram, Vimeo, X, or Facebook, or fall back to the current supported page. Choose MP3 audio or an MP4 up to an available resolution for that exact media item. Add more downloads while one is running and SpeedyWatch queues them in order, processes one at a time, and shows the waiting count in the notification. Downloads continue in the background, use the extracted title as the filename, and are written to `Downloads/SpeedyWatch`.
+- On Android, tap Download to use a valid copied media URL from YouTube, Bilibili, Instagram, Vimeo, X, Facebook, or SoundCloud, or fall back to the current supported page. Choose MP3 audio or an MP4 up to an available resolution for video media; SoundCloud tracks offer MP3 only. Add more downloads while one is running and SpeedyWatch queues them in order, processes one at a time, and shows the waiting count in the notification. Downloads continue in the background and use the extracted title as the filename. SoundCloud tracks are filed by extracted artist under `Downloads/SpeedyWatch/SoundCloud`; other downloads remain under their existing `Downloads/SpeedyWatch` service folders.
 - Where the selected service exposes captions, choose among available languages and manual or auto-generated tracks, search in line or paragraph view, copy the transcript, and optionally follow the current playback position.
 - Tap any transcript line or paragraph to jump to that moment and return to the video.
 - On Android, use **WatchPath** in Video Subs to describe a goal and choose a 5, 10, or 20 minute budget. SpeedyWatch asks the selected OpenRouter model for a validated route through the transcript, previews the chosen and skipped ranges, and provides native Previous, Next, Undo, and Stop controls while the route plays.
@@ -76,16 +76,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.24
-Version code: 24
+Version: 0.25
+Version code: 25
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,480,178 bytes
-SHA-256: affb57f34aa6c3cea7e3c1739e4da813ee1cbbc00800307bd828dadb513d4624
+APK size: 106,111,063 bytes
+SHA-256: 0bb230ac9e32f467c0495ced1010094ccf8c1deb624e5a720f20547182211cc0
 Signing: Android debug signing key
 ```
 
-This public v0.24 APK is debug-signed with APK Signature Scheme v2. It replaces the Android Saved library's channel-sort mode with a searchable, auto-populated creator dropdown that shows alphabetical creator counts, keeps legacy `Unknown creator` records last, combines with free-text creator search, and preserves dated Newest/Oldest lists for every selection. It also doubles the native closed-lock icon and red progress ring during the 1.2-second unlock hold so the complete progress indicator remains visible beyond the user's thumb, then returns to its compact size after unlock or cancellation. The exact release candidate was installed on the Samsung verification phone with version code 24 and an installed APK hash matching the release bytes; the creator filtering flow was exercised on the API 36 emulator, and the enlarged lock-hold interaction was confirmed on the Samsung phone. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.25 APK is debug-signed with APK Signature Scheme v2. It adds Android SoundCloud browsing, search, sharing, and MP3-only track downloads, places SoundCloud immediately before MEGA in the site picker, and saves completed tracks directly under `Downloads/SpeedyWatch/SoundCloud/{artist}/{track}.mp3`. SoundCloud downloads retain the same-site referer but let yt-dlp use its own compatible user agent, avoiding client-ID extraction failures caused by Android WebView's mobile user agent. The complete Android unit suite and APK assembly passed against the exact release candidate. That exact APK was installed on the Samsung verification phone with an installed hash matching the release bytes, and a real SoundCloud MP3 download completed through the bundled Android yt-dlp, Python, and FFmpeg runtime. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 

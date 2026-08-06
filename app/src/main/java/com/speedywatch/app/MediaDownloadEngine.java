@@ -154,7 +154,7 @@ final class MediaDownloadEngine {
                 }
             }
         }
-        if (heights.isEmpty()) {
+        if (heights.isEmpty() && SupportedSite.forUrl(url) != SupportedSite.SOUNDCLOUD) {
             throw new IllegalStateException("No downloadable video resolutions were found");
         }
         List<Integer> descending = new ArrayList<>(heights);
@@ -362,7 +362,9 @@ final class MediaDownloadEngine {
             return;
         }
         String boundedUserAgent = boundedHeaderValue(userAgent, 512);
-        if (site != SupportedSite.BILIBILI && !boundedUserAgent.isEmpty()) {
+        if (site != SupportedSite.BILIBILI
+                && site != SupportedSite.SOUNDCLOUD
+                && !boundedUserAgent.isEmpty()) {
             request.addOption("--user-agent", boundedUserAgent);
         }
         String validReferer = SupportedSite.validatedHttpsUrl(referer);
@@ -429,32 +431,48 @@ final class MediaDownloadEngine {
             JSONObject root = new JSONObject(
                     new String(Files.readAllBytes(info.toPath()), StandardCharsets.UTF_8)
             );
-            String publisher = root.optString("channel", "").trim();
-            if (publisher.isEmpty()) {
-                publisher = root.optString("uploader", "").trim();
-            }
-            if (publisher.isEmpty()) {
-                publisher = root.optString("creator", "").trim();
-            }
-            if (!publisher.isEmpty()) {
-                publisher = publisher
-                        .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ")
-                        .replaceAll("\\s+", " ")
-                        .trim();
-                if (publisher.length() > 80) {
-                    publisher = publisher.substring(0, 80).trim();
-                }
-                if (".".equals(publisher) || "..".equals(publisher)) {
-                    publisher = "";
-                }
-            }
-            return new DownloadedMedia(
-                    safeDisplayName(root.optString("title", fallbackTitle)),
-                    publisher.isEmpty() ? null : publisher
+            return downloadedMediaFromMetadata(
+                    fallbackTitle,
+                    root.optString("title", ""),
+                    root.optString("channel", ""),
+                    root.optString("uploader", ""),
+                    root.optString("creator", "")
             );
         } catch (Exception ignored) {
             return new DownloadedMedia(fallback, null);
         }
+    }
+
+    static DownloadedMedia downloadedMediaFromMetadata(
+            String fallbackTitle,
+            String title,
+            String channel,
+            String uploader,
+            String creator
+    ) {
+        String publisher = metadataPathComponent(channel);
+        if (publisher == null) {
+            publisher = metadataPathComponent(uploader);
+        }
+        if (publisher == null) {
+            publisher = metadataPathComponent(creator);
+        }
+        String resolvedTitle = title == null || title.trim().isEmpty()
+                ? fallbackTitle
+                : title;
+        return new DownloadedMedia(safeDisplayName(resolvedTitle), publisher);
+    }
+
+
+    private static String metadataPathComponent(String value) {
+        String cleaned = value == null ? "" : value
+                .replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (cleaned.isEmpty() || ".".equals(cleaned) || "..".equals(cleaned)) {
+            return null;
+        }
+        return cleaned.length() > 80 ? cleaned.substring(0, 80).trim() : cleaned;
     }
 
     static final class DownloadedMedia {

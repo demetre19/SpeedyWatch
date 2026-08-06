@@ -47,6 +47,12 @@ enum SupportedSite {
             "https://www.facebook.com/",
             "https://www.facebook.com/search/videos/?q="
     ),
+    SOUNDCLOUD(
+            R.drawable.ic_site_soundcloud,
+            "SoundCloud",
+            "https://soundcloud.com/",
+            "https://soundcloud.com/search?q="
+    ),
     MEGA(
             R.drawable.ic_site_mega,
             "MEGA",
@@ -67,6 +73,7 @@ enum SupportedSite {
             VIMEO,
             X,
             FACEBOOK,
+            SOUNDCLOUD,
             MEGA
     };
     private static final Pattern IPV4 = Pattern.compile("(?:\\d{1,3}\\.){3}\\d{1,3}");
@@ -88,6 +95,16 @@ enum SupportedSite {
     );
     private static final Pattern FACEBOOK_VIDEO_PATH = Pattern.compile(
             "^/(?:reel/\\d+|share/(?:v|r)/[A-Za-z0-9_-]+|.*?/videos/\\d+)/?$",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern SOUNDCLOUD_TRACK_PATH = Pattern.compile(
+            "^/[^/]+/[^/]+/?$"
+    );
+    private static final Pattern SOUNDCLOUD_SHORT_PATH = Pattern.compile(
+            "^/[A-Za-z0-9_-]+/?$"
+    );
+    private static final Pattern SOUNDCLOUD_PROFILE_ROUTE = Pattern.compile(
+            "^(?:tracks|popular-tracks|albums|sets|reposts|likes|comments)$",
             Pattern.CASE_INSENSITIVE
     );
     private static final Pattern LOOM_SHARE_PATH = Pattern.compile(
@@ -175,6 +192,8 @@ enum SupportedSite {
                 return cookieDomainForHost(host, "x.com", "twitter.com", "twimg.com");
             case FACEBOOK:
                 return cookieDomainForHost(host, "facebook.com", "fb.watch", "fbcdn.net");
+            case SOUNDCLOUD:
+                return cookieDomainForHost(host, "soundcloud.com", "sndcdn.com");
             case MEGA:
                 return cookieDomainForHost(host, "mega.nz");
             case LOOM:
@@ -218,6 +237,9 @@ enum SupportedSite {
                 return domainMatches(normalized, "facebook.com")
                         || domainMatches(normalized, "fb.watch")
                         || domainMatches(normalized, "fbcdn.net");
+            case SOUNDCLOUD:
+                return domainMatches(normalized, "soundcloud.com")
+                        || domainMatches(normalized, "sndcdn.com");
             case MEGA:
                 return "mega.nz".equals(normalized);
             case LOOM:
@@ -265,6 +287,8 @@ enum SupportedSite {
                 return domainMatches(host, "x.com") || domainMatches(host, "twitter.com");
             case FACEBOOK:
                 return domainMatches(host, "facebook.com") || "fb.watch".equals(host);
+            case SOUNDCLOUD:
+                return domainMatches(host, "soundcloud.com");
             case MEGA:
                 return isMegaPublicLink(valid);
             case LOOM:
@@ -312,6 +336,17 @@ enum SupportedSite {
                         || ("/watch/".equals(path)
                         && query != null
                         && query.matches("(?:^|.*&)v=\\d+(?:&.*|$)"));
+            case SOUNDCLOUD:
+                if ("on.soundcloud.com".equals(host)) {
+                    return SOUNDCLOUD_SHORT_PATH.matcher(path).matches();
+                }
+                if (!domainMatches(host, "soundcloud.com")
+                        || !SOUNDCLOUD_TRACK_PATH.matcher(path).matches()) {
+                    return false;
+                }
+                String[] soundCloudParts = path.split("/");
+                return soundCloudParts.length >= 3
+                        && !SOUNDCLOUD_PROFILE_ROUTE.matcher(soundCloudParts[2]).matches();
             case LOOM:
                 return domainMatches(host, "loom.com")
                         && LOOM_SHARE_PATH.matcher(path).matches();

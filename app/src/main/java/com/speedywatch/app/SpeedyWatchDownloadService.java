@@ -280,8 +280,10 @@ public final class SpeedyWatchDownloadService extends Service {
         if (mp3Quality == null) {
             mp3Quality = SpeedyWatchSettings.MP3_QUALITY_STANDARD;
         }
+        SupportedSite downloadSite = SupportedSite.forUrl(url);
         if (!MediaDownloadEngine.isSupportedDownloadUrl(url)
                 || (!KIND_MP3.equals(kind) && !KIND_MP4.equals(kind))
+                || (downloadSite == SupportedSite.SOUNDCLOUD && !KIND_MP3.equals(kind))
                 || (KIND_MP3.equals(kind) && !SpeedyWatchSettings.isMp3Quality(mp3Quality))
                 || (KIND_MP4.equals(kind) && (height < 144 || height > 4320))) {
             stopIfIdle();
@@ -898,7 +900,11 @@ public final class SpeedyWatchDownloadService extends Service {
         return request;
     }
 
-    static String relativeDownloadPath(String url, String kind, String publisher) {
+    static String relativeDownloadPath(
+            String url,
+            String kind,
+            String publisher
+    ) {
         String root = "Download/SpeedyWatch";
         SupportedSite site = SupportedSite.forUrl(url);
         if (site == null) {
@@ -925,6 +931,11 @@ public final class SpeedyWatchDownloadService extends Service {
                 return root + "/X";
             case FACEBOOK:
                 return root + "/Facebook";
+            case SOUNDCLOUD:
+                String soundCloudArtist = optionalPublisher.isEmpty()
+                        ? "Unknown artist"
+                        : optionalPublisher;
+                return root + "/SoundCloud/" + soundCloudArtist;
             case LOOM:
                 return root + "/Loom";
             default:

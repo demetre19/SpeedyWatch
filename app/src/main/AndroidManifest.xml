@@ -53,6 +53,8 @@
                 <data android:host="facebook.com" />
                 <data android:host="*.facebook.com" />
                 <data android:host="fb.watch" />
+                <data android:host="soundcloud.com" />
+                <data android:host="*.soundcloud.com" />
                 <data android:host="mega.nz" />
             </intent-filter>
         </activity>

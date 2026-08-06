@@ -19,6 +19,8 @@ import java.util.List;
 
 public final class MediaDownloadEngineTest {
     private static final String VIMEO_PAGE = "https://vimeo.com/980152407";
+    private static final String SOUNDCLOUD_TRACK =
+            "https://soundcloud.com/monstercat/pegboard-nerds-disconnected";
     private static final String VIMEO_MANIFEST =
             "https://vod.vimeocdn.com/video/master.m3u8?token=signed";
 
@@ -162,6 +164,53 @@ public final class MediaDownloadEngineTest {
 
         assertEquals("Verified Vimeo Title", media.title);
     }
+    @Test
+    public void soundCloudMetadataKeepsTrackAndArtistForFiling() {
+        MediaDownloadEngine.DownloadedMedia media =
+                MediaDownloadEngine.downloadedMediaFromMetadata(
+                        "Track",
+                        "Example Track",
+                        "",
+                        "Example Artist",
+                        ""
+                );
+
+        assertEquals("Example Track", media.title);
+        assertEquals("Example Artist", media.publisher);
+
+        MediaDownloadEngine.DownloadedMedia fallback =
+                MediaDownloadEngine.downloadedMediaFromMetadata(
+                        "Fallback Track",
+                        "",
+                        "",
+                        "",
+                        "Fallback/Artist"
+                );
+        assertEquals("Fallback Track", fallback.title);
+        assertEquals("Fallback Artist", fallback.publisher);
+    }
+    @Test
+    public void soundCloudRequestDoesNotOverrideYtDlpUserAgent() throws Exception {
+        File directory = temporaryFolder.newFolder("soundcloud-request");
+        YoutubeDLRequest request = SpeedyWatchDownloadService.buildRequest(
+                SOUNDCLOUD_TRACK,
+                SpeedyWatchDownloadService.KIND_MP3,
+                0,
+                SpeedyWatchSettings.MP3_QUALITY_STANDARD,
+                "Android WebView",
+                SOUNDCLOUD_TRACK,
+                null,
+                directory
+        );
+
+        List<String> command = request.buildCommand();
+        assertFalse(command.contains("--user-agent"));
+        int refererOption = command.indexOf("--referer");
+        assertTrue(refererOption >= 0);
+        assertEquals(SOUNDCLOUD_TRACK, command.get(refererOption + 1));
+    }
+
+
 
     @Test(expected = IOException.class)
     public void capturedVimeoRejectsUnverifiedDialogTitle() throws Exception {
