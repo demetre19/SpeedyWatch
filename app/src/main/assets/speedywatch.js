@@ -19,10 +19,100 @@
         sponsorNoticeTimer: 0,
         timer: 0,
         pending: false,
-        adProcessing: false
+        adProcessing: false,
+        pictureInPictureActive: false,
+        pictureInPicturePlaybackRequested: false
+    };
+    const documentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
+    const documentVisibilityState =
+        Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+    const currentDocumentHidden = () => documentHidden?.get
+        ? documentHidden.get.call(document) : false;
+    const currentDocumentVisibilityState = () => documentVisibilityState?.get
+        ? documentVisibilityState.get.call(document) : "visible";
+    try {
+        Object.defineProperty(document, "hidden", {
+            configurable: true,
+            get: () => state.pictureInPictureActive
+                ? false : currentDocumentHidden()
+        });
+        Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            get: () => state.pictureInPictureActive
+                ? "visible" : currentDocumentVisibilityState()
+        });
+    } catch (_) {
+        // Continue without the visibility override if the page locks these properties.
+    }
+    window.addEventListener("visibilitychange", (event) => {
+        if (state.pictureInPictureActive) {
+            event.stopImmediatePropagation();
+        }
+    }, true);
+    const mediaPause = HTMLMediaElement.prototype.pause;
+    HTMLMediaElement.prototype.pause = function() {
+        if (state.pictureInPictureActive && state.pictureInPicturePlaybackRequested) {
+            return;
+        }
+        return mediaPause.call(this);
     };
 
     const mediaElements = () => Array.from(document.querySelectorAll("video, audio"));
+    const soundCloudPlaybackButton = () => {
+        if (!/(^|\.)soundcloud\.com$/i.test(window.location.hostname)) {
+            return null;
+        }
+        return document.querySelector(
+            ".playControl.playing, .playControls__play.playing, " +
+            "button[title^='Pause'], button[aria-label^='Pause'], " +
+            ".playControl, .playControls__play, " +
+            "button[title^='Play'], button[aria-label^='Play']"
+        );
+    };
+
+    const soundCloudPlaying = () => {
+        const button = soundCloudPlaybackButton();
+        if (!button) {
+            return false;
+        }
+        const label = `${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""}`;
+        return button.classList.contains("playing") || /\bpause\b/i.test(label);
+    };
+
+    const activePictureInPictureMedia = () => mediaElements().find((element) =>
+        !element.paused
+        && !element.ended
+        && element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    ) || null;
+    const pictureInPictureLabel = () => {
+        const host = window.location.hostname.toLowerCase();
+        if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
+            return "YouTube";
+        }
+        if (host === "bilibili.com" || host.endsWith(".bilibili.com")) {
+            return "Bilibili";
+        }
+        if (host === "instagram.com" || host.endsWith(".instagram.com")) {
+            return "Instagram";
+        }
+        if (host === "vimeo.com" || host.endsWith(".vimeo.com")) {
+            return "Vimeo";
+        }
+        if (host === "x.com" || host.endsWith(".x.com")
+                || host === "twitter.com" || host.endsWith(".twitter.com")) {
+            return "X";
+        }
+        if (host === "facebook.com" || host.endsWith(".facebook.com")
+                || host === "fb.watch" || host.endsWith(".fb.watch")) {
+            return "Facebook";
+        }
+        if (host === "soundcloud.com" || host.endsWith(".soundcloud.com")) {
+            return "SoundCloud";
+        }
+        return "SpeedyWatch";
+    };
+
+
 
     const playerElement = () => document.getElementById("movie_player");
 
@@ -243,7 +333,7 @@
     };
 
     const api = {
-        version: 3,
+        version: 15,
         setSpeed(value) {
             const parsed = Number(value);
             if (!Number.isFinite(parsed)) {
@@ -412,6 +502,70 @@
         currentTime() {
             const video = document.querySelector("video");
             return video && Number.isFinite(video.currentTime) ? video.currentTime : null;
+        },
+        preparePictureInPicture() {
+            return activePictureInPictureMedia() || soundCloudPlaying()
+                ? "audio" : "unavailable";
+        },
+        pictureInPictureState() {
+            const media = activePictureInPictureMedia();
+            if (!media && !soundCloudPlaying()) {
+                return { playing: false, video: false, width: 1, height: 1 };
+            }
+            const video = media instanceof HTMLVideoElement;
+            const bounds = video ? media.getBoundingClientRect() : null;
+            const boundedCoordinate = (value) =>
+                Number.isFinite(value) ? Math.max(-100000, Math.min(100000, value)) : 0;
+            return {
+                playing: true,
+                video,
+                width: video && Number.isFinite(media.videoWidth) ? media.videoWidth : 1,
+                height: video && Number.isFinite(media.videoHeight) ? media.videoHeight : 1,
+                left: bounds ? boundedCoordinate(bounds.left) : 0,
+                top: bounds ? boundedCoordinate(bounds.top) : 0,
+                right: bounds ? boundedCoordinate(bounds.right) : 0,
+                bottom: bounds ? boundedCoordinate(bounds.bottom) : 0,
+                viewportWidth: boundedCoordinate(window.innerWidth),
+                viewportHeight: boundedCoordinate(window.innerHeight),
+                label: pictureInPictureLabel()
+            };
+        },
+        setPictureInPictureActive(enabled) {
+            state.pictureInPictureActive = Boolean(enabled);
+            state.pictureInPicturePlaybackRequested = state.pictureInPictureActive;
+            return state.pictureInPictureActive;
+        },
+        setPictureInPicturePlayback(playing) {
+            const shouldPlay = Boolean(playing);
+            state.pictureInPicturePlaybackRequested = shouldPlay;
+            const media = mediaElements().find((element) => !element.ended);
+            if (media && media.paused !== shouldPlay) {
+                return shouldPlay;
+            }
+            const player = youtubePlayer();
+            if (player) {
+                const method = shouldPlay ? player.playVideo : player.pauseVideo;
+                if (typeof method === "function") {
+                    try {
+                        method.call(player);
+                    } catch (_) {
+                        // Fall through to the media element.
+                    }
+                }
+            }
+            if (media) {
+                if (shouldPlay) {
+                    media.play().catch(() => {});
+                } else {
+                    media.pause();
+                }
+                return shouldPlay;
+            }
+            const button = soundCloudPlaybackButton();
+            if (button && soundCloudPlaying() !== shouldPlay) {
+                button.click();
+            }
+            return shouldPlay && Boolean(button);
         },
         status() {
             return {

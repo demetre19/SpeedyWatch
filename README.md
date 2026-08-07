@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.25**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.26**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -45,6 +45,7 @@ SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube bro
 - Choose a **Normal**, **Careful**, **Lecture**, or **Podcast** profile, and optionally add 0.5x only during caption gaps with adaptive speed.
 - Keep the chosen baseline speed when a supported site replaces or resets its media element; adaptive YouTube caption-gap boosts never replace that saved baseline.
 - Choose and persist a custom **default playback speed** in Settings for future app launches.
+- On Android, tap the dedicated PiP icon above the lock control while video or SoundCloud audio is playing. SpeedyWatch keeps the live source active and provides Android's PiP Play/Pause action; Android consumes touches inside the floating window, so embedded webpage controls are not directly tappable there. Returning restores the full browser controls. Pressing Home without the PiP button backgrounds SpeedyWatch normally.
 - Skip known YouTube ads and feed-ad elements on a best-effort basis. Ad skipping is inactive on other sites.
 - Optionally skip YouTube community-submitted sponsor, self-promotion, and interaction segments from SponsorBlock, with a brief notice and Undo action after each skip.
 - On Android, the optional native screen lock blocks accidental toolbar and page touches. Holding the closed lock to unlock immediately doubles the icon and red progress ring so the full 1.2-second hold remains visible around your thumb.
@@ -76,16 +77,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.25
-Version code: 25
+Version: 0.26
+Version code: 26
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,111,063 bytes
-SHA-256: 0bb230ac9e32f467c0495ced1010094ccf8c1deb624e5a720f20547182211cc0
+APK size: 106,509,091 bytes
+SHA-256: abe1159c200818beaddb8a43e2589ecc0c476d67b8a23a226500ebf4f5fa9302
 Signing: Android debug signing key
 ```
 
-This public v0.25 APK is debug-signed with APK Signature Scheme v2. It adds Android SoundCloud browsing, search, sharing, and MP3-only track downloads, places SoundCloud immediately before MEGA in the site picker, and saves completed tracks directly under `Downloads/SpeedyWatch/SoundCloud/{artist}/{track}.mp3`. SoundCloud downloads retain the same-site referer but let yt-dlp use its own compatible user agent, avoiding client-ID extraction failures caused by Android WebView's mobile user agent. The complete Android unit suite and APK assembly passed against the exact release candidate. That exact APK was installed on the Samsung verification phone with an installed hash matching the release bytes, and a real SoundCloud MP3 download completed through the bundled Android yt-dlp, Python, and FFmpeg runtime. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.26 APK is debug-signed with APK Signature Scheme v2. It adds Android Picture-in-Picture through a dedicated native control while supported video or SoundCloud playback is active. PiP keeps the live WebView visible, preserves the page's visible state, and blocks page-initiated pauses only while the platform PiP Play state is active; Android's Play/Pause action remains authoritative because Android consumes floating-window touches instead of forwarding them to embedded page controls. Pressing Home without the dedicated PiP action continues to background SpeedyWatch normally. The complete Android unit suite, JavaScript syntax check, APK assembly, programmatic PiP pause-state exercise, and live Samsung PiP exercise passed against the exact release candidate. That exact APK was installed on the Samsung verification phone with an installed hash matching the release bytes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 

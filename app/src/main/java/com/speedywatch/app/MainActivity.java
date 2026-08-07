@@ -3,17 +3,25 @@ package com.speedywatch.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.PictureInPictureParams;
+import android.app.PendingIntent;
+import android.app.RemoteAction;
 import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.BroadcastReceiver;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.Context;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Insets;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Icon;
 import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -21,6 +29,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.util.Rational;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -81,6 +90,8 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_EXPORT_BACKUP = 4101;
     private static final int REQUEST_IMPORT_BACKUP = 4102;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 4001;
+    private static final String ACTION_TOGGLE_PICTURE_IN_PICTURE_PLAYBACK =
+            "com.speedywatch.app.action.TOGGLE_PICTURE_IN_PICTURE_PLAYBACK";
 
     private WebView webView;
     private TextView statusText;
@@ -97,6 +108,7 @@ public final class MainActivity extends Activity {
     private SavedSummaryStore savedSummaryStore;
     private LinearLayout appRoot;
     private LinearLayout speedControls;
+    private View navigationControls;
     private LinearLayout watchPathControls;
     private TextView watchPathStatus;
     private Button watchPathPreviousButton;
@@ -104,13 +116,41 @@ public final class MainActivity extends Activity {
     private Button watchPathUndoButton;
     private final Handler watchPathHandler = new Handler(Looper.getMainLooper());
     private final Runnable watchPathTick = this::pollWatchPath;
+    private final Handler pictureInPictureHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pictureInPictureTick = this::pollPictureInPictureState;
+    private final Runnable pictureInPictureTransitionTimeout =
+            this::finishPictureInPictureTransition;
+    private final Runnable pictureInPictureResumePlayback =
+            this::resumePictureInPicturePlayback;
     private WatchPathPlayback activeWatchPath;
     private boolean watchPathForeground;
+    private boolean activityResumed;
+    private boolean pictureInPicturePlaybackActive;
+    private boolean pictureInPictureEntryPending;
+    private boolean pictureInPictureParamsActive;
+    private boolean pictureInPictureUiPrepared;
+    private boolean pictureInPictureParamsPlaying;
+    private boolean pictureInPicturePlaybackRequested;
+    private Rect pictureInPictureSourceRect = new Rect();
+    private Rect pictureInPictureParamsSourceRect = new Rect();
+    private PictureInPictureParams pictureInPictureParams =
+            new PictureInPictureParams.Builder().build();
+    private boolean watchPathVisibleBeforePictureInPicture;
+    private boolean pictureInPictureReceiverRegistered;
+    private final BroadcastReceiver pictureInPictureReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_TOGGLE_PICTURE_IN_PICTURE_PLAYBACK.equals(intent.getAction())) {
+                togglePictureInPicturePlayback();
+            }
+        }
+    };
     private EditText customSpeedInput;
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private FrameLayout screenLockShield;
     private ScreenLockButton screenLockButton;
+    private ImageButton pictureInPictureButton;
     private boolean screenLocked;
     private int screenLockInsetRight;
     private int screenLockInsetBottom;
@@ -146,6 +186,7 @@ public final class MainActivity extends Activity {
         setContentView(appRoot);
         applySystemBarInsets(appRoot);
         initializeScreenLockOverlay();
+        registerPictureInPictureReceiver();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
@@ -419,11 +460,11 @@ public final class MainActivity extends Activity {
                 "Settings",
                 ignored -> showSettings()
         ));
-        root.addView(scrollingRow(navigation), new LinearLayout.LayoutParams(
+        navigationControls = scrollingRow(navigation);
+        root.addView(navigationControls, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-
         webView = new WebView(this);
         webView.setBackgroundColor(BACKGROUND);
         root.addView(webView, new LinearLayout.LayoutParams(
@@ -2071,8 +2112,20 @@ public final class MainActivity extends Activity {
             }
 
         });
+        pictureInPictureButton = makeIconButton(
+                R.drawable.ic_picture_in_picture,
+                "Enter Picture-in-Picture",
+                ignored -> enterPictureInPictureFromButton()
+        );
+        pictureInPictureButton.setEnabled(false);
+        pictureInPictureButton.setAlpha(0.45f);
         int buttonSize = dp(52);
         screenLockShield.addView(screenLockButton, new FrameLayout.LayoutParams(
+                buttonSize,
+                buttonSize,
+                Gravity.BOTTOM | Gravity.END
+        ));
+        screenLockShield.addView(pictureInPictureButton, new FrameLayout.LayoutParams(
                 buttonSize,
                 buttonSize,
                 Gravity.BOTTOM | Gravity.END
@@ -2103,34 +2156,47 @@ public final class MainActivity extends Activity {
         if (screenLockShield == null) {
             return;
         }
-        if (!appSettings.isLockIconEnabled()) {
-            setScreenLocked(false);
-            screenLockShield.setVisibility(View.GONE);
-            return;
-        }
         screenLockShield.setVisibility(View.VISIBLE);
+        boolean lockEnabled = appSettings.isLockIconEnabled();
+        if (!lockEnabled) {
+            setScreenLocked(false);
+        }
+        screenLockButton.setVisibility(lockEnabled ? View.VISIBLE : View.GONE);
+        pictureInPictureButton.setVisibility(screenLocked ? View.GONE : View.VISIBLE);
         positionScreenLockButton();
         screenLockShield.bringToFront();
     }
 
     private void positionScreenLockButton() {
-        if (screenLockButton == null) {
+        if (screenLockButton == null || pictureInPictureButton == null) {
             return;
         }
         screenLockShield.post(() -> {
             if (screenLockShield.getWidth() == 0 || screenLockShield.getHeight() == 0) {
                 return;
             }
-            FrameLayout.LayoutParams params =
-                    (FrameLayout.LayoutParams) screenLockButton.getLayoutParams();
-            params.gravity = Gravity.BOTTOM | Gravity.END;
-            params.leftMargin = 0;
-            params.topMargin = 0;
-            params.rightMargin = screenLockInsetRight + dp(8);
-            params.bottomMargin = screenLockInsetBottom
+            int baseBottomMargin = screenLockInsetBottom
                     + (speedControls == null ? 0 : speedControls.getHeight())
                     + dp(8);
-            screenLockButton.setLayoutParams(params);
+            FrameLayout.LayoutParams lockParams =
+                    (FrameLayout.LayoutParams) screenLockButton.getLayoutParams();
+            lockParams.gravity = Gravity.BOTTOM | Gravity.END;
+            lockParams.leftMargin = 0;
+            lockParams.topMargin = 0;
+            lockParams.rightMargin = screenLockInsetRight + dp(8);
+            lockParams.bottomMargin = baseBottomMargin;
+            screenLockButton.setLayoutParams(lockParams);
+
+            FrameLayout.LayoutParams pipParams =
+                    (FrameLayout.LayoutParams) pictureInPictureButton.getLayoutParams();
+            pipParams.gravity = Gravity.BOTTOM | Gravity.END;
+            pipParams.leftMargin = 0;
+            pipParams.topMargin = 0;
+            pipParams.rightMargin = screenLockInsetRight + dp(8);
+            pipParams.bottomMargin = baseBottomMargin
+                    + (screenLockButton.getVisibility() == View.VISIBLE
+                            ? dp(60) : 0);
+            pictureInPictureButton.setLayoutParams(pipParams);
         });
     }
 
@@ -2139,6 +2205,8 @@ public final class MainActivity extends Activity {
         screenLocked = locked;
         screenLockShield.setClickable(locked);
         screenLockButton.setLocked(locked);
+        pictureInPictureButton.setVisibility(locked ? View.GONE : View.VISIBLE);
+        positionScreenLockButton();
         if (screenLockShield.getVisibility() == View.VISIBLE) {
             screenLockShield.bringToFront();
         }
@@ -2214,6 +2282,259 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void registerPictureInPictureReceiver() {
+        IntentFilter filter = new IntentFilter(ACTION_TOGGLE_PICTURE_IN_PICTURE_PLAYBACK);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pictureInPictureReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(pictureInPictureReceiver, filter);
+        }
+        pictureInPictureReceiverRegistered = true;
+    }
+
+    private void pollPictureInPictureState() {
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        if (!activityResumed || isInPictureInPictureMode()) {
+            return;
+        }
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.pictureInPictureState() : null";
+        webView.evaluateJavascript(script, result -> {
+            boolean active = false;
+            Rect sourceRect = new Rect();
+            try {
+                JSONObject state = new JSONObject(result == null ? "{}" : result);
+                active = state.optBoolean("playing", false);
+                sourceRect = pictureInPictureSourceRect();
+            } catch (Exception ignored) {
+                // A page without the current controller is not eligible for PiP.
+            }
+            pictureInPicturePlaybackActive = active;
+            pictureInPictureSourceRect = sourceRect;
+            pictureInPictureButton.setEnabled(active);
+            pictureInPictureButton.setAlpha(active ? 1f : 0.45f);
+            updatePictureInPictureParams(active, active);
+            if (activityResumed) {
+                pictureInPictureHandler.postDelayed(pictureInPictureTick, 750);
+            }
+        });
+    }
+    private Rect pictureInPictureSourceRect() {
+        Rect webBounds = new Rect();
+        if (!webView.getGlobalVisibleRect(webBounds) || webBounds.isEmpty()) {
+            return new Rect();
+        }
+        int size = Math.min(webBounds.width(), webBounds.height());
+        int left = webBounds.centerX() - size / 2;
+        int top = webBounds.centerY() - size / 2;
+        return new Rect(left, top, left + size, top + size);
+    }
+
+
+    private RemoteAction pictureInPicturePlaybackAction(boolean playing) {
+        Intent intent = new Intent(ACTION_TOGGLE_PICTURE_IN_PICTURE_PLAYBACK)
+                .setPackage(getPackageName());
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        String label = playing ? "Pause" : "Play";
+        return new RemoteAction(
+                Icon.createWithResource(
+                        this,
+                        playing
+                                ? android.R.drawable.ic_media_pause
+                                : android.R.drawable.ic_media_play
+                ),
+                label,
+                label,
+                pendingIntent
+        );
+    }
+
+    private void updatePictureInPictureParams(boolean active, boolean playing) {
+        if (active == pictureInPictureParamsActive
+                && playing == pictureInPictureParamsPlaying
+                && pictureInPictureSourceRect.equals(pictureInPictureParamsSourceRect)) {
+            return;
+        }
+        pictureInPictureParamsActive = active;
+        pictureInPictureParamsPlaying = playing;
+        pictureInPictureParamsSourceRect = new Rect(pictureInPictureSourceRect);
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
+                .setAspectRatio(new Rational(1, 1))
+                .setActions(active
+                        ? Collections.singletonList(pictureInPicturePlaybackAction(playing))
+                        : Collections.emptyList());
+        if (!pictureInPictureParamsSourceRect.isEmpty()) {
+            builder.setSourceRectHint(pictureInPictureParamsSourceRect);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(false);
+            builder.setSeamlessResizeEnabled(false);
+        }
+        pictureInPictureParams = builder.build();
+        setPictureInPictureParams(pictureInPictureParams);
+    }
+
+    private void setPictureInPictureUi(boolean enabled) {
+        setPictureInPictureUi(enabled, null);
+    }
+
+    private void setPictureInPictureUi(boolean enabled, Runnable ready) {
+        if (enabled) {
+            if (!pictureInPictureUiPrepared) {
+                watchPathVisibleBeforePictureInPicture =
+                        watchPathControls.getVisibility() == View.VISIBLE;
+            }
+            pictureInPictureUiPrepared = true;
+            screenLockShield.setVisibility(View.GONE);
+            navigationControls.setVisibility(View.GONE);
+            watchPathControls.setVisibility(View.GONE);
+            speedControls.setVisibility(View.GONE);
+            webView.setVisibility(View.VISIBLE);
+        } else if (pictureInPictureUiPrepared) {
+            pictureInPictureUiPrepared = false;
+            webView.setVisibility(View.VISIBLE);
+            navigationControls.setVisibility(View.VISIBLE);
+            watchPathControls.setVisibility(
+                    watchPathVisibleBeforePictureInPicture ? View.VISIBLE : View.GONE
+            );
+            speedControls.setVisibility(View.VISIBLE);
+            appRoot.requestApplyInsets();
+            applyScreenLockSettings();
+        }
+        appRoot.requestLayout();
+        if (ready != null) {
+            appRoot.post(ready);
+        }
+    }
+
+    private void togglePictureInPicturePlayback() {
+        pictureInPicturePlaybackRequested = !pictureInPicturePlaybackRequested;
+        setPictureInPicturePlayback(pictureInPicturePlaybackRequested);
+        updatePictureInPictureParams(true, pictureInPicturePlaybackRequested);
+    }
+    private void enterPictureInPictureFromButton() {
+        if (!pictureInPicturePlaybackActive) {
+            Toast.makeText(this, "Start playback first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTransitionTimeout);
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.preparePictureInPicture() "
+                + ": \"unavailable\"";
+        webView.evaluateJavascript(script, result -> {
+            String mode = "unavailable";
+            try {
+                Object value = new JSONTokener(result == null ? "null" : result).nextValue();
+                if (value instanceof String stringValue) {
+                    mode = stringValue;
+                }
+            } catch (Exception ignored) {
+                // Treat malformed controller output as unavailable.
+            }
+            if ("audio".equals(mode)) {
+                pictureInPictureEntryPending = true;
+                pictureInPicturePlaybackRequested = true;
+                setPictureInPictureActive(true);
+                setPictureInPictureUi(true, this::enterPendingPictureInPicture);
+            } else {
+                Toast.makeText(
+                        this,
+                        "This player cannot enter Picture-in-Picture",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+    }
+
+
+
+    private void enterPendingPictureInPicture() {
+        if (!pictureInPictureEntryPending || isInPictureInPictureMode()) {
+            return;
+        }
+        boolean entered;
+        try {
+            entered = enterPictureInPictureMode(pictureInPictureParams);
+        } catch (IllegalStateException ignored) {
+            entered = false;
+        }
+        if (!entered) {
+            restoreAfterFailedPictureInPictureEntry(!activityResumed);
+        }
+    }
+
+    private void restoreAfterFailedPictureInPictureEntry(boolean pauseWebView) {
+        pictureInPictureEntryPending = false;
+        pictureInPicturePlaybackRequested = false;
+        setPictureInPictureActive(false);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureResumePlayback);
+        setPictureInPictureUi(false);
+        if (pauseWebView) {
+            webView.onPause();
+        }
+    }
+
+    @Override
+    public void onUserLeaveHint() {
+        super.onUserLeaveHint();
+    }
+
+    private void setPictureInPicturePlayback(boolean playing) {
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.setPictureInPicturePlayback("
+                + playing + ") : false";
+        webView.evaluateJavascript(script, ignored -> {});
+    }
+
+    private void setPictureInPictureActive(boolean active) {
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.setPictureInPictureActive("
+                + active + ") : false";
+        webView.evaluateJavascript(script, ignored -> {});
+    }
+
+    private void resumePictureInPicturePlayback() {
+        if (!isInPictureInPictureMode() || !pictureInPicturePlaybackRequested) {
+            return;
+        }
+        setPictureInPicturePlayback(true);
+    }
+
+    private void finishPictureInPictureTransition() {
+        if (!activityResumed
+                && pictureInPictureEntryPending
+                && !isInPictureInPictureMode()) {
+            restoreAfterFailedPictureInPictureEntry(true);
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(
+            boolean isInPictureInPictureMode,
+            Configuration newConfig
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        pictureInPictureEntryPending = false;
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTransitionTimeout);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureResumePlayback);
+        pictureInPicturePlaybackRequested = isInPictureInPictureMode;
+        setPictureInPictureActive(isInPictureInPictureMode);
+        setPictureInPictureUi(isInPictureInPictureMode);
+        if (isInPictureInPictureMode) {
+            webView.onResume();
+            updatePictureInPictureParams(true, true);
+            pictureInPictureHandler.postDelayed(
+                    pictureInPictureResumePlayback,
+                    300
+            );
+        }
+    }
+
     private void applySystemBarInsets(View root) {
         root.setOnApplyWindowInsetsListener((view, insets) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -2261,28 +2582,60 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        activityResumed = false;
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
         watchPathForeground = false;
         watchPathHandler.removeCallbacks(watchPathTick);
         GitHubUpdateChecker.unregisterResumedActivity(this);
-        webView.onPause();
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // Keep the renderer active across the dedicated PiP transition and while
+        // playback is owned by the floating window.
+        if (!isInPictureInPictureMode()
+                && !pictureInPictureEntryPending
+                && !pictureInPictureUiPrepared) {
+            webView.onPause();
+        } else if (pictureInPictureEntryPending) {
+            pictureInPictureHandler.postDelayed(
+                    pictureInPictureTransitionTimeout,
+                    1000
+            );
+        }
         super.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        activityResumed = true;
+        pictureInPictureEntryPending = false;
+        pictureInPicturePlaybackRequested = false;
+        setPictureInPictureActive(false);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTransitionTimeout);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureResumePlayback);
+        if (!isInPictureInPictureMode()) {
+            setPictureInPictureUi(false);
+        }
         watchPathForeground = true;
         webView.onResume();
         GitHubUpdateChecker.registerResumedActivity(this);
         GitHubUpdateChecker.resumePendingInstaller(this);
         scheduleWatchPathTick();
+        pictureInPictureHandler.post(pictureInPictureTick);
     }
 
     @Override
     protected void onDestroy() {
         hideFullscreenView();
         stopWatchPath(false);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTransitionTimeout);
+        pictureInPictureHandler.removeCallbacks(pictureInPictureResumePlayback);
         ioExecutor.shutdownNow();
+        pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        if (pictureInPictureReceiverRegistered) {
+            unregisterReceiver(pictureInPictureReceiver);
+            pictureInPictureReceiverRegistered = false;
+        }
         savedSummaryStore.close();
         webView.loadUrl("about:blank");
         webView.removeAllViews();
