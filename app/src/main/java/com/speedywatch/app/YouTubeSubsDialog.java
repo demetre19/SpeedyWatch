@@ -18,6 +18,8 @@ import android.text.TextWatcher;
 import android.text.method.LinkMovementMethod;
 import android.view.Gravity;
 import android.view.View;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.BaseAdapter;
@@ -103,6 +105,8 @@ final class YouTubeSubsDialog {
     private ScrollView summaryScroll;
     private LinearLayout summaryContent;
     private TextView summaryOutput;
+    private ScaleGestureDetector summaryScaleDetector;
+    private float summaryTextSizeSp = SummaryTextZoom.MIN_SP;
     private Button summaryOneButton;
     private Button summaryTwoButton;
     private Button transcriptButton;
@@ -342,20 +346,28 @@ final class YouTubeSubsDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        summaryOutput = text("", 14, Color.WHITE);
+        summaryOutput = text("", Math.round(SummaryTextZoom.MIN_SP), Color.WHITE);
         summaryOutput.setTextIsSelectable(true);
         summaryOutput.setMovementMethod(LinkMovementMethod.getInstance());
         summaryOutput.setLinkTextColor(Color.rgb(90, 180, 255));
         summaryOutput.setLineSpacing(0, 1.18f);
         summaryOutput.setPadding(dp(10), dp(10), dp(10), dp(10));
+        configureSummaryText(summaryOutput);
         summaryContent = new LinearLayout(activity);
         summaryContent.setOrientation(LinearLayout.VERTICAL);
+        summaryContent.setOnTouchListener(this::handleSummaryTouch);
         summaryContent.addView(summaryOutput, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
         summaryScroll = new ScrollView(activity);
-        summaryScroll.addView(summaryContent);
+        summaryScroll.setFillViewport(true);
+        summaryScroll.setOnTouchListener(this::handleSummaryTouch);
+        summaryScroll.setHorizontalScrollBarEnabled(false);
+        summaryScroll.addView(summaryContent, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
         summaryScroll.setVisibility(View.GONE);
         body.addView(summaryScroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1084,12 +1096,13 @@ final class YouTubeSubsDialog {
             summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
         }
         for (ChatTurn turn : chatTurns) {
-            TextView userMessage = text("", 14, Color.WHITE);
+            TextView userMessage = text("", Math.round(summaryTextSizeSp), Color.WHITE);
             userMessage.setTextIsSelectable(true);
             userMessage.setMovementMethod(LinkMovementMethod.getInstance());
             userMessage.setLinkTextColor(Color.rgb(90, 180, 255));
             userMessage.setLineSpacing(0, 1.18f);
             userMessage.setPadding(dp(8), dp(8), dp(8), dp(8));
+            configureSummaryText(userMessage);
             userMessage.setBackground(panelBackground(
                     Color.rgb(58, 18, 28),
                     Color.rgb(96, 35, 50)
@@ -1105,12 +1118,13 @@ final class YouTubeSubsDialog {
             userParams.setMargins(dp(10), dp(10), dp(10), dp(4));
             summaryContent.addView(userMessage, userParams);
 
-            TextView aiMessage = text("", 14, Color.WHITE);
+            TextView aiMessage = text("", Math.round(summaryTextSizeSp), Color.WHITE);
             aiMessage.setTextIsSelectable(true);
             aiMessage.setMovementMethod(LinkMovementMethod.getInstance());
             aiMessage.setLinkTextColor(Color.rgb(90, 180, 255));
             aiMessage.setLineSpacing(0, 1.18f);
             aiMessage.setPadding(dp(8), dp(4), dp(8), dp(4));
+            configureSummaryText(aiMessage);
             aiMessage.setText(MarkdownRenderer.render(
                     "**AI**\n\n" + turn.answer,
                     density
@@ -1313,6 +1327,55 @@ final class YouTubeSubsDialog {
             Toast.makeText(activity, "Summary could not be saved", Toast.LENGTH_LONG).show();
         }
     }
+
+    private void configureSummaryText(TextView view) {
+        if (summaryScaleDetector == null) {
+            summaryScaleDetector = new ScaleGestureDetector(
+                    activity,
+                    new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                        @Override
+                        public boolean onScale(ScaleGestureDetector detector) {
+                            summaryTextSizeSp = SummaryTextZoom.scale(
+                                    summaryTextSizeSp,
+                                    detector.getScaleFactor()
+                            );
+                            applySummaryTextSize();
+                            return true;
+                        }
+                    }
+            );
+        }
+        view.setSingleLine(false);
+        view.setHorizontallyScrolling(false);
+        view.setHorizontalScrollBarEnabled(false);
+        view.setTextSize(summaryTextSizeSp);
+        view.setOnTouchListener(this::handleSummaryTouch);
+    }
+    private boolean handleSummaryTouch(View target, MotionEvent event) {
+        boolean wasScaling = summaryScaleDetector.isInProgress();
+        summaryScaleDetector.onTouchEvent(event);
+        boolean scaling = wasScaling
+                || summaryScaleDetector.isInProgress()
+                || event.getPointerCount() > 1;
+        if (scaling) {
+            target.getParent().requestDisallowInterceptTouchEvent(true);
+        } else if (event.getActionMasked() == MotionEvent.ACTION_UP
+                || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            target.getParent().requestDisallowInterceptTouchEvent(false);
+        }
+        return scaling;
+    }
+
+
+    private void applySummaryTextSize() {
+        for (int index = 0; index < summaryContent.getChildCount(); index++) {
+            View child = summaryContent.getChildAt(index);
+            if (child instanceof TextView) {
+                ((TextView) child).setTextSize(summaryTextSizeSp);
+            }
+        }
+    }
+
 
     private void addWeighted(LinearLayout row, Button button, float weight, int marginStart) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(42), weight);

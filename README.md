@@ -15,7 +15,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.26**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.27**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -77,16 +77,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.26
-Version code: 26
+Version: 0.27
+Version code: 27
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,509,091 bytes
-SHA-256: abe1159c200818beaddb8a43e2589ecc0c476d67b8a23a226500ebf4f5fa9302
+APK size: 106,127,635 bytes
+SHA-256: b88f41d6188f42024e9c3299be7d013d71398f9bd35842c20939d83ffd6611dd
 Signing: Android debug signing key
 ```
 
-This public v0.26 APK is debug-signed with APK Signature Scheme v2. It adds Android Picture-in-Picture through a dedicated native control while supported video or SoundCloud playback is active. PiP keeps the live WebView visible, preserves the page's visible state, and blocks page-initiated pauses only while the platform PiP Play state is active; Android's Play/Pause action remains authoritative because Android consumes floating-window touches instead of forwarding them to embedded page controls. Pressing Home without the dedicated PiP action continues to background SpeedyWatch normally. The complete Android unit suite, JavaScript syntax check, APK assembly, programmatic PiP pause-state exercise, and live Samsung PiP exercise passed against the exact release candidate. That exact APK was installed on the Samsung verification phone with an installed hash matching the release bytes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.27 APK is debug-signed with APK Signature Scheme v2. Android Video Subs summaries and follow-up answers now resize directly with a two-finger pinch from 15sp through 30sp across the full summary viewport. Resized Markdown remains full-width, wraps inside the modal, and retains vertical scrolling without introducing horizontal scrolling. The complete Android unit suite and APK assembly passed against the exact release candidate. That exact APK was installed on the Samsung verification phone with an installed hash matching the release bytes. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 
