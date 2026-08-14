@@ -136,6 +136,22 @@ public final class SupportedSiteTest {
     }
 
     @Test
+    public void megaIdentitiesSeparateFolderCollectionFromExactPlayback() {
+        String folder = "https://mega.nz/folder/AbCdEf12#AbCdEfGhIjKlMnOpQrStUv";
+        String firstFile = folder + "/file/ZyXwVu12";
+        String secondFile = folder + "/file/QrStUv34";
+
+        assertEquals(folder, SupportedSite.megaBookmarkIdentity(firstFile));
+        assertEquals(firstFile, SupportedSite.megaPlaybackIdentity(firstFile));
+        assertEquals(secondFile, SupportedSite.megaPlaybackIdentity(secondFile));
+        assertFalse(SupportedSite.megaPlaybackIdentity(firstFile).equals(
+                SupportedSite.megaPlaybackIdentity(secondFile)
+        ));
+        assertNull(SupportedSite.megaBookmarkIdentity("https://mega.nz/"));
+        assertNull(SupportedSite.megaPlaybackIdentity("https://example.com/folder/AbCdEf12"));
+    }
+
+    @Test
     public void serviceFoldersFollowTheDownloadUrlAndAvailableMetadata() {
         assertEquals(
                 "Download/SpeedyWatch/YouTube/audio/Example Channel",

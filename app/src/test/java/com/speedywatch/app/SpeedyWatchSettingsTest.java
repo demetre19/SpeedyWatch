@@ -3,6 +3,7 @@ package com.speedywatch.app;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public final class SpeedyWatchSettingsTest {
@@ -32,5 +33,15 @@ public final class SpeedyWatchSettingsTest {
         quality = SpeedyWatchSettings.nextMp3Quality(quality);
         assertEquals(SpeedyWatchSettings.MP3_QUALITY_STANDARD, quality);
         assertTrue(SpeedyWatchSettings.isMp3Quality(quality));
+    }
+
+    @Test
+    public void savedFloatingPositions_acceptOnlyUnsetOrNormalizedFractions() {
+        assertTrue(SpeedyWatchSettings.isSavedPosition(-1f));
+        assertTrue(SpeedyWatchSettings.isSavedPosition(0f));
+        assertTrue(SpeedyWatchSettings.isSavedPosition(1f));
+        assertFalse(SpeedyWatchSettings.isSavedPosition(-0.1f));
+        assertFalse(SpeedyWatchSettings.isSavedPosition(1.1f));
+        assertFalse(SpeedyWatchSettings.isSavedPosition(Float.NaN));
     }
 }

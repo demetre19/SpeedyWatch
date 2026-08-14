@@ -300,7 +300,7 @@ final class SettingsDialog {
         content.addView(text("Backup", 13, MUTED), matchWrap(dp(2), dp(8)));
         content.addView(
                 text(
-                        "Exports settings and saved summaries or quizzes. Your OpenRouter API key is never included.",
+                        "Exports settings and saved summaries or quizzes. OpenRouter and MEGA access keys are never included.",
                         12,
                         MUTED
                 ),
@@ -316,7 +316,7 @@ final class SettingsDialog {
         Button importBackup = button("Restore backup");
         importBackup.setOnClickListener(ignored -> new AlertDialog.Builder(activity)
                 .setTitle("Restore backup?")
-                .setMessage("This replaces saved summaries, quizzes, prompts, and app preferences. The API key stays unchanged.")
+                .setMessage("This replaces saved summaries, quizzes, prompts, and app preferences. Protected API and MEGA bookmark keys stay unchanged.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Choose backup", (alert, which) -> {
                     dialog.dismiss();

@@ -32,7 +32,9 @@ import android.text.InputType;
 import android.util.Rational;
 import android.view.Gravity;
 import android.view.View;
+import android.view.MotionEvent;
 import android.view.ViewGroup;
+import android.view.ViewConfiguration;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -69,6 +71,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -106,8 +109,11 @@ public final class MainActivity extends Activity {
     private final AtomicLong sponsorBlockRequestCounter = new AtomicLong();
     private SpeedyWatchSettings appSettings;
     private SavedSummaryStore savedSummaryStore;
+    private MegaBookmarkStore megaBookmarkStore;
     private LinearLayout appRoot;
     private LinearLayout speedControls;
+    private View speedControlsContent;
+    private View collapsedSpeedControlsRow;
     private View navigationControls;
     private LinearLayout watchPathControls;
     private TextView watchPathStatus;
@@ -122,6 +128,10 @@ public final class MainActivity extends Activity {
             this::finishPictureInPictureTransition;
     private final Runnable pictureInPictureResumePlayback =
             this::resumePictureInPicturePlayback;
+    private final Handler megaResumeHandler = new Handler(Looper.getMainLooper());
+    private final Runnable megaResumeTick = this::attemptPendingMegaResume;
+    private final Handler megaBookmarkPositionHandler = new Handler(Looper.getMainLooper());
+    private final Runnable megaBookmarkPositionTick = this::captureActiveMegaBookmarkPosition;
     private WatchPathPlayback activeWatchPath;
     private boolean watchPathForeground;
     private boolean activityResumed;
@@ -132,6 +142,7 @@ public final class MainActivity extends Activity {
     private boolean pictureInPictureParamsPlaying;
     private boolean pictureInPicturePlaybackRequested;
     private Rect pictureInPictureSourceRect = new Rect();
+    private PendingMegaResume pendingMegaResume;
     private Rect pictureInPictureParamsSourceRect = new Rect();
     private PictureInPictureParams pictureInPictureParams =
             new PictureInPictureParams.Builder().build();
@@ -152,6 +163,8 @@ public final class MainActivity extends Activity {
     private ScreenLockButton screenLockButton;
     private ImageButton pictureInPictureButton;
     private boolean screenLocked;
+    private int screenLockInsetLeft;
+    private int screenLockInsetTop;
     private int screenLockInsetRight;
     private int screenLockInsetBottom;
     private volatile YouTubeSubsDialog.TranscriptCallback activeTranscriptCallback;
@@ -180,6 +193,7 @@ public final class MainActivity extends Activity {
         appSettings = new SpeedyWatchSettings(this);
         selectedSpeed = appSettings.getDefaultPlaybackSpeed();
         savedSummaryStore = new SavedSummaryStore(this);
+        megaBookmarkStore = new MegaBookmarkStore(this);
         controllerScript = readAsset("speedywatch.js");
         chineseTranslatorScript = readAsset("chinese_translate.js");
         appRoot = buildUi();
@@ -485,6 +499,10 @@ public final class MainActivity extends Activity {
         speedControls.setPadding(dp(8), dp(6), dp(8), dp(8));
         speedControls.setBackgroundColor(PANEL);
 
+        LinearLayout speedContent = new LinearLayout(this);
+        speedContent.setOrientation(LinearLayout.VERTICAL);
+        speedControlsContent = speedContent;
+
         LinearLayout presets = horizontalRow();
         double[] rates = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0};
         for (double rate : rates) {
@@ -503,9 +521,13 @@ public final class MainActivity extends Activity {
         customSpeedInput.setSelectAllOnFocus(true);
         customSpeedInput.setGravity(Gravity.CENTER);
         customSpeedInput.setPadding(dp(6), 0, dp(6), 0);
-        customSpeedInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        customSpeedInput.setInputType(
+                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
+        );
         customSpeedInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        customSpeedInput.setBackground(outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1));
+        customSpeedInput.setBackground(
+                outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1)
+        );
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(dp(72), dp(44));
         inputParams.setMargins(dp(6), 0, dp(3), 0);
         presets.addView(customSpeedInput, inputParams);
@@ -522,7 +544,7 @@ public final class MainActivity extends Activity {
             }
             return false;
         });
-        speedControls.addView(scrollingRow(presets));
+        speedContent.addView(scrollingRow(presets));
 
         LinearLayout actions = horizontalRow();
         actions.addView(makeButton("-0.1", ignored -> setSpeed(selectedSpeed - 0.1)));
@@ -539,13 +561,29 @@ public final class MainActivity extends Activity {
         actions.addView(statusText, statusParams);
 
         actions.addView(makeButton("+0.1", ignored -> setSpeed(selectedSpeed + 0.1)));
-        speedControls.addView(actions);
+        actions.addView(makeIconButton(
+                R.drawable.ic_collapse,
+                "Minimize speed controls",
+                ignored -> applySpeedControlsCollapsed(true, true)
+        ));
+        speedContent.addView(actions);
+        speedControls.addView(speedContent);
 
+        LinearLayout collapsedRow = horizontalRow();
+        collapsedRow.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        collapsedRow.addView(makeIconButton(
+                R.drawable.ic_expand,
+                "Restore speed controls",
+                ignored -> applySpeedControlsCollapsed(false, true)
+        ));
+        collapsedSpeedControlsRow = collapsedRow;
+        speedControls.addView(collapsedRow);
 
         root.addView(speedControls, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+        applySpeedControlsCollapsed(appSettings.areSpeedControlsCollapsed(), false);
         refreshSpeedSelection();
         return root;
     }
@@ -740,12 +778,33 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void applySpeedControlsCollapsed(boolean collapsed, boolean persist) {
+        if (speedControlsContent == null || collapsedSpeedControlsRow == null) {
+            return;
+        }
+        speedControlsContent.setVisibility(collapsed ? View.GONE : View.VISIBLE);
+        collapsedSpeedControlsRow.setVisibility(collapsed ? View.VISIBLE : View.GONE);
+        speedControls.setPadding(
+                dp(collapsed ? 4 : 8),
+                dp(collapsed ? 2 : 6),
+                dp(collapsed ? 4 : 8),
+                dp(collapsed ? 2 : 8)
+        );
+        speedControls.setBackgroundColor(collapsed ? Color.TRANSPARENT : PANEL);
+        if (persist) {
+            appSettings.setSpeedControlsCollapsed(collapsed);
+        }
+        speedControls.requestLayout();
+        speedControls.post(this::positionFloatingControls);
+    }
+
 
     private void injectController() {
         webView.evaluateJavascript(controllerScript, ignored -> {
             applyControllerState();
             refreshSponsorSegments(webView.getUrl());
             injectChineseTranslator();
+            attemptPendingMegaResume();
         });
     }
 
@@ -932,6 +991,10 @@ public final class MainActivity extends Activity {
 
 
     private void showSiteSearch() {
+        if (selectedSite == SupportedSite.MEGA) {
+            showMegaBookmarks();
+            return;
+        }
         boolean supportsKeywordSearch = selectedSite.supportsKeywordSearch();
         EditText input = new EditText(this);
         input.setSingleLine(true);
@@ -1001,6 +1064,53 @@ public final class MainActivity extends Activity {
         dialog.show();
     }
 
+    private void showMegaBookmarks() {
+        String clipboardUrl = clipboardSupportedUrl();
+        if (SupportedSite.megaPlaybackIdentity(clipboardUrl) == null) {
+            clipboardUrl = null;
+        }
+        new MegaBookmarksDialog(
+                this,
+                megaBookmarkStore,
+                new MegaBookmarksDialog.Host() {
+                    @Override
+                    public String currentMegaUrl() {
+                        return SupportedSite.megaPlaybackIdentity(webView.getUrl());
+                    }
+
+                    @Override
+                    public void currentMegaFolderName(
+                            MegaBookmarksDialog.FolderNameCallback callback
+                    ) {
+                        queryMegaFolderName(callback);
+                    }
+
+                    @Override
+                    public void currentTime(MegaBookmarksDialog.CurrentTimeCallback callback) {
+                        queryCurrentTime(callback::onTime);
+                    }
+
+                    @Override
+                    public void openMegaUrl(String url, double positionSeconds) {
+                        openMegaBookmark(url, positionSeconds);
+                    }
+                },
+                clipboardUrl
+        ).show();
+    }
+
+    private void openMegaBookmark(String url, double positionSeconds) {
+        String valid = SupportedSite.megaPlaybackIdentity(url);
+        if (valid == null) {
+            Toast.makeText(this, "This MEGA link cannot be opened", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        megaResumeHandler.removeCallbacks(megaResumeTick);
+        pendingMegaResume = positionSeconds >= 0.25
+                ? new PendingMegaResume(valid, positionSeconds) : null;
+        loadSupportedUrl(valid);
+    }
+
     private void showDownload() {
         runAfterNotificationPermissionDecision(this::showDownloadDialog);
     }
@@ -1043,8 +1153,12 @@ public final class MainActivity extends Activity {
         String valid = SupportedSite.validatedHttpsUrl(value);
         String next = valid == null ? "" : valid;
         if (!next.equals(activeMainFrameUrl)) {
+            String previous = activeMainFrameUrl;
             activeMainFrameUrl = next;
             capturedMediaRequest = null;
+            if (SupportedSite.megaPlaybackIdentity(previous) != null) {
+                runOnUiThread(() -> captureMegaBookmarkPosition(previous));
+            }
         }
     }
 
@@ -1155,7 +1269,7 @@ public final class MainActivity extends Activity {
                     output.write(json.getBytes(StandardCharsets.UTF_8));
                 }
                 runOnUiThread(() ->
-                        Toast.makeText(this, "Backup exported without the API key", Toast.LENGTH_LONG).show());
+                        Toast.makeText(this, "Backup exported without protected keys or links", Toast.LENGTH_LONG).show());
             } catch (Exception error) {
                 runOnUiThread(() ->
                         Toast.makeText(this, "Backup could not be exported", Toast.LENGTH_LONG).show());
@@ -1938,6 +2052,23 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void queryMegaFolderName(MegaBookmarksDialog.FolderNameCallback callback) {
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.megaFolderName() : ''";
+        webView.evaluateJavascript(script, result -> {
+            String name = "";
+            try {
+                Object value = new JSONTokener(result == null ? "\"\"" : result).nextValue();
+                if (value instanceof String text && text.length() <= 120) {
+                    name = text;
+                }
+            } catch (Exception ignored) {
+                // The naming prompt retains its editable fallback.
+            }
+            callback.onName(name);
+        });
+    }
+
     private void queryCurrentTime(YouTubeSubsDialog.CurrentTimeCallback callback) {
         String script = "window.__speedyWatchController "
                 + "? window.__speedyWatchController.currentTime() : null";
@@ -1952,6 +2083,81 @@ public final class MainActivity extends Activity {
                 // Playback controls remain available when current time is unavailable.
             }
             callback.onTime(seconds);
+        });
+    }
+
+    private void captureMegaBookmarkPosition(String url) {
+        String expected = SupportedSite.megaPlaybackIdentity(url);
+        if (expected == null || !expected.equals(
+                SupportedSite.megaPlaybackIdentity(webView.getUrl())
+        )) {
+            return;
+        }
+        queryCurrentTime(seconds -> {
+            if (!expected.equals(SupportedSite.megaPlaybackIdentity(webView.getUrl()))) {
+                return;
+            }
+            try {
+                megaBookmarkStore.updateResumePosition(expected, seconds);
+            } catch (GeneralSecurityException ignored) {
+                // Manual bookmark actions surface storage errors to the user.
+            }
+        });
+    }
+
+    private void captureActiveMegaBookmarkPosition() {
+        megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
+        if (!activityResumed) {
+            return;
+        }
+        captureMegaBookmarkPosition(webView.getUrl());
+        megaBookmarkPositionHandler.postDelayed(megaBookmarkPositionTick, 10_000);
+    }
+
+    private void attemptPendingMegaResume() {
+        megaResumeHandler.removeCallbacks(megaResumeTick);
+        PendingMegaResume pending = pendingMegaResume;
+        if (pending == null) {
+            return;
+        }
+        String current = SupportedSite.megaPlaybackIdentity(webView.getUrl());
+        if (!pending.url.equals(current)) {
+            if (pending.attempts++ < 40
+                    && SupportedSite.megaBookmarkIdentity(pending.url).equals(
+                    SupportedSite.megaBookmarkIdentity(current)
+            )) {
+                megaResumeHandler.postDelayed(megaResumeTick, 500);
+            } else {
+                pendingMegaResume = null;
+            }
+            return;
+        }
+        pending.attempts++;
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.seekTo("
+                + String.format(Locale.US, "%.3f", pending.positionSeconds)
+                + ") : false";
+        webView.evaluateJavascript(script, result -> {
+            if (pendingMegaResume != pending) {
+                return;
+            }
+            if ("true".equals(result)) {
+                pendingMegaResume = null;
+                Toast.makeText(
+                        this,
+                        MegaBookmarkStore.resumeLabel(pending.positionSeconds),
+                        Toast.LENGTH_SHORT
+                ).show();
+            } else if (pending.attempts < 40) {
+                megaResumeHandler.postDelayed(megaResumeTick, 500);
+            } else {
+                pendingMegaResume = null;
+                Toast.makeText(
+                        this,
+                        "MEGA opened, but the saved video was not ready to resume",
+                        Toast.LENGTH_LONG
+                ).show();
+            }
         });
     }
 
@@ -2100,6 +2306,7 @@ public final class MainActivity extends Activity {
         screenLockShield = new FrameLayout(this);
         screenLockShield.setBackgroundColor(Color.TRANSPARENT);
         screenLockShield.setClickable(false);
+        screenLockShield.setClipChildren(false);
         screenLockButton = new ScreenLockButton(this, new ScreenLockButton.Listener() {
             @Override
             public void onLockRequested() {
@@ -2110,26 +2317,26 @@ public final class MainActivity extends Activity {
             public void onUnlockRequested() {
                 setScreenLocked(false);
             }
-
         });
         pictureInPictureButton = makeIconButton(
                 R.drawable.ic_picture_in_picture,
-                "Enter Picture-in-Picture",
+                "Picture-in-Picture unavailable. Drag to move",
                 ignored -> enterPictureInPictureFromButton()
         );
-        pictureInPictureButton.setEnabled(false);
         pictureInPictureButton.setAlpha(0.45f);
         int buttonSize = dp(52);
         screenLockShield.addView(screenLockButton, new FrameLayout.LayoutParams(
                 buttonSize,
                 buttonSize,
-                Gravity.BOTTOM | Gravity.END
+                Gravity.TOP | Gravity.START
         ));
         screenLockShield.addView(pictureInPictureButton, new FrameLayout.LayoutParams(
                 buttonSize,
                 buttonSize,
-                Gravity.BOTTOM | Gravity.END
+                Gravity.TOP | Gravity.START
         ));
+        screenLockButton.setOnTouchListener(new FloatingDragListener(false));
+        pictureInPictureButton.setOnTouchListener(new FloatingDragListener(true));
         addContentView(screenLockShield, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -2139,13 +2346,17 @@ public final class MainActivity extends Activity {
                 Insets safeInsets = insets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
                 );
+                screenLockInsetLeft = safeInsets.left;
+                screenLockInsetTop = safeInsets.top;
                 screenLockInsetRight = safeInsets.right;
                 screenLockInsetBottom = safeInsets.bottom;
             } else {
+                screenLockInsetLeft = insets.getSystemWindowInsetLeft();
+                screenLockInsetTop = insets.getSystemWindowInsetTop();
                 screenLockInsetRight = insets.getSystemWindowInsetRight();
                 screenLockInsetBottom = insets.getSystemWindowInsetBottom();
             }
-            positionScreenLockButton();
+            positionFloatingControls();
             return insets;
         });
         applyScreenLockSettings();
@@ -2163,11 +2374,11 @@ public final class MainActivity extends Activity {
         }
         screenLockButton.setVisibility(lockEnabled ? View.VISIBLE : View.GONE);
         pictureInPictureButton.setVisibility(screenLocked ? View.GONE : View.VISIBLE);
-        positionScreenLockButton();
+        positionFloatingControls();
         screenLockShield.bringToFront();
     }
 
-    private void positionScreenLockButton() {
+    private void positionFloatingControls() {
         if (screenLockButton == null || pictureInPictureButton == null) {
             return;
         }
@@ -2175,29 +2386,200 @@ public final class MainActivity extends Activity {
             if (screenLockShield.getWidth() == 0 || screenLockShield.getHeight() == 0) {
                 return;
             }
-            int baseBottomMargin = screenLockInsetBottom
-                    + (speedControls == null ? 0 : speedControls.getHeight())
-                    + dp(8);
-            FrameLayout.LayoutParams lockParams =
-                    (FrameLayout.LayoutParams) screenLockButton.getLayoutParams();
-            lockParams.gravity = Gravity.BOTTOM | Gravity.END;
-            lockParams.leftMargin = 0;
-            lockParams.topMargin = 0;
-            lockParams.rightMargin = screenLockInsetRight + dp(8);
-            lockParams.bottomMargin = baseBottomMargin;
-            screenLockButton.setLayoutParams(lockParams);
-
-            FrameLayout.LayoutParams pipParams =
-                    (FrameLayout.LayoutParams) pictureInPictureButton.getLayoutParams();
-            pipParams.gravity = Gravity.BOTTOM | Gravity.END;
-            pipParams.leftMargin = 0;
-            pipParams.topMargin = 0;
-            pipParams.rightMargin = screenLockInsetRight + dp(8);
-            pipParams.bottomMargin = baseBottomMargin
-                    + (screenLockButton.getVisibility() == View.VISIBLE
-                            ? dp(60) : 0);
-            pictureInPictureButton.setLayoutParams(pipParams);
+            int safeGap = dp(4);
+            int minimumX = screenLockInsetLeft + safeGap;
+            int minimumY = screenLockInsetTop + safeGap;
+            int maximumX = Math.max(
+                    minimumX,
+                    screenLockShield.getWidth() - screenLockInsetRight
+                            - screenLockButton.getWidth() - safeGap
+            );
+            int maximumY = Math.max(
+                    minimumY,
+                    screenLockShield.getHeight() - screenLockInsetBottom
+                            - screenLockButton.getHeight() - safeGap
+            );
+            int controlsHeight = speedControls == null ? 0 : speedControls.getHeight();
+            int defaultLockX = maximumX;
+            int defaultLockY = Math.max(minimumY, maximumY - controlsHeight - dp(8));
+            positionFloatingControl(
+                    screenLockButton,
+                    appSettings.getLockPositionX(),
+                    appSettings.getLockPositionY(),
+                    minimumX,
+                    minimumY,
+                    maximumX,
+                    maximumY,
+                    defaultLockX,
+                    defaultLockY
+            );
+            int defaultPipY = Math.max(
+                    minimumY,
+                    defaultLockY - (screenLockButton.getVisibility() == View.VISIBLE ? dp(60) : 0)
+            );
+            positionFloatingControl(
+                    pictureInPictureButton,
+                    appSettings.getPictureInPicturePositionX(),
+                    appSettings.getPictureInPicturePositionY(),
+                    minimumX,
+                    minimumY,
+                    maximumX,
+                    maximumY,
+                    maximumX,
+                    defaultPipY
+            );
+            updateScreenLockHoldDirection();
         });
+    }
+
+    private void positionFloatingControl(
+            View control,
+            float xFraction,
+            float yFraction,
+            int minimumX,
+            int minimumY,
+            int maximumX,
+            int maximumY,
+            int defaultX,
+            int defaultY
+    ) {
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) control.getLayoutParams();
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.leftMargin = FloatingControlPosition.resolve(
+                xFraction, minimumX, maximumX, defaultX
+        );
+        params.topMargin = FloatingControlPosition.resolve(
+                yFraction, minimumY, maximumY, defaultY
+        );
+        params.rightMargin = 0;
+        params.bottomMargin = 0;
+        control.setLayoutParams(params);
+    }
+
+    private void persistFloatingControlPosition(View control, boolean pictureInPicture) {
+        int safeGap = dp(4);
+        int minimumX = screenLockInsetLeft + safeGap;
+        int minimumY = screenLockInsetTop + safeGap;
+        int maximumX = Math.max(
+                minimumX,
+                screenLockShield.getWidth() - screenLockInsetRight
+                        - control.getWidth() - safeGap
+        );
+        int maximumY = Math.max(
+                minimumY,
+                screenLockShield.getHeight() - screenLockInsetBottom
+                        - control.getHeight() - safeGap
+        );
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) control.getLayoutParams();
+        float x = FloatingControlPosition.fraction(params.leftMargin, minimumX, maximumX);
+        float y = FloatingControlPosition.fraction(params.topMargin, minimumY, maximumY);
+        if (pictureInPicture) {
+            appSettings.setPictureInPicturePosition(x, y);
+        } else {
+            appSettings.setLockPosition(x, y);
+        }
+        updateScreenLockHoldDirection();
+    }
+
+    private void updateScreenLockHoldDirection() {
+        if (screenLockButton == null || screenLockShield == null) {
+            return;
+        }
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) screenLockButton.getLayoutParams();
+        boolean moveRight = params.leftMargin + screenLockButton.getWidth() / 2
+                < screenLockShield.getWidth() / 2;
+        boolean moveDown = params.topMargin + screenLockButton.getHeight() / 2
+                < screenLockShield.getHeight() / 2;
+        screenLockButton.setHoldTranslation(
+                dp(moveRight ? 18 : -18),
+                dp(moveDown ? 18 : -18)
+        );
+    }
+
+    private final class FloatingDragListener implements View.OnTouchListener {
+        private final boolean pictureInPicture;
+        private final int touchSlop = ViewConfiguration.get(MainActivity.this)
+                .getScaledTouchSlop();
+        private float downRawX;
+        private float downRawY;
+        private int startLeft;
+        private int startTop;
+        private boolean dragging;
+
+        FloatingDragListener(boolean pictureInPicture) {
+            this.pictureInPicture = pictureInPicture;
+        }
+
+        @Override
+        public boolean onTouch(View view, MotionEvent event) {
+            if (screenLocked) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    FrameLayout.LayoutParams downParams =
+                            (FrameLayout.LayoutParams) view.getLayoutParams();
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    startLeft = downParams.leftMargin;
+                    startTop = downParams.topMargin;
+                    dragging = false;
+                    return false;
+                case MotionEvent.ACTION_MOVE:
+                    float deltaX = event.getRawX() - downRawX;
+                    float deltaY = event.getRawY() - downRawY;
+                    if (!dragging && Math.hypot(deltaX, deltaY) >= touchSlop) {
+                        dragging = true;
+                        view.setPressed(false);
+                    }
+                    if (!dragging) {
+                        return false;
+                    }
+                    int safeGap = dp(4);
+                    int minimumX = screenLockInsetLeft + safeGap;
+                    int minimumY = screenLockInsetTop + safeGap;
+                    int maximumX = Math.max(
+                            minimumX,
+                            screenLockShield.getWidth() - screenLockInsetRight
+                                    - view.getWidth() - safeGap
+                    );
+                    int maximumY = Math.max(
+                            minimumY,
+                            screenLockShield.getHeight() - screenLockInsetBottom
+                                    - view.getHeight() - safeGap
+                    );
+                    FrameLayout.LayoutParams moveParams =
+                            (FrameLayout.LayoutParams) view.getLayoutParams();
+                    moveParams.leftMargin = FloatingControlPosition.clamp(
+                            Math.round(startLeft + deltaX), minimumX, maximumX
+                    );
+                    moveParams.topMargin = FloatingControlPosition.clamp(
+                            Math.round(startTop + deltaY), minimumY, maximumY
+                    );
+                    view.setLayoutParams(moveParams);
+                    updateScreenLockHoldDirection();
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (!dragging) {
+                        return false;
+                    }
+                    view.setPressed(false);
+                    persistFloatingControlPosition(view, pictureInPicture);
+                    dragging = false;
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    if (!dragging) {
+                        return false;
+                    }
+                    view.setPressed(false);
+                    dragging = false;
+                    positionFloatingControls();
+                    return true;
+                default:
+                    return dragging;
+            }
+        }
     }
 
 
@@ -2206,7 +2588,7 @@ public final class MainActivity extends Activity {
         screenLockShield.setClickable(locked);
         screenLockButton.setLocked(locked);
         pictureInPictureButton.setVisibility(locked ? View.GONE : View.VISIBLE);
-        positionScreenLockButton();
+        positionFloatingControls();
         if (screenLockShield.getVisibility() == View.VISIBLE) {
             screenLockShield.bringToFront();
         }
@@ -2311,8 +2693,10 @@ public final class MainActivity extends Activity {
             }
             pictureInPicturePlaybackActive = active;
             pictureInPictureSourceRect = sourceRect;
-            pictureInPictureButton.setEnabled(active);
             pictureInPictureButton.setAlpha(active ? 1f : 0.45f);
+            pictureInPictureButton.setContentDescription(active
+                    ? "Enter Picture-in-Picture. Drag to move"
+                    : "Picture-in-Picture unavailable. Drag to move");
             updatePictureInPictureParams(active, active);
             if (activityResumed) {
                 pictureInPictureHandler.postDelayed(pictureInPictureTick, 750);
@@ -2557,6 +2941,23 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        positionFloatingControls();
+    }
+
+    private static final class PendingMegaResume {
+        final String url;
+        final double positionSeconds;
+        int attempts;
+
+        PendingMegaResume(String url, double positionSeconds) {
+            this.url = url;
+            this.positionSeconds = Math.max(0, positionSeconds);
+        }
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle outState) {
         webView.saveState(outState);
         super.onSaveInstanceState(outState);
@@ -2585,6 +2986,8 @@ public final class MainActivity extends Activity {
         activityResumed = false;
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
         watchPathForeground = false;
+        captureMegaBookmarkPosition(webView.getUrl());
+        megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
         watchPathHandler.removeCallbacks(watchPathTick);
         GitHubUpdateChecker.unregisterResumedActivity(this);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -2622,6 +3025,7 @@ public final class MainActivity extends Activity {
         GitHubUpdateChecker.resumePendingInstaller(this);
         scheduleWatchPathTick();
         pictureInPictureHandler.post(pictureInPictureTick);
+        megaBookmarkPositionHandler.post(megaBookmarkPositionTick);
     }
 
     @Override
@@ -2630,6 +3034,8 @@ public final class MainActivity extends Activity {
         stopWatchPath(false);
         pictureInPictureHandler.removeCallbacks(pictureInPictureTransitionTimeout);
         pictureInPictureHandler.removeCallbacks(pictureInPictureResumePlayback);
+        megaResumeHandler.removeCallbacks(megaResumeTick);
+        megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
         ioExecutor.shutdownNow();
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
         if (pictureInPictureReceiverRegistered) {

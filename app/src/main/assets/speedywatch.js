@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing) {
+    if (existing && existing.version === 18) {
         return "reused";
     }
 
@@ -21,7 +21,8 @@
         pending: false,
         adProcessing: false,
         pictureInPictureActive: false,
-        pictureInPicturePlaybackRequested: false
+        pictureInPicturePlaybackRequested: false,
+        megaBrowserChoiceAt: 0
     };
     const documentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
     const documentVisibilityState =
@@ -315,8 +316,93 @@
         });
     };
 
+    const selectMegaBrowserChoice = () => {
+        if (window.location.hostname.toLowerCase() !== "mega.nz") {
+            return false;
+        }
+        const now = Date.now();
+        if (now - state.megaBrowserChoiceAt < 2000) {
+            return false;
+        }
+        const labelPattern = /\b(?:open|continue|stay) in (?:this )?browser\b/i;
+        const candidates = document.querySelectorAll(
+            "button, a, [role='button'], input[type='button'], input[type='submit'], " +
+            ".mobile.red-button, .mobile.cta-button, [class*='browser']"
+        );
+        for (const element of candidates) {
+            const label = [
+                element.innerText,
+                element.textContent,
+                element.getAttribute("aria-label"),
+                element.getAttribute("title"),
+                element.value
+            ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+            if (!labelPattern.test(label)
+                    || element.disabled
+                    || element.getAttribute("aria-disabled") === "true") {
+                continue;
+            }
+            const style = window.getComputedStyle(element);
+            const bounds = element.getBoundingClientRect();
+            if (style.display === "none"
+                    || style.visibility === "hidden"
+                    || Number(style.opacity) === 0
+                    || bounds.width <= 0
+                    || bounds.height <= 0) {
+                continue;
+            }
+            state.megaBrowserChoiceAt = now;
+            element.dispatchEvent(new CustomEvent("tap", {
+                bubbles: true,
+                cancelable: true
+            }));
+            element.click();
+            return true;
+        }
+        return false;
+    };
+
+    const megaFolderName = () => {
+        if (window.location.hostname.toLowerCase() !== "mega.nz") {
+            return "";
+        }
+        try {
+            const currentId = window.M && window.M.currentdirid;
+            const currentNode = currentId && window.M.d && window.M.d[currentId];
+            if (currentNode && currentNode.t && typeof currentNode.name === "string") {
+                const name = currentNode.name.replace(/\s+/g, " ").trim();
+                if (name) {
+                    return name.slice(0, 120);
+                }
+            }
+        } catch (_) {
+            // Fall through to the rendered breadcrumb.
+        }
+        const selectors = [
+            ".fm-breadcrumbs-block .fm-breadcrumbs .selectable-txt",
+            ".mobile.fm-header-txt span",
+            ".mobile .fm-header-txt span"
+        ];
+        for (const selector of selectors) {
+            const elements = Array.from(document.querySelectorAll(selector));
+            for (let index = elements.length - 1; index >= 0; index--) {
+                const element = elements[index];
+                const style = window.getComputedStyle(element);
+                const name = (element.textContent || "").replace(/\s+/g, " ").trim();
+                if (name && !/^mega$/i.test(name)
+                        && style.display !== "none"
+                        && style.visibility !== "hidden") {
+                    return name.slice(0, 120);
+                }
+            }
+        }
+        return "";
+    };
+
+
     const tick = () => {
         state.pending = false;
+        selectMegaBrowserChoice();
         removeFeedAds();
         if (!skipVideoAd()) {
             skipSponsorSegment();
@@ -333,7 +419,8 @@
     };
 
     const api = {
-        version: 15,
+        version: 18,
+        megaFolderName,
         setSpeed(value) {
             const parsed = Number(value);
             if (!Number.isFinite(parsed)) {

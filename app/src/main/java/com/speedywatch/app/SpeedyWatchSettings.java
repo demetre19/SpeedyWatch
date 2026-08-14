@@ -37,6 +37,11 @@ final class SpeedyWatchSettings {
     private static final String SPONSORBLOCK_SPONSOR = "sponsorblock_sponsor";
     private static final String SPONSORBLOCK_SELF_PROMOTION = "sponsorblock_self_promotion";
     private static final String SPONSORBLOCK_INTERACTION = "sponsorblock_interaction";
+    private static final String SPEED_CONTROLS_COLLAPSED = "speed_controls_collapsed";
+    private static final String LOCK_POSITION_X = "lock_position_x";
+    private static final String LOCK_POSITION_Y = "lock_position_y";
+    private static final String PIP_POSITION_X = "pip_position_x";
+    private static final String PIP_POSITION_Y = "pip_position_y";
     static final String PROFILE_NORMAL = "normal";
     static final String PROFILE_CAREFUL = "careful";
     static final String PROFILE_LECTURE = "lecture";
@@ -225,6 +230,57 @@ final class SpeedyWatchSettings {
         preferences.edit().putBoolean(LOCK_ICON_ENABLED, enabled).apply();
     }
 
+    boolean areSpeedControlsCollapsed() {
+        return preferences.getBoolean(SPEED_CONTROLS_COLLAPSED, false);
+    }
+
+    void setSpeedControlsCollapsed(boolean collapsed) {
+        preferences.edit().putBoolean(SPEED_CONTROLS_COLLAPSED, collapsed).apply();
+    }
+
+    float getLockPositionX() {
+        return savedFraction(LOCK_POSITION_X);
+    }
+
+    float getLockPositionY() {
+        return savedFraction(LOCK_POSITION_Y);
+    }
+
+    void setLockPosition(float x, float y) {
+        savePosition(LOCK_POSITION_X, LOCK_POSITION_Y, x, y);
+    }
+
+    float getPictureInPicturePositionX() {
+        return savedFraction(PIP_POSITION_X);
+    }
+
+    float getPictureInPicturePositionY() {
+        return savedFraction(PIP_POSITION_Y);
+    }
+
+    void setPictureInPicturePosition(float x, float y) {
+        savePosition(PIP_POSITION_X, PIP_POSITION_Y, x, y);
+    }
+
+    static boolean isSavedPosition(float value) {
+        return value == -1f || (Float.isFinite(value) && value >= 0f && value <= 1f);
+    }
+
+
+    private float savedFraction(String key) {
+        float value = preferences.getFloat(key, -1f);
+        return Float.isFinite(value) && value >= 0f && value <= 1f ? value : -1f;
+    }
+
+    private void savePosition(String xKey, String yKey, float x, float y) {
+        float boundedX = Math.max(0f, Math.min(1f, x));
+        float boundedY = Math.max(0f, Math.min(1f, y));
+        preferences.edit()
+                .putFloat(xKey, boundedX)
+                .putFloat(yKey, boundedY)
+                .apply();
+    }
+
 
     synchronized String getApiKey() throws GeneralSecurityException {
         String encodedCiphertext = preferences.getString(API_KEY_CIPHERTEXT, "");
@@ -315,7 +371,12 @@ final class SpeedyWatchSettings {
             String playbackProfile,
             boolean adaptiveEnabled,
             double adaptiveBoost,
-            String mp3Quality
+            String mp3Quality,
+            boolean speedControlsCollapsed,
+            float lockPositionX,
+            float lockPositionY,
+            float pictureInPicturePositionX,
+            float pictureInPicturePositionY
     ) {
         String normalizedModel = modelId == null ? "" : modelId.trim();
         if (normalizedModel.length() > 300
@@ -328,10 +389,14 @@ final class SpeedyWatchSettings {
                 || !isPlaybackProfile(playbackProfile)
                 || !Double.isFinite(adaptiveBoost)
                 || adaptiveBoost < 0.1 || adaptiveBoost > 1.5
-                || !isMp3Quality(mp3Quality)) {
+                || !isMp3Quality(mp3Quality)
+                || !isSavedPosition(lockPositionX)
+                || !isSavedPosition(lockPositionY)
+                || !isSavedPosition(pictureInPicturePositionX)
+                || !isSavedPosition(pictureInPicturePositionY)) {
             return false;
         }
-        return preferences.edit()
+        SharedPreferences.Editor editor = preferences.edit()
                 .putString(MODEL_ID, normalizedModel)
                 .putString(SUMMARY_ONE, summaryOne)
                 .putString(SUMMARY_TWO, summaryTwo)
@@ -343,7 +408,24 @@ final class SpeedyWatchSettings {
                 .putBoolean(ADAPTIVE_SPEED_ENABLED, adaptiveEnabled)
                 .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(adaptiveBoost))
                 .putString(DEFAULT_MP3_QUALITY, mp3Quality)
-                .commit();
+                .putBoolean(SPEED_CONTROLS_COLLAPSED, speedControlsCollapsed);
+        restorePosition(editor, LOCK_POSITION_X, lockPositionX);
+        restorePosition(editor, LOCK_POSITION_Y, lockPositionY);
+        restorePosition(editor, PIP_POSITION_X, pictureInPicturePositionX);
+        restorePosition(editor, PIP_POSITION_Y, pictureInPicturePositionY);
+        return editor.commit();
+    }
+
+    private static void restorePosition(
+            SharedPreferences.Editor editor,
+            String key,
+            float value
+    ) {
+        if (value < 0f) {
+            editor.remove(key);
+        } else {
+            editor.putFloat(key, value);
+        }
     }
 
     private SecretKey getOrCreateSecretKey() throws GeneralSecurityException {

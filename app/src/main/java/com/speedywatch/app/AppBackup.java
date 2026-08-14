@@ -30,6 +30,11 @@ final class AppBackup {
                 .put("playbackProfile", settings.getPlaybackProfile())
                 .put("adaptiveSpeedEnabled", settings.isAdaptiveSpeedEnabled())
                 .put("adaptiveSpeedBoost", settings.getAdaptiveSpeedBoost())
+                .put("speedControlsCollapsed", settings.areSpeedControlsCollapsed())
+                .put("lockPositionX", settings.getLockPositionX())
+                .put("lockPositionY", settings.getLockPositionY())
+                .put("pictureInPicturePositionX", settings.getPictureInPicturePositionX())
+                .put("pictureInPicturePositionY", settings.getPictureInPicturePositionY())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -91,6 +96,24 @@ final class AppBackup {
                 preferences.optBoolean("selfPromotionCategoryEnabled", true);
         boolean interactionCategoryEnabled =
                 preferences.optBoolean("interactionCategoryEnabled", false);
+        boolean speedControlsCollapsed = preferences.optBoolean(
+                "speedControlsCollapsed",
+                settings.areSpeedControlsCollapsed()
+        );
+        float lockPositionX = optionalSavedPosition(
+                preferences, "lockPositionX", settings.getLockPositionX());
+        float lockPositionY = optionalSavedPosition(
+                preferences, "lockPositionY", settings.getLockPositionY());
+        float pictureInPicturePositionX = optionalSavedPosition(
+                preferences,
+                "pictureInPicturePositionX",
+                settings.getPictureInPicturePositionX()
+        );
+        float pictureInPicturePositionY = optionalSavedPosition(
+                preferences,
+                "pictureInPicturePositionY",
+                settings.getPictureInPicturePositionY()
+        );
         if (!Double.isFinite(speed) || speed < 0.25 || speed > 4) {
             throw new JSONException("Backup playback speed is invalid");
         }
@@ -136,7 +159,12 @@ final class AppBackup {
                 playbackProfile,
                 adaptiveEnabled,
                 adaptiveBoost,
-                mp3Quality
+                mp3Quality,
+                speedControlsCollapsed,
+                lockPositionX,
+                lockPositionY,
+                pictureInPicturePositionX,
+                pictureInPicturePositionY
         )) {
             try {
                 store.replaceAll(previous);
@@ -151,6 +179,25 @@ final class AppBackup {
                 selfPromotionCategoryEnabled,
                 interactionCategoryEnabled
         );
+    }
+
+    private static float optionalSavedPosition(
+            JSONObject object,
+            String key,
+            float fallback
+    ) throws JSONException {
+        if (!object.has(key)) {
+            return fallback;
+        }
+        Object raw = object.opt(key);
+        if (!(raw instanceof Number number)) {
+            throw new JSONException("Backup field " + key + " is invalid");
+        }
+        float value = number.floatValue();
+        if (!SpeedyWatchSettings.isSavedPosition(value)) {
+            throw new JSONException("Backup field " + key + " is invalid");
+        }
+        return value;
     }
 
     private static String boundedString(

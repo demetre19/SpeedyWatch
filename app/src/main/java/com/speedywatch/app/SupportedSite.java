@@ -460,6 +460,24 @@ enum SupportedSite {
                 && MEGA_PUBLIC_PATH.matcher(path).matches();
     }
 
+    static String megaBookmarkIdentity(String value) {
+        String valid = validatedHttpsUrl(value);
+        if (!isMegaPublicLink(valid)) {
+            return null;
+        }
+        URI uri = URI.create(valid);
+        String fragment = uri.getRawFragment();
+        int selectionStart = fragment.indexOf('/');
+        String rootFragment = selectionStart < 0
+                ? fragment : fragment.substring(0, selectionStart);
+        return "https://mega.nz" + uri.getRawPath() + "#" + rootFragment;
+    }
+
+    static String megaPlaybackIdentity(String value) {
+        String valid = validatedHttpsUrl(value);
+        return isMegaPublicLink(valid) ? valid : null;
+    }
+
     private static String cookieDomainForHost(String host, String... allowedDomains) {
         for (String domain : allowedDomains) {
             if (domain.equals(host)) {

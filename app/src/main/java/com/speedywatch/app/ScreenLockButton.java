@@ -35,7 +35,8 @@ final class ScreenLockButton extends View {
     private final Drawable unlockedIcon;
     private final Drawable lockedIcon;
     private final ValueAnimator holdAnimator;
-    private final float holdTranslation;
+    private float holdTranslationX;
+    private float holdTranslationY;
 
     private boolean locked;
     private boolean holdCancelled;
@@ -46,7 +47,8 @@ final class ScreenLockButton extends View {
         super(context);
         this.listener = listener;
         float density = getResources().getDisplayMetrics().density;
-        holdTranslation = -18f * density;
+        holdTranslationX = -18f * density;
+        holdTranslationY = -18f * density;
 
         backgroundPaint.setColor(Color.argb(150, 15, 15, 15));
         backgroundPaint.setStyle(Paint.Style.FILL);
@@ -103,6 +105,14 @@ final class ScreenLockButton extends View {
 
     boolean isLocked() {
         return locked;
+    }
+
+    void setHoldTranslation(float x, float y) {
+        if (!Float.isFinite(x) || !Float.isFinite(y)) {
+            return;
+        }
+        holdTranslationX = x;
+        holdTranslationY = y;
     }
 
     @Override
@@ -207,8 +217,8 @@ final class ScreenLockButton extends View {
         animate()
                 .scaleX(emphasized ? HOLD_SCALE : 1f)
                 .scaleY(emphasized ? HOLD_SCALE : 1f)
-                .translationX(emphasized ? holdTranslation : 0f)
-                .translationY(emphasized ? holdTranslation : 0f)
+                .translationX(emphasized ? holdTranslationX : 0f)
+                .translationY(emphasized ? holdTranslationY : 0f)
                 .setDuration(HOLD_SCALE_MILLIS)
                 .start();
     }
@@ -230,6 +240,6 @@ final class ScreenLockButton extends View {
     private void updateContentDescription() {
         setContentDescription(locked
                 ? "Hold to unlock screen controls"
-                : "Lock screen controls");
+                : "Lock screen controls. Drag to move");
     }
 }
