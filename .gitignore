@@ -8,3 +8,13 @@ ios/DerivedData/
 ios/LocalSecrets.xcconfig
 ios/*.png
 ios/**/xcuserdata/
+
+# Local agent and planning documentation
+AGENTS.md
+CLAUDE.md
+DESIGN.md
+PRODUCT.md
+CHANGELOG.md
+
+# macOS metadata
+.DS_Store
