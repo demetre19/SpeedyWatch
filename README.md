@@ -5,18 +5,19 @@
 <h1 align="center">SpeedyWatch</h1>
 
 <p align="center">
+  <strong>Watch more in less time.</strong><br><br>
   <strong>A 60-minute video should not cost you 60 minutes.</strong><br>
   SpeedyWatch helps you watch faster, search every spoken word, and turn long videos into notes, quizzes, downloads, and a watch plan built for the time you have.<br>
-  <small>Installable Android APK. iPhone source for Xcode.</small>
+  <small>Installable Android APK.</small>
 </p>
 
 ## Download SpeedyWatch
 
-| Android | iPhone |
-| --- | --- |
-| **Android 10 and newer** | **iOS 17 and newer** |
-| [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.27**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Android |
+| --- |
+| **Android 10 and newer** |
+| [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
+| Current public APK: **v0.27**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -30,7 +31,6 @@
 
 If Android says **App not installed**, cannot update the existing app, or installs but will not open, confirm the phone runs Android 10 or newer. Then uninstall any older SpeedyWatch copy and install this APK again; an older copy signed with a different key cannot be updated in place. **Uninstalling removes that copy's app-private settings, saved summaries, and saved quizzes.**
 
-> **iPhone availability:** the iPhone app is currently provided as source code for an Xcode build. There is no Apple-signed IPA, TestFlight, or App Store download yet.
 
 [Release notes and previous Android downloads](https://github.com/demetre19/SpeedyWatch/releases/latest)
 
@@ -93,7 +93,7 @@ Leave with answers you can find again.
 
 ### Keep and share what matters
 
-Search saved summaries and quizzes by title, creator, type, heading, or full text. Share any result with its original source link attached. Move saved content between Android and iPhone with a cross-platform backup.
+Search saved summaries and quizzes by title, creator, type, heading, or full text. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -125,7 +125,6 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
   <img src="screenshots/supported-sites.png" width="360" alt="SpeedyWatch Android site picker for YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and MEGA">
 </p>
 
-> **iPhone:** SpeedyWatch supports YouTube browsing, sharing, transcripts, summaries, quizzes, and saved content. Multi-site browsing and downloading remain Android-only.
 
 ## Stay in control
 
@@ -146,9 +145,6 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
-**iPhone:** source code only. Xcode and your own Apple developer signing are required for a physical device.
-
-[Download the iPhone source for Xcode](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip)
 
 ## Android download and install
 
@@ -174,14 +170,13 @@ Signing: Android debug signing key
 
 This public v0.27 APK is debug-signed with APK Signature Scheme v2. It adds direct two-finger resizing for Android summary and follow-up text from 15sp to 30sp while preserving wrapping and vertical scrolling. The complete Android unit suite and APK assembly passed against the exact release candidate. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
-## iPhone source and build
+## Legacy mobile source
 
-The native iPhone app is kept in the separate [`ios/` folder](https://github.com/demetre19/SpeedyWatch/tree/main/ios).
+The [`ios/` folder](https://github.com/demetre19/SpeedyWatch/tree/main/ios) contains an old, unmaintained client retained only for historical reference. It is not the current version, receives no updates or support, and is not offered as a download.
 
-- [Download the repository source ZIP](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip), then open `ios/SpeedyWatch.xcodeproj`.
-- Or [browse the iPhone source and Xcode project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) directly on GitHub.
+**Android is the main and only maintained version of SpeedyWatch.**
 
-The iPhone project requires Xcode 26 or newer. It can run in the iPhone Simulator immediately; installing it on a physical iPhone requires signing it with your own Apple Development team. A public signed iPhone build is not currently available.
+If you need a newer version of the legacy client, message the repository owner. It may be possible to provide one, but availability is not guaranteed.
 
 ## OpenRouter setup
 
@@ -193,11 +188,11 @@ Summaries, follow-up questions, WatchPath routes, and quizzes require your own O
 4. Choose a text model. SpeedyWatch prefers **Inception: Mercury 2** when it is available and shows each model's context length and advertised per-million-token input/output prices. Use the model picker filters to narrow the list to free or long-context options.
 5. Edit the summary, WatchPath, or quiz prompts if needed, then tap **Save**.
 
-The API key is encrypted with Android Keystore AES-GCM on Android and stored in Keychain on iPhone. Settings masks the key by default and shows only a short prefix and suffix check.
+The API key is encrypted with Android Keystore AES-GCM. Settings masks the key by default and shows only a short prefix and suffix check.
 
 ## Using transcripts, WatchPath, summaries, and quizzes
 
-1. Open a captioned supported video in SpeedyWatch. Android supports the listed media services; iPhone remains YouTube-only.
+1. Open a captioned supported video in SpeedyWatch.
 2. Tap the **Video Subs** icon, choose an available caption language or manual/auto-generated track, and load the transcript.
 3. Switch between line and paragraph view, search or copy the transcript, optionally follow playback, or tap a timestamp to seek the video.
 4. On Android, choose **WatchPath**, enter what you need from the video, select a 5, 10, or 20 minute budget, and tap **Create WatchPath**.
@@ -215,10 +210,10 @@ Transcript availability depends on the captions exposed by the selected service 
 ## Privacy and network use
 
 - SpeedyWatch does not add analytics or advertising SDKs.
-- Android loads supported service pages and available captions over HTTPS, restricts main-frame navigation to explicit first-party hosts, and treats approved media CDN hosts as resource-only. The iPhone app loads YouTube pages and captions over HTTPS.
+- Android loads supported service pages and available captions over HTTPS, restricts main-frame navigation to explicit first-party hosts, and treats approved media CDN hosts as resource-only.
 - Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
-- Your OpenRouter API key remains in platform-protected storage: Android Keystore-encrypted app storage or iPhone Keychain.
+- Your OpenRouter API key remains in Android Keystore-encrypted app storage.
 - Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to OpenRouter only when you request a summary, WatchPath route, follow-up answer, or quiz.
 - Saved summaries, saved quizzes, and their source URLs remain in app-private local storage until you delete them. Follow-up chat history is not saved.
 - Exported backup files contain settings plus saved summaries and quizzes, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
@@ -245,50 +240,6 @@ The APK is generated at:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Build and test the iPhone app
-
-You need Xcode 26 or newer and an iPhone Simulator running iOS 17 or newer.
-
-1. Open `ios/SpeedyWatch.xcodeproj`.
-2. Select the **SpeedyWatch** scheme and an iPhone Simulator.
-3. Run the app.
-
-The iPhone target uses bundle identifier `com.speedywatch.ios` and has a minimum deployment target of iOS 17.
-
-Command-line build:
-
-```bash
-xcodebuild -project ios/SpeedyWatch.xcodeproj \
-  -scheme SpeedyWatch \
-  -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  build
-```
-
-Unit tests do not require an OpenRouter key. Live UI parity tests do:
-
-1. Create the ignored file `ios/LocalSecrets.xcconfig`.
-2. Add only this setting:
-
-   ```text
-   OPENROUTER_API_KEY = your-key-here
-   ```
-
-3. Run the complete suite:
-
-   ```bash
-   xcodebuild -project ios/SpeedyWatch.xcodeproj \
-     -scheme SpeedyWatch \
-     -sdk iphonesimulator \
-     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-     -derivedDataPath ios/DerivedData \
-     -xcconfig ios/LocalSecrets.xcconfig \
-     test
-   ```
-
-The shared scheme maps the build setting into the DEBUG test-process environment. It does not write the key to the app or test bundle, and `LocalSecrets.xcconfig` remains outside source control.
-
-`xcodebuild` may print command-line build settings. Keep keyed command output and result bundles private, then remove keyed build artifacts with `rm -rf ios/DerivedData`.
 
 ## Open-source notices
 
