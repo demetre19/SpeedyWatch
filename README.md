@@ -40,11 +40,20 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK remains v0.27.
+
 ### Watch at your speed
 
 - Set playback from **0.25x to 4x** in precise **0.1x** steps.
 - Start at your saved speed or choose **Normal**, **Careful**, **Lecture**, or **Podcast**.
 - Move faster through quiet YouTube caption gaps, then return to your chosen pace automatically.
+
+
+### Skip chapters from one thumb
+
+The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Swipe right for the next chapter, left for the previous chapter, up for YouTube History, or down for Watch Later. Triple-tap it to lock the screen; hold briefly to move it wherever it feels natural.
+
+> **Coming in v0.28:** Omnibutton is still in device testing and is not part of the current public v0.27 APK.
 
 ### Skip the dead time
 
@@ -57,6 +66,10 @@ Stop dragging the progress bar and hoping.
 ### Search the spoken words
 
 Search available captions, choose the right language or track, and switch between line or paragraph view. Tap any result to land on the exact moment. Follow along live or copy the full transcript.
+
+<p align="center">
+  <img src="screenshots/transcript.png" width="360" alt="SpeedyWatch Video Subs screen showing a searchable timestamped transcript">
+</p>
 
 ### Watch only the parts that matter
 
@@ -73,9 +86,18 @@ Leave with answers you can find again.
 - Reopen an unchanged summary without sending the same request again.
 - Generate a **6, 10, 12, or 20 question** quiz.
 
+<p align="center">
+  <img src="screenshots/summary.png" width="340" alt="SpeedyWatch summary screen with key points, follow-up questions, copy, save, and share controls">
+  <img src="screenshots/quiz-prep.png" width="340" alt="SpeedyWatch Video Quiz Prep screen with selectable question counts">
+</p>
+
 ### Keep and share what matters
 
 Search saved summaries and quizzes by title, creator, type, heading, or full text. Share any result with its original source link attached. Move saved content between Android and iPhone with a cross-platform backup.
+
+<p align="center">
+  <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
+</p>
 
 ## Take useful media with you
 
@@ -85,13 +107,23 @@ Keep learning when the original page is no longer convenient.
 
 Save MP3 audio or available MP4 resolutions on Android. Choose **64, 128, or 192 kbps** audio, then add more downloads to the background queue instead of waiting beside the screen.
 
+<p align="center">
+  <img src="screenshots/downloads.png" width="360" alt="SpeedyWatch Android download screen offering MP3 quality and MP4 resolution choices">
+</p>
+
 ### Keep playing in Picture-in-Picture
 
 Keep video or SoundCloud audio active in Android Picture-in-Picture with native Play and Pause controls. Return to SpeedyWatch and your full controls come back.
 
 ### Open the links you already use
 
-Open YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and complete public MEGA links in one place on Android. Saved MEGA items return to the playback time where you stopped while complete links stay encrypted and out of logs and backups. MEGA remains playback-only.
+Open YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and complete public MEGA links in one place on Android.
+
+Saved MEGA items return to the playback time where you stopped. Complete links stay encrypted and out of logs and backups; MEGA remains playback-only.
+
+<p align="center">
+  <img src="screenshots/supported-sites.png" width="360" alt="SpeedyWatch Android site picker for YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and MEGA">
+</p>
 
 > **iPhone:** SpeedyWatch supports YouTube browsing, sharing, transcripts, summaries, quizzes, and saved content. Multi-site browsing and downloading remain Android-only.
 
@@ -104,11 +136,15 @@ Open YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and complete 
 - Back up saved content without copying private keys.
 - Install Android updates with confidence after SpeedyWatch checks the APK size and SHA-256.
 
+<p align="center">
+  <img src="screenshots/settings.png" width="360" alt="SpeedyWatch Android settings showing playback profile, adaptive speed, SponsorBlock, default speed, screen lock, and Picture-in-Picture controls">
+</p>
+
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the installable APK and start with your next video.
+**Android 10 or newer:** download the current public v0.27 APK and start with your next video.
 
-[**Download SpeedyWatch for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
+[**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
 **iPhone:** source code only. Xcode and your own Apple developer signing are required for a physical device.
 
