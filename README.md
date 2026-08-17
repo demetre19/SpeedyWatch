@@ -5,8 +5,9 @@
 <h1 align="center">SpeedyWatch</h1>
 
 <p align="center">
-  <strong>Watch more in less time.</strong><br>
-  Control media playback across supported sites, search available transcripts, create and save readable summaries, and prepare with focused pre-watch questions.
+  <strong>A 60-minute video should not cost you 60 minutes.</strong><br>
+  SpeedyWatch helps you watch faster, search every spoken word, and turn long videos into notes, quizzes, downloads, and a watch plan built for the time you have.<br>
+  <small>Installable Android APK. iPhone source for Xcode.</small>
 </p>
 
 ## Download SpeedyWatch
@@ -15,7 +16,7 @@
 | --- | --- |
 | **Android 10 and newer** | **iOS 17 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) | [**Download the source ZIP**](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip) |
-| Current public APK: **v0.28**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
+| Current public APK: **v0.27**, debug-signed | Open the separate [`ios/` iPhone project](https://github.com/demetre19/SpeedyWatch/tree/main/ios) in Xcode |
 
 ### Samsung Galaxy: install the APK
 
@@ -35,34 +36,83 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 ---
 
-## What SpeedyWatch does
+## Get your time back
 
-SpeedyWatch is a focused Android multi-site media browser and iPhone YouTube browser for people who want faster playback and useful transcript tools without leaving the video.
+Reach the useful part sooner. Keep the pace that works for you.
 
-- On Android, use the site icon immediately after **Search** to choose YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, MEGA, or an external Web search. Keywords search services that support them; selecting MEGA opens named bookmarks plus a URL-only field for a complete public folder or file link. Saved MEGA rows use an external-arrow icon to open and a red × to delete. A strictly validated supported HTTPS media URL opens that exact page for playback and, where supported, captions, summaries, quizzes, or downloading.
-- Open shared supported media links, including SoundCloud tracks and complete public MEGA folder/file links, directly in SpeedyWatch on Android. MEGA support is playback-only. SpeedyWatch automatically chooses MEGA's visible continue-in-browser option. MEGA bookmarks default to the folder name shown by MEGA and save the complete validated shared link, selected item, and playback time in app-private AES-GCM storage protected by Android Keystore. The link and access key are excluded from exports and logs. Pressing a saved row opens it directly after relaunch; bookmarks created by an older version need the same complete link pasted once before they gain one-tap reopening. The iPhone share extension remains YouTube-only.
-- Set playback speed from **0.25x to 4x** with common presets, direct decimal entry, or **0.1x** adjustments. Collapse the Android speed bar to one bottom-right restore icon in portrait or landscape; SpeedyWatch remembers that choice.
-- Choose a **Normal**, **Careful**, **Lecture**, or **Podcast** profile, and optionally add 0.5x only during caption gaps with adaptive speed.
-- Keep the chosen baseline speed when a supported site replaces or resets its media element; adaptive YouTube caption-gap boosts never replace that saved baseline.
-- Choose and persist a custom **default playback speed** in Settings for future app launches.
-- On Android, drag the dedicated PiP icon anywhere it does not cover the content; its position persists across relaunch and rotation. Tap it while video or SoundCloud audio is playing to keep the live source active and use Android's PiP Play/Pause action. Android consumes touches inside the floating window, so embedded webpage controls are not directly tappable there. Returning restores the full browser controls. Pressing Home without the PiP button backgrounds SpeedyWatch normally.
-- Skip known YouTube ads and feed-ad elements on a best-effort basis. Ad skipping is inactive on other sites.
-- Optionally skip YouTube community-submitted sponsor, self-promotion, and interaction segments from SponsorBlock, with a brief notice and Undo action after each skip.
-- On Android, the optional native screen lock blocks accidental toolbar and page touches. Drag its unlocked icon anywhere it does not cover the content; its position persists across relaunch and rotation. Holding the closed lock to unlock immediately doubles the icon and red progress ring and shifts them inward so the full 1.2-second hold remains visible around your thumb.
-- On Android, tap Download to use a valid copied media URL from YouTube, Bilibili, Instagram, Vimeo, X, Facebook, or SoundCloud, or fall back to the current supported page. Choose MP3 audio or an MP4 up to an available resolution for video media; SoundCloud tracks offer MP3 only. Add more downloads while one is running and SpeedyWatch queues them in order, processes one at a time, and shows the waiting count in the notification. Downloads continue in the background and use the extracted title as the filename. SoundCloud tracks are filed by extracted artist under `Downloads/SpeedyWatch/SoundCloud`; other downloads remain under their existing `Downloads/SpeedyWatch` service folders.
-- Where the selected service exposes captions, choose among available languages and manual or auto-generated tracks, search in line or paragraph view, copy the transcript, and optionally follow the current playback position.
-- Tap any transcript line or paragraph to jump to that moment and return to the video.
-- On Android, use **WatchPath** in Video Subs to describe a goal and choose a 5, 10, or 20 minute budget. SpeedyWatch asks the selected OpenRouter model for a validated route through the transcript, previews the chosen and skipped ranges, and provides native Previous, Next, Undo, and Stop controls while the route plays.
-- Create two independently configurable summaries through OpenRouter, then ask follow-up questions in the same transcript view. Android renders each `You` turn in a padded, rounded dark-red bubble so it remains visually distinct from AI output.
-- On Android, summary generation, saving, sharing, follow-up chat, and modal dismissal remain independent of video playback; only tapping a transcript timestamp seeks the active video.
-- Successful Summary One and Summary Two results are cached automatically in app-private storage. Pressing the same Summary button again immediately renders the cached result without another OpenRouter request when the summary type, prompt, model, source URL, and transcript are unchanged.
-- Save summaries and generated quiz guides locally with their original validated source URL. In the Android bookmark library, compact day dividers separate saved dates, Newest/Oldest controls the order, a searchable creator dropdown filters to a dated creator list, and free search covers titles, types, creators, headings, and body text.
-- Share a generated summary, generated quiz, or saved item through the platform's native share surface on Android and iPhone. Every share includes the original validated source URL.
-- Export settings plus saved summaries and quizzes to a cross-platform JSON backup, then restore it on Android or iPhone. OpenRouter API keys are never included.
-- Select **6, 10, 12, or 20** as request context for the editable Quiz prompt.
-- Edit the Summary One, Summary Two, WatchPath, and Quiz prompts in Settings. These fields are the only source of AI output instructions. The live model picker shows context length and per-million-token input/output prices and can filter free or long-context models.
-- On Android, check the official latest stable GitHub Release from Settings. SpeedyWatch downloads the APK, verifies its exact GitHub size and SHA-256, and opens Android's installer automatically while the app remains open, so there is no extra Downloads-folder step. Android still requires per-source permission and final Update or Install confirmation.
-- Choose High (192 kbps), Standard (128 kbps), or Compact (64 kbps) for every Android MP3 download. Settings persists the default quality, and queued downloads retain the quality selected when they were added.
+### Watch at your speed
+
+- Set playback from **0.25x to 4x** in precise **0.1x** steps.
+- Start at your saved speed or choose **Normal**, **Careful**, **Lecture**, or **Podcast**.
+- Move faster through quiet YouTube caption gaps, then return to your chosen pace automatically.
+
+### Skip the dead time
+
+Spend less time on interruptions with best-effort YouTube ad skipping and optional SponsorBlock skips with **Undo**. Your chosen speed stays in place when supported sites reset their player.
+
+## Find the exact answer
+
+Stop dragging the progress bar and hoping.
+
+### Search the spoken words
+
+Search available captions, choose the right language or track, and switch between line or paragraph view. Tap any result to land on the exact moment. Follow along live or copy the full transcript.
+
+### Watch only the parts that matter
+
+Use **WatchPath** to build a focused route through the transcript. Tell it what you need and choose a **5, 10, or 20 minute** budget. Preview what it selected, see what it will skip, then correct the route with **Previous**, **Next**, **Undo**, and **Stop**.
+
+## Turn videos into something useful
+
+Leave with answers you can find again.
+
+### Summarize, ask, and test yourself
+
+- Create two independently configured summaries with your chosen OpenRouter model.
+- Ask follow-up questions while the source stays in view.
+- Reopen an unchanged summary without sending the same request again.
+- Generate a **6, 10, 12, or 20 question** quiz.
+
+### Keep and share what matters
+
+Search saved summaries and quizzes by title, creator, type, heading, or full text. Share any result with its original source link attached. Move saved content between Android and iPhone with a cross-platform backup.
+
+## Take useful media with you
+
+Keep learning when the original page is no longer convenient.
+
+### Download now. Play later.
+
+Save MP3 audio or available MP4 resolutions on Android. Choose **64, 128, or 192 kbps** audio, then add more downloads to the background queue instead of waiting beside the screen.
+
+### Keep playing in Picture-in-Picture
+
+Keep video or SoundCloud audio active in Android Picture-in-Picture with native Play and Pause controls. Return to SpeedyWatch and your full controls come back.
+
+### Open the links you already use
+
+Open YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and complete public MEGA links in one place on Android. Saved MEGA items return to the playback time where you stopped while complete links stay encrypted and out of logs and backups. MEGA remains playback-only.
+
+> **iPhone:** SpeedyWatch supports YouTube browsing, sharing, transcripts, summaries, quizzes, and saved content. Multi-site browsing and downloading remain Android-only.
+
+## Stay in control
+
+### Fewer accidents. Safer data.
+
+- Block stray page and toolbar taps with the optional Android screen lock.
+- Keep your OpenRouter API key in platform-protected storage and out of exports.
+- Back up saved content without copying private keys.
+- Install Android updates with confidence after SpeedyWatch checks the APK size and SHA-256.
+
+## Ready to get your watch time back?
+
+**Android 10 or newer:** download the installable APK and start with your next video.
+
+[**Download SpeedyWatch for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
+
+**iPhone:** source code only. Xcode and your own Apple developer signing are required for a physical device.
+
+[Download the iPhone source for Xcode](https://github.com/demetre19/SpeedyWatch/archive/refs/heads/main.zip)
 
 ## Android download and install
 
@@ -77,16 +127,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.28
-Version code: 28
+Version: 0.27
+Version code: 27
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,169,784 bytes
-SHA-256: 89ca077b8a542f2d3dd0c576ecb0853e8ce8cd1dfbd0f1b0bcabf29bb86697bd
+APK size: 106,127,635 bytes
+SHA-256: b88f41d6188f42024e9c3299be7d013d71398f9bd35842c20939d83ffd6611dd
 Signing: Android debug signing key
 ```
 
-This public v0.28 APK is debug-signed with APK Signature Scheme v2. Android now supports encrypted named MEGA bookmarks with one-tap folder reopening, draggable persisted PiP and lock controls, a collapsible speed bar, playback-neutral summaries, and a consistent single 8dp gap between adjacent modal controls. The complete Android unit suite and APK assembly passed against the exact release candidate. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.27 APK is debug-signed with APK Signature Scheme v2. It adds direct two-finger resizing for Android summary and follow-up text from 15sp to 30sp while preserving wrapping and vertical scrolling. The complete Android unit suite and APK assembly passed against the exact release candidate. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## iPhone source and build
 
