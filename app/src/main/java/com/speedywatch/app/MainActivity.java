@@ -19,6 +19,7 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Insets;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.Icon;
@@ -28,9 +29,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.InputType;
 import android.util.Rational;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
@@ -86,10 +89,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public final class MainActivity extends Activity {
     private static final String HOME_URL = "https://www.youtube.com/";
+    private static final String YOUTUBE_HISTORY_URL =
+            "https://www.youtube.com/feed/history";
+    private static final String YOUTUBE_WATCH_LATER_URL =
+            "https://www.youtube.com/playlist?list=WL";
     private static final int BACKGROUND = Color.rgb(15, 15, 15);
     private static final int PANEL = Color.rgb(30, 30, 30);
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
+    private static final long OMNI_DRAG_HOLD_MILLIS = 350L;
+    private static final long OMNI_EMPHASIS_MILLIS = 100L;
+    private static final float OMNI_PRESS_SCALE = 1.08f;
+    private static final float OMNI_DRAG_READY_SCALE = 1.25f;
     private static final int REQUEST_EXPORT_BACKUP = 4101;
     private static final int REQUEST_IMPORT_BACKUP = 4102;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 4001;
@@ -107,6 +118,7 @@ public final class MainActivity extends Activity {
     private final AtomicLong transcriptRequestCounter = new AtomicLong();
     private final SponsorBlockClient sponsorBlockClient = new SponsorBlockClient();
     private final AtomicLong sponsorBlockRequestCounter = new AtomicLong();
+    private final AtomicLong chapterRequestCounter = new AtomicLong();
     private SpeedyWatchSettings appSettings;
     private SavedSummaryStore savedSummaryStore;
     private MegaBookmarkStore megaBookmarkStore;
@@ -122,6 +134,8 @@ public final class MainActivity extends Activity {
     private Button watchPathUndoButton;
     private final Handler watchPathHandler = new Handler(Looper.getMainLooper());
     private final Runnable watchPathTick = this::pollWatchPath;
+    private final Handler chapterHandler = new Handler(Looper.getMainLooper());
+    private final Runnable chapterRefreshTick = this::refreshChapters;
     private final Handler pictureInPictureHandler = new Handler(Looper.getMainLooper());
     private final Runnable pictureInPictureTick = this::pollPictureInPictureState;
     private final Runnable pictureInPictureTransitionTimeout =
@@ -162,6 +176,18 @@ public final class MainActivity extends Activity {
     private FrameLayout screenLockShield;
     private ScreenLockButton screenLockButton;
     private ImageButton pictureInPictureButton;
+    private ImageButton omniButton;
+    private ImageButton previousChapterButton;
+    private ImageButton nextChapterButton;
+    private List<DescriptionChapters.Chapter> activeChapters = List.of();
+    private final RectF activeVideoBounds = new RectF();
+    private float pictureInPicturePinchStartSpan;
+    private boolean pictureInPicturePinchEligible;
+    private boolean pictureInPicturePinchTriggered;
+    private boolean mediaGestureConsumed;
+    private boolean chapterSwipeEligible;
+    private float chapterSwipeStartX;
+    private float chapterSwipeStartY;
     private boolean screenLocked;
     private int screenLockInsetLeft;
     private int screenLockInsetTop;
@@ -200,6 +226,7 @@ public final class MainActivity extends Activity {
         setContentView(appRoot);
         applySystemBarInsets(appRoot);
         initializeScreenLockOverlay();
+        initializeMediaGestures();
         registerPictureInPictureReceiver();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
@@ -268,6 +295,7 @@ public final class MainActivity extends Activity {
                 updateSelectedSiteForUrl(url);
                 clearObservedCaptionRequestForNavigation(url);
                 refreshSponsorSegments(url);
+                scheduleChapterRefresh();
                 if (activeWatchPath != null && !watchPathSourceMatches(url)) {
                     stopWatchPath(false);
                 }
@@ -449,6 +477,19 @@ public final class MainActivity extends Activity {
                 "Reload",
                 ignored -> webView.reload()
         ));
+        previousChapterButton = makeIconButton(
+                R.drawable.ic_previous_chapter,
+                "Previous chapter. You can also swipe left",
+                ignored -> navigateChapter(false)
+        );
+        navigation.addView(previousChapterButton);
+        nextChapterButton = makeIconButton(
+                R.drawable.ic_next_chapter,
+                "Next chapter. You can also swipe right",
+                ignored -> navigateChapter(true)
+        );
+        navigation.addView(nextChapterButton);
+        updateChapterButtons();
         navigation.addView(makeIconButton(
                 R.drawable.ic_subtitles,
                 "Video captions",
@@ -802,6 +843,7 @@ public final class MainActivity extends Activity {
     private void injectController() {
         webView.evaluateJavascript(controllerScript, ignored -> {
             applyControllerState();
+            scheduleChapterRefresh();
             refreshSponsorSegments(webView.getUrl());
             injectChineseTranslator();
             attemptPendingMegaResume();
@@ -839,6 +881,184 @@ public final class MainActivity extends Activity {
                     : statusLabel();
             statusText.setText(ready ? label : formatRate(selectedSpeed) + " | loading");
         });
+    }
+
+    private void scheduleChapterRefresh() {
+        chapterHandler.removeCallbacks(chapterRefreshTick);
+        chapterRequestCounter.incrementAndGet();
+        activeChapters = List.of();
+        updateChapterButtons();
+        chapterHandler.postDelayed(chapterRefreshTick, 800);
+        chapterHandler.postDelayed(chapterRefreshTick, 2500);
+    }
+
+    private void refreshChapters() {
+        requestChapterContext(null);
+    }
+
+    private void navigateChapter(boolean next) {
+        chapterHandler.removeCallbacks(chapterRefreshTick);
+        requestChapterContext(next);
+    }
+
+    private void requestChapterContext(Boolean navigateNext) {
+        String sourceUrl = webView.getUrl();
+        long requestId = chapterRequestCounter.incrementAndGet();
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.chapterContext() : null";
+        webView.evaluateJavascript(script, result -> {
+            if (requestId != chapterRequestCounter.get()
+                    || sourceUrl == null
+                    || !sourceUrl.equals(webView.getUrl())) {
+                return;
+            }
+            List<DescriptionChapters.Chapter> chapters = List.of();
+            double currentTime = Double.NaN;
+            try {
+                JSONObject context = new JSONObject(result == null ? "{}" : result);
+                String videoId = context.optString("videoId", "");
+                String description = context.optString("description", "");
+                double duration = context.optDouble("duration", Double.NaN);
+                currentTime = context.optDouble("currentTime", Double.NaN);
+                if (videoId.matches("[A-Za-z0-9_-]{11}")) {
+                    chapters = DescriptionChapters.parse(description, duration);
+                }
+            } catch (Exception ignored) {
+                // Missing or malformed page data means chapter controls stay unavailable.
+            }
+            activeChapters = chapters;
+            updateChapterButtons();
+            if (navigateNext == null) {
+                return;
+            }
+            DescriptionChapters.Chapter target =
+                    DescriptionChapters.target(chapters, currentTime, navigateNext);
+            if (target == null) {
+                String message = chapters.isEmpty()
+                        ? "No description chapters found"
+                        : (navigateNext ? "Already at the last chapter" : "Already at the first chapter");
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            seekToChapter(sourceUrl, target);
+        });
+    }
+
+    private void seekToChapter(String sourceUrl, DescriptionChapters.Chapter chapter) {
+        if (!sourceUrl.equals(webView.getUrl())) {
+            return;
+        }
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.seekTo("
+                + String.format(Locale.US, "%.3f", chapter.startSeconds)
+                + ") : false";
+        webView.evaluateJavascript(script, result -> {
+            if ("true".equals(result) && sourceUrl.equals(webView.getUrl())) {
+                Toast.makeText(
+                        this,
+                        "Chapter: " + chapter.title,
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+    }
+
+    private void updateChapterButtons() {
+        boolean available = !activeChapters.isEmpty();
+        if (previousChapterButton != null) {
+            previousChapterButton.setEnabled(available);
+            previousChapterButton.setAlpha(available ? 1f : 0.45f);
+        }
+        if (nextChapterButton != null) {
+            nextChapterButton.setEnabled(available);
+            nextChapterButton.setAlpha(available ? 1f : 0.45f);
+        }
+    }
+
+    private void initializeMediaGestures() {
+        webView.setOnTouchListener(this::handleMediaGesture);
+    }
+
+    private boolean handleMediaGesture(View ignored, MotionEvent event) {
+        if (screenLocked) {
+            return false;
+        }
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mediaGestureConsumed = false;
+            pictureInPicturePinchStartSpan = 0f;
+            pictureInPicturePinchEligible = false;
+            pictureInPicturePinchTriggered = false;
+            chapterSwipeStartX = event.getX();
+            chapterSwipeStartY = event.getY();
+            chapterSwipeEligible = DescriptionChapters.swipeStartsInActiveRegion(
+                    !activeChapters.isEmpty(),
+                    chapterSwipeStartY,
+                    webView.getHeight()
+            );
+        } else if (action == MotionEvent.ACTION_POINTER_DOWN
+                && event.getPointerCount() == 2) {
+            float focusX = (event.getX(0) + event.getX(1)) / 2f;
+            float focusY = (event.getY(0) + event.getY(1)) / 2f;
+            pictureInPicturePinchStartSpan = pictureInPicturePinchSpan(event);
+            pictureInPicturePinchEligible =
+                    SpeedyWatchSettings.PIP_CONTROL_PINCH.equals(
+                            appSettings.getPictureInPictureControl()
+                    )
+                    && pictureInPicturePlaybackActive
+                    && pictureInPicturePinchStartSpan >= dp(48)
+                    && activeVideoBounds.contains(focusX, focusY);
+            chapterSwipeEligible = false;
+        }
+
+        if (pictureInPicturePinchEligible
+                && !pictureInPicturePinchTriggered
+                && action == MotionEvent.ACTION_MOVE
+                && event.getPointerCount() >= 2
+                && pictureInPicturePinchSpan(event)
+                <= pictureInPicturePinchStartSpan * 0.72f) {
+            pictureInPicturePinchTriggered = true;
+            cancelWebViewGesture(event);
+            mediaGestureConsumed = true;
+            webView.post(MainActivity.this::enterPictureInPictureFromButton);
+        } else if (!mediaGestureConsumed
+                && chapterSwipeEligible
+                && action == MotionEvent.ACTION_MOVE
+                && event.getPointerCount() == 1) {
+            float deltaX = event.getX() - chapterSwipeStartX;
+            float deltaY = event.getY() - chapterSwipeStartY;
+            int swipeDirection = DescriptionChapters.swipeDirection(deltaX, deltaY, dp(72));
+            if (swipeDirection != 0) {
+                cancelWebViewGesture(event);
+                mediaGestureConsumed = true;
+                chapterSwipeEligible = false;
+                navigateChapter(swipeDirection > 0);
+            }
+        }
+
+        boolean consumed = mediaGestureConsumed;
+        if (action == MotionEvent.ACTION_POINTER_UP && !pictureInPicturePinchTriggered) {
+            pictureInPicturePinchEligible = false;
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            chapterSwipeEligible = false;
+            pictureInPicturePinchEligible = false;
+            mediaGestureConsumed = false;
+        }
+        return consumed;
+    }
+
+    private static float pictureInPicturePinchSpan(MotionEvent event) {
+        float deltaX = event.getX(0) - event.getX(1);
+        float deltaY = event.getY(0) - event.getY(1);
+        return (float) Math.hypot(deltaX, deltaY);
+    }
+
+    private void cancelWebViewGesture(MotionEvent event) {
+        MotionEvent cancel = MotionEvent.obtain(event);
+        cancel.setAction(MotionEvent.ACTION_CANCEL);
+        webView.onTouchEvent(cancel);
+        cancel.recycle();
     }
 
     private String statusLabel() {
@@ -2324,6 +2544,12 @@ public final class MainActivity extends Activity {
                 ignored -> enterPictureInPictureFromButton()
         );
         pictureInPictureButton.setAlpha(0.45f);
+        omniButton = makeIconButton(
+                R.drawable.ic_omni_control,
+                "Omnibutton. Swipe right for Next, left for Previous, up for YouTube History, or down for Watch Later. Hold to move; triple-tap to lock",
+                ignored -> {
+                }
+        );
         int buttonSize = dp(52);
         screenLockShield.addView(screenLockButton, new FrameLayout.LayoutParams(
                 buttonSize,
@@ -2335,8 +2561,14 @@ public final class MainActivity extends Activity {
                 buttonSize,
                 Gravity.TOP | Gravity.START
         ));
+        screenLockShield.addView(omniButton, new FrameLayout.LayoutParams(
+                buttonSize,
+                buttonSize,
+                Gravity.TOP | Gravity.START
+        ));
         screenLockButton.setOnTouchListener(new FloatingDragListener(false));
         pictureInPictureButton.setOnTouchListener(new FloatingDragListener(true));
+        omniButton.setOnTouchListener(new OmniButtonTouchListener());
         addContentView(screenLockShield, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -2368,18 +2600,35 @@ public final class MainActivity extends Activity {
             return;
         }
         screenLockShield.setVisibility(View.VISIBLE);
-        boolean lockEnabled = appSettings.isLockIconEnabled();
-        if (!lockEnabled) {
+        boolean omniEnabled = appSettings.isOmniButtonEnabled();
+        if (!appSettings.isLockIconEnabled() && !omniEnabled) {
             setScreenLocked(false);
         }
-        screenLockButton.setVisibility(lockEnabled ? View.VISIBLE : View.GONE);
-        pictureInPictureButton.setVisibility(screenLocked ? View.GONE : View.VISIBLE);
+        updateScreenLockButtonVisibility();
+        pictureInPictureButton.setVisibility(shouldShowPictureInPictureButton()
+                ? View.VISIBLE : View.GONE);
+        omniButton.setVisibility(!screenLocked && omniEnabled ? View.VISIBLE : View.GONE);
         positionFloatingControls();
         screenLockShield.bringToFront();
     }
 
+    private void updateScreenLockButtonVisibility() {
+        boolean visible = screenLocked
+                || (appSettings.isLockIconEnabled() && !appSettings.isOmniButtonEnabled());
+        screenLockButton.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private boolean shouldShowPictureInPictureButton() {
+        return !screenLocked
+                && SpeedyWatchSettings.PIP_CONTROL_BUTTON.equals(
+                        appSettings.getPictureInPictureControl()
+                );
+    }
+
     private void positionFloatingControls() {
-        if (screenLockButton == null || pictureInPictureButton == null) {
+        if (screenLockButton == null
+                || pictureInPictureButton == null
+                || omniButton == null) {
             return;
         }
         screenLockShield.post(() -> {
@@ -2389,15 +2638,19 @@ public final class MainActivity extends Activity {
             int safeGap = dp(4);
             int minimumX = screenLockInsetLeft + safeGap;
             int minimumY = screenLockInsetTop + safeGap;
-            int maximumX = Math.max(
-                    minimumX,
-                    screenLockShield.getWidth() - screenLockInsetRight
-                            - screenLockButton.getWidth() - safeGap
+            int maximumX = FloatingControlPosition.maximumCoordinate(
+                    screenLockShield.getWidth(),
+                    screenLockInsetRight,
+                    omniButton.getWidth(),
+                    safeGap,
+                    minimumX
             );
-            int maximumY = Math.max(
-                    minimumY,
-                    screenLockShield.getHeight() - screenLockInsetBottom
-                            - screenLockButton.getHeight() - safeGap
+            int maximumY = FloatingControlPosition.maximumCoordinate(
+                    screenLockShield.getHeight(),
+                    screenLockInsetBottom,
+                    omniButton.getHeight(),
+                    safeGap,
+                    minimumY
             );
             int controlsHeight = speedControls == null ? 0 : speedControls.getHeight();
             int defaultLockX = maximumX;
@@ -2427,6 +2680,19 @@ public final class MainActivity extends Activity {
                     maximumY,
                     maximumX,
                     defaultPipY
+            );
+            int defaultOmniY = minimumY
+                    + Math.round((maximumY - minimumY) * 0.38f);
+            positionFloatingControl(
+                    omniButton,
+                    appSettings.getOmniButtonPositionX(),
+                    appSettings.getOmniButtonPositionY(),
+                    minimumX,
+                    minimumY,
+                    maximumX,
+                    maximumY,
+                    maximumX,
+                    defaultOmniY
             );
             updateScreenLockHoldDirection();
         });
@@ -2460,20 +2726,26 @@ public final class MainActivity extends Activity {
         int safeGap = dp(4);
         int minimumX = screenLockInsetLeft + safeGap;
         int minimumY = screenLockInsetTop + safeGap;
-        int maximumX = Math.max(
-                minimumX,
-                screenLockShield.getWidth() - screenLockInsetRight
-                        - control.getWidth() - safeGap
+        int maximumX = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getWidth(),
+                screenLockInsetRight,
+                control.getWidth(),
+                safeGap,
+                minimumX
         );
-        int maximumY = Math.max(
-                minimumY,
-                screenLockShield.getHeight() - screenLockInsetBottom
-                        - control.getHeight() - safeGap
+        int maximumY = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getHeight(),
+                screenLockInsetBottom,
+                control.getHeight(),
+                safeGap,
+                minimumY
         );
         FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) control.getLayoutParams();
         float x = FloatingControlPosition.fraction(params.leftMargin, minimumX, maximumX);
         float y = FloatingControlPosition.fraction(params.topMargin, minimumY, maximumY);
-        if (pictureInPicture) {
+        if (control == omniButton) {
+            appSettings.setOmniButtonPosition(x, y);
+        } else if (pictureInPicture) {
             appSettings.setPictureInPicturePosition(x, y);
         } else {
             appSettings.setLockPosition(x, y);
@@ -2496,6 +2768,120 @@ public final class MainActivity extends Activity {
                 dp(moveDown ? 18 : -18)
         );
     }
+
+    private void moveFloatingControl(
+            View view,
+            int startLeft,
+            int startTop,
+            float deltaX,
+            float deltaY
+    ) {
+        int safeGap = dp(4);
+        int minimumX = screenLockInsetLeft + safeGap;
+        int minimumY = screenLockInsetTop + safeGap;
+        int maximumX = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getWidth(),
+                screenLockInsetRight,
+                view.getWidth(),
+                safeGap,
+                minimumX
+        );
+        int maximumY = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getHeight(),
+                screenLockInsetBottom,
+                view.getHeight(),
+                safeGap,
+                minimumY
+        );
+        FrameLayout.LayoutParams moveParams =
+                (FrameLayout.LayoutParams) view.getLayoutParams();
+        moveParams.leftMargin = FloatingControlPosition.clamp(
+                Math.round(startLeft + deltaX), minimumX, maximumX
+        );
+        moveParams.topMargin = FloatingControlPosition.clamp(
+                Math.round(startTop + deltaY), minimumY, maximumY
+        );
+        view.setLayoutParams(moveParams);
+        updateScreenLockHoldDirection();
+    }
+    private void animateOmniButtonEmphasis(View view, float scale) {
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) view.getLayoutParams();
+        int safeGap = dp(4);
+        int minimumX = screenLockInsetLeft + safeGap;
+        int minimumY = screenLockInsetTop + safeGap;
+        int maximumX = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getWidth(),
+                screenLockInsetRight,
+                view.getWidth(),
+                safeGap,
+                minimumX
+        );
+        int maximumY = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getHeight(),
+                screenLockInsetBottom,
+                view.getHeight(),
+                safeGap,
+                minimumY
+        );
+        float translationX = FloatingControlPosition.expansionTranslation(
+                params.leftMargin,
+                view.getWidth(),
+                scale,
+                minimumX,
+                maximumX
+        );
+        float translationY = FloatingControlPosition.expansionTranslation(
+                params.topMargin,
+                view.getHeight(),
+                scale,
+                minimumY,
+                maximumY
+        );
+        view.animate().cancel();
+        view.animate()
+                .scaleX(scale)
+                .scaleY(scale)
+                .translationX(translationX)
+                .translationY(translationY)
+                .setDuration(OMNI_EMPHASIS_MILLIS)
+                .start();
+    }
+
+    private void updateOmniButtonDragTranslation(View view) {
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) view.getLayoutParams();
+        int safeGap = dp(4);
+        int minimumX = screenLockInsetLeft + safeGap;
+        int minimumY = screenLockInsetTop + safeGap;
+        int maximumX = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getWidth(),
+                screenLockInsetRight,
+                view.getWidth(),
+                safeGap,
+                minimumX
+        );
+        int maximumY = FloatingControlPosition.maximumCoordinate(
+                screenLockShield.getHeight(),
+                screenLockInsetBottom,
+                view.getHeight(),
+                safeGap,
+                minimumY
+        );
+        view.setTranslationX(FloatingControlPosition.expansionTranslation(
+                params.leftMargin,
+                view.getWidth(),
+                OMNI_DRAG_READY_SCALE,
+                minimumX,
+                maximumX
+        ));
+        view.setTranslationY(FloatingControlPosition.expansionTranslation(
+                params.topMargin,
+                view.getHeight(),
+                OMNI_DRAG_READY_SCALE,
+                minimumY,
+                maximumY
+        ));
+    }
+
 
     private final class FloatingDragListener implements View.OnTouchListener {
         private final boolean pictureInPicture;
@@ -2536,29 +2922,7 @@ public final class MainActivity extends Activity {
                     if (!dragging) {
                         return false;
                     }
-                    int safeGap = dp(4);
-                    int minimumX = screenLockInsetLeft + safeGap;
-                    int minimumY = screenLockInsetTop + safeGap;
-                    int maximumX = Math.max(
-                            minimumX,
-                            screenLockShield.getWidth() - screenLockInsetRight
-                                    - view.getWidth() - safeGap
-                    );
-                    int maximumY = Math.max(
-                            minimumY,
-                            screenLockShield.getHeight() - screenLockInsetBottom
-                                    - view.getHeight() - safeGap
-                    );
-                    FrameLayout.LayoutParams moveParams =
-                            (FrameLayout.LayoutParams) view.getLayoutParams();
-                    moveParams.leftMargin = FloatingControlPosition.clamp(
-                            Math.round(startLeft + deltaX), minimumX, maximumX
-                    );
-                    moveParams.topMargin = FloatingControlPosition.clamp(
-                            Math.round(startTop + deltaY), minimumY, maximumY
-                    );
-                    view.setLayoutParams(moveParams);
-                    updateScreenLockHoldDirection();
+                    moveFloatingControl(view, startLeft, startTop, deltaX, deltaY);
                     return true;
                 case MotionEvent.ACTION_UP:
                     if (!dragging) {
@@ -2582,12 +2946,145 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private final class OmniButtonTouchListener implements View.OnTouchListener {
+        private final Handler handler = new Handler(Looper.getMainLooper());
+        private final int touchSlop = ViewConfiguration.get(MainActivity.this)
+                .getScaledTouchSlop();
+        private final int swipeDistance = dp(16);
+        private float downRawX;
+        private float downRawY;
+        private int startLeft;
+        private int startTop;
+        private boolean pointerDown;
+        private boolean movedBeforeLongPress;
+        private boolean dragging;
+        private View activeView;
+        private int tapCount;
+        private long previousTapAt = -1L;
+        private final Runnable beginDrag = () -> {
+            if (!pointerDown || movedBeforeLongPress || activeView == null) {
+                return;
+            }
+            dragging = true;
+            activeView.setPressed(false);
+            activeView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            animateOmniButtonEmphasis(activeView, OMNI_DRAG_READY_SCALE);
+        };
+
+        @Override
+        public boolean onTouch(View view, MotionEvent event) {
+            if (screenLocked) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    FrameLayout.LayoutParams params =
+                            (FrameLayout.LayoutParams) view.getLayoutParams();
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    startLeft = params.leftMargin;
+                    startTop = params.topMargin;
+                    pointerDown = true;
+                    movedBeforeLongPress = false;
+                    dragging = false;
+                    activeView = view;
+                    animateOmniButtonEmphasis(view, OMNI_PRESS_SCALE);
+                    handler.postDelayed(beginDrag, OMNI_DRAG_HOLD_MILLIS);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float deltaX = event.getRawX() - downRawX;
+                    float deltaY = event.getRawY() - downRawY;
+                    if (!dragging
+                            && !movedBeforeLongPress
+                            && Math.hypot(deltaX, deltaY) >= touchSlop) {
+                        movedBeforeLongPress = true;
+                        handler.removeCallbacks(beginDrag);
+                        animateOmniButtonEmphasis(view, 1f);
+                    }
+                    if (dragging) {
+                        moveFloatingControl(view, startLeft, startTop, deltaX, deltaY);
+                        updateOmniButtonDragTranslation(view);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    pointerDown = false;
+                    handler.removeCallbacks(beginDrag);
+                    animateOmniButtonEmphasis(view, 1f);
+                    if (dragging) {
+                        dragging = false;
+                        activeView = null;
+                        persistFloatingControlPosition(view, false);
+                        return true;
+                    }
+                    activeView = null;
+                    OmniButtonGesture.Action action = OmniButtonGesture.action(
+                            event.getRawX() - downRawX,
+                            event.getRawY() - downRawY,
+                            swipeDistance
+                    );
+                    if (action != OmniButtonGesture.Action.NONE) {
+                        tapCount = 0;
+                        previousTapAt = -1L;
+                        performOmniButtonAction(action);
+                        return true;
+                    }
+                    long tapAt = SystemClock.uptimeMillis();
+                    tapCount = OmniButtonGesture.nextTapCount(
+                            tapCount,
+                            previousTapAt,
+                            tapAt,
+                            ViewConfiguration.getDoubleTapTimeout()
+                    );
+                    previousTapAt = tapAt;
+                    if (tapCount == 3) {
+                        tapCount = 0;
+                        previousTapAt = -1L;
+                        setScreenLocked(true);
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    pointerDown = false;
+                    dragging = false;
+                    activeView = null;
+                    handler.removeCallbacks(beginDrag);
+                    animateOmniButtonEmphasis(view, 1f);
+                    positionFloatingControls();
+                    return true;
+                default:
+                    return true;
+            }
+        }
+    }
+
+    private void performOmniButtonAction(OmniButtonGesture.Action action) {
+        switch (action) {
+            case PREVIOUS_CHAPTER:
+                navigateChapter(false);
+                break;
+            case NEXT_CHAPTER:
+                navigateChapter(true);
+                break;
+            case YOUTUBE_HISTORY:
+                loadSupportedUrl(YOUTUBE_HISTORY_URL);
+                break;
+            case WATCH_LATER:
+                loadSupportedUrl(YOUTUBE_WATCH_LATER_URL);
+                break;
+            default:
+                break;
+        }
+    }
+
 
     private void setScreenLocked(boolean locked) {
         screenLocked = locked;
         screenLockShield.setClickable(locked);
         screenLockButton.setLocked(locked);
-        pictureInPictureButton.setVisibility(locked ? View.GONE : View.VISIBLE);
+        updateScreenLockButtonVisibility();
+        pictureInPictureButton.setVisibility(shouldShowPictureInPictureButton()
+                ? View.VISIBLE : View.GONE);
+        omniButton.setVisibility(!locked && appSettings.isOmniButtonEnabled()
+                ? View.VISIBLE : View.GONE);
         positionFloatingControls();
         if (screenLockShield.getVisibility() == View.VISIBLE) {
             screenLockShield.bringToFront();
@@ -2688,7 +3185,9 @@ public final class MainActivity extends Activity {
                 JSONObject state = new JSONObject(result == null ? "{}" : result);
                 active = state.optBoolean("playing", false);
                 sourceRect = pictureInPictureSourceRect();
+                updateActiveVideoBounds(state);
             } catch (Exception ignored) {
+                activeVideoBounds.setEmpty();
                 // A page without the current controller is not eligible for PiP.
             }
             pictureInPicturePlaybackActive = active;
@@ -2702,6 +3201,36 @@ public final class MainActivity extends Activity {
                 pictureInPictureHandler.postDelayed(pictureInPictureTick, 750);
             }
         });
+    }
+
+    private void updateActiveVideoBounds(JSONObject state) {
+        double viewportWidth = state.optDouble("viewportWidth", Double.NaN);
+        double viewportHeight = state.optDouble("viewportHeight", Double.NaN);
+        if (!state.optBoolean("video", false)
+                || !Double.isFinite(viewportWidth)
+                || !Double.isFinite(viewportHeight)
+                || viewportWidth <= 0
+                || viewportHeight <= 0
+                || webView.getWidth() <= 0
+                || webView.getHeight() <= 0) {
+            activeVideoBounds.setEmpty();
+            return;
+        }
+        float scaleX = (float) (webView.getWidth() / viewportWidth);
+        float scaleY = (float) (webView.getHeight() / viewportHeight);
+        float left = (float) state.optDouble("left", 0) * scaleX;
+        float top = (float) state.optDouble("top", 0) * scaleY;
+        float right = (float) state.optDouble("right", 0) * scaleX;
+        float bottom = (float) state.optDouble("bottom", 0) * scaleY;
+        left = Math.max(0, Math.min(webView.getWidth(), left));
+        top = Math.max(0, Math.min(webView.getHeight(), top));
+        right = Math.max(0, Math.min(webView.getWidth(), right));
+        bottom = Math.max(0, Math.min(webView.getHeight(), bottom));
+        if (right <= left || bottom <= top) {
+            activeVideoBounds.setEmpty();
+            return;
+        }
+        activeVideoBounds.set(left, top, right, bottom);
     }
     private Rect pictureInPictureSourceRect() {
         Rect webBounds = new Rect();
@@ -2985,6 +3514,7 @@ public final class MainActivity extends Activity {
     protected void onPause() {
         activityResumed = false;
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        chapterHandler.removeCallbacks(chapterRefreshTick);
         watchPathForeground = false;
         captureMegaBookmarkPosition(webView.getUrl());
         megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
@@ -3026,6 +3556,7 @@ public final class MainActivity extends Activity {
         scheduleWatchPathTick();
         pictureInPictureHandler.post(pictureInPictureTick);
         megaBookmarkPositionHandler.post(megaBookmarkPositionTick);
+        scheduleChapterRefresh();
     }
 
     @Override
@@ -3038,6 +3569,7 @@ public final class MainActivity extends Activity {
         megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
         ioExecutor.shutdownNow();
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        chapterHandler.removeCallbacks(chapterRefreshTick);
         if (pictureInPictureReceiverRegistered) {
             unregisterReceiver(pictureInPictureReceiver);
             pictureInPictureReceiverRegistered = false;

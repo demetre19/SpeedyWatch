@@ -42,6 +42,12 @@ final class SpeedyWatchSettings {
     private static final String LOCK_POSITION_Y = "lock_position_y";
     private static final String PIP_POSITION_X = "pip_position_x";
     private static final String PIP_POSITION_Y = "pip_position_y";
+    private static final String PICTURE_IN_PICTURE_CONTROL = "picture_in_picture_control";
+    private static final String OMNI_BUTTON_ENABLED = "omni_button_enabled";
+    private static final String OMNI_POSITION_X = "omni_position_x";
+    private static final String OMNI_POSITION_Y = "omni_position_y";
+    static final String PIP_CONTROL_BUTTON = "button";
+    static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
     static final String PROFILE_CAREFUL = "careful";
     static final String PROFILE_LECTURE = "lecture";
@@ -230,6 +236,35 @@ final class SpeedyWatchSettings {
         preferences.edit().putBoolean(LOCK_ICON_ENABLED, enabled).apply();
     }
 
+    String getPictureInPictureControl() {
+        String control = preferences.getString(
+                PICTURE_IN_PICTURE_CONTROL,
+                PIP_CONTROL_BUTTON
+        );
+        return isPictureInPictureControl(control) ? control : PIP_CONTROL_BUTTON;
+    }
+
+    void setPictureInPictureControl(String control) {
+        preferences.edit()
+                .putString(
+                        PICTURE_IN_PICTURE_CONTROL,
+                        isPictureInPictureControl(control) ? control : PIP_CONTROL_BUTTON
+                )
+                .apply();
+    }
+
+    static boolean isPictureInPictureControl(String control) {
+        return PIP_CONTROL_BUTTON.equals(control) || PIP_CONTROL_PINCH.equals(control);
+    }
+
+    boolean isOmniButtonEnabled() {
+        return preferences.getBoolean(OMNI_BUTTON_ENABLED, false);
+    }
+
+    void setOmniButtonEnabled(boolean enabled) {
+        preferences.edit().putBoolean(OMNI_BUTTON_ENABLED, enabled).apply();
+    }
+
     boolean areSpeedControlsCollapsed() {
         return preferences.getBoolean(SPEED_CONTROLS_COLLAPSED, false);
     }
@@ -260,6 +295,18 @@ final class SpeedyWatchSettings {
 
     void setPictureInPicturePosition(float x, float y) {
         savePosition(PIP_POSITION_X, PIP_POSITION_Y, x, y);
+    }
+
+    float getOmniButtonPositionX() {
+        return savedFraction(OMNI_POSITION_X);
+    }
+
+    float getOmniButtonPositionY() {
+        return savedFraction(OMNI_POSITION_Y);
+    }
+
+    void setOmniButtonPosition(float x, float y) {
+        savePosition(OMNI_POSITION_X, OMNI_POSITION_Y, x, y);
     }
 
     static boolean isSavedPosition(float value) {
@@ -368,6 +415,7 @@ final class SpeedyWatchSettings {
             String watchPath,
             double defaultSpeed,
             boolean lockEnabled,
+            String pictureInPictureControl,
             String playbackProfile,
             boolean adaptiveEnabled,
             double adaptiveBoost,
@@ -376,7 +424,10 @@ final class SpeedyWatchSettings {
             float lockPositionX,
             float lockPositionY,
             float pictureInPicturePositionX,
-            float pictureInPicturePositionY
+            float pictureInPicturePositionY,
+            boolean omniButtonEnabled,
+            float omniButtonPositionX,
+            float omniButtonPositionY
     ) {
         String normalizedModel = modelId == null ? "" : modelId.trim();
         if (normalizedModel.length() > 300
@@ -390,10 +441,13 @@ final class SpeedyWatchSettings {
                 || !Double.isFinite(adaptiveBoost)
                 || adaptiveBoost < 0.1 || adaptiveBoost > 1.5
                 || !isMp3Quality(mp3Quality)
+                || !isPictureInPictureControl(pictureInPictureControl)
                 || !isSavedPosition(lockPositionX)
                 || !isSavedPosition(lockPositionY)
                 || !isSavedPosition(pictureInPicturePositionX)
-                || !isSavedPosition(pictureInPicturePositionY)) {
+                || !isSavedPosition(pictureInPicturePositionY)
+                || !isSavedPosition(omniButtonPositionX)
+                || !isSavedPosition(omniButtonPositionY)) {
             return false;
         }
         SharedPreferences.Editor editor = preferences.edit()
@@ -404,15 +458,19 @@ final class SpeedyWatchSettings {
                 .putString(WATCH_PATH, watchPath)
                 .putLong(DEFAULT_PLAYBACK_SPEED, Double.doubleToRawLongBits(defaultSpeed))
                 .putBoolean(LOCK_ICON_ENABLED, lockEnabled)
+                .putString(PICTURE_IN_PICTURE_CONTROL, pictureInPictureControl)
                 .putString(PLAYBACK_PROFILE, playbackProfile)
                 .putBoolean(ADAPTIVE_SPEED_ENABLED, adaptiveEnabled)
                 .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(adaptiveBoost))
                 .putString(DEFAULT_MP3_QUALITY, mp3Quality)
-                .putBoolean(SPEED_CONTROLS_COLLAPSED, speedControlsCollapsed);
+                .putBoolean(SPEED_CONTROLS_COLLAPSED, speedControlsCollapsed)
+                .putBoolean(OMNI_BUTTON_ENABLED, omniButtonEnabled);
         restorePosition(editor, LOCK_POSITION_X, lockPositionX);
         restorePosition(editor, LOCK_POSITION_Y, lockPositionY);
         restorePosition(editor, PIP_POSITION_X, pictureInPicturePositionX);
         restorePosition(editor, PIP_POSITION_Y, pictureInPicturePositionY);
+        restorePosition(editor, OMNI_POSITION_X, omniButtonPositionX);
+        restorePosition(editor, OMNI_POSITION_Y, omniButtonPositionY);
         return editor.commit();
     }
 

@@ -72,6 +72,10 @@ final class SettingsDialog {
     private String defaultMp3Quality;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
+    private Button pictureInPictureControlButton;
+    private String pictureInPictureControl;
+    private Button omniButtonToggleButton;
+    private boolean omniButtonEnabled;
     private Button playbackProfileButton;
     private Button adaptiveSpeedButton;
     private String playbackProfile;
@@ -240,10 +244,46 @@ final class SettingsDialog {
             updateLockIconButton();
         });
         updateLockIconButton();
-        content.addView(lockIconToggleButton, matchWrap(0, dp(6)));
+        content.addView(lockIconToggleButton, matchWrap(0, 0));
         content.addView(
-                text("Shown bottom-right above the speed controls.", 12, MUTED),
-                matchWrap(dp(2), dp(12))
+                text("Shown bottom-right above the speed controls unless Omnibutton is on.", 12, MUTED),
+                matchWrap(dp(8), 0)
+        );
+        pictureInPictureControl = settings.getPictureInPictureControl();
+        pictureInPictureControlButton = button("");
+        pictureInPictureControlButton.setOnClickListener(ignored -> {
+            pictureInPictureControl = SpeedyWatchSettings.PIP_CONTROL_BUTTON.equals(
+                    pictureInPictureControl
+            )
+                    ? SpeedyWatchSettings.PIP_CONTROL_PINCH
+                    : SpeedyWatchSettings.PIP_CONTROL_BUTTON;
+            updatePictureInPictureControlButton();
+        });
+        updatePictureInPictureControlButton();
+        content.addView(pictureInPictureControlButton, matchWrap(dp(8), 0));
+        content.addView(
+                text(
+                        "Choose the draggable button or pinch inward with two fingers over an active video.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), dp(12))
+        );
+        omniButtonEnabled = settings.isOmniButtonEnabled();
+        omniButtonToggleButton = button("");
+        omniButtonToggleButton.setOnClickListener(ignored -> {
+            omniButtonEnabled = !omniButtonEnabled;
+            updateOmniButtonToggle();
+        });
+        updateOmniButtonToggle();
+        content.addView(omniButtonToggleButton, matchWrap(0, 0));
+        content.addView(
+                text(
+                        "Swipe the button right for Next, left for Previous, up for YouTube History, or down for Watch Later. Long-press before dragging to move it; triple-tap locks the screen.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), dp(12))
         );
 
         content.addView(text("Downloads", 13, MUTED), matchWrap(dp(2), dp(8)));
@@ -830,6 +870,20 @@ final class SettingsDialog {
         lockIconToggleButton.setText(lockIconEnabled ? "Lock icon: On" : "Lock icon: Off");
     }
 
+    private void updatePictureInPictureControlButton() {
+        pictureInPictureControlButton.setText(
+                SpeedyWatchSettings.PIP_CONTROL_PINCH.equals(pictureInPictureControl)
+                        ? "Picture-in-Picture control: Pinch gesture"
+                        : "Picture-in-Picture control: Floating button"
+        );
+    }
+
+    private void updateOmniButtonToggle() {
+        omniButtonToggleButton.setText(
+                omniButtonEnabled ? "Omnibutton: On" : "Omnibutton: Off"
+        );
+    }
+
     private void updateDefaultMp3QualityButton() {
         defaultMp3QualityButton.setText(
                 "Default MP3 quality: "
@@ -859,6 +913,8 @@ final class SettingsDialog {
         settings.setDefaultPlaybackSpeed(defaultSpeed);
         settings.setDefaultMp3Quality(defaultMp3Quality);
         settings.setLockIconEnabled(lockIconEnabled);
+        settings.setPictureInPictureControl(pictureInPictureControl);
+        settings.setOmniButtonEnabled(omniButtonEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,

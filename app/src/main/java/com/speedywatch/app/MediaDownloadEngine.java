@@ -363,6 +363,7 @@ final class MediaDownloadEngine {
         }
         String boundedUserAgent = boundedHeaderValue(userAgent, 512);
         if (site != SupportedSite.BILIBILI
+                && site != SupportedSite.FACEBOOK
                 && site != SupportedSite.SOUNDCLOUD
                 && !boundedUserAgent.isEmpty()) {
             request.addOption("--user-agent", boundedUserAgent);

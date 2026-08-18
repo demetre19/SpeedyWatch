@@ -841,7 +841,6 @@ public final class SpeedyWatchDownloadService extends Service {
         SupportedSite site = SupportedSite.forUrl(sourceUrl);
         return site == SupportedSite.VIMEO
                 || site == SupportedSite.X
-                || site == SupportedSite.FACEBOOK
                 || site == SupportedSite.LOOM;
     }
     static String targetUrlForAttempt(

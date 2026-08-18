@@ -25,4 +25,30 @@ public final class FloatingControlPositionTest {
         assertEquals(40, FloatingControlPosition.resolve(0.5f, 40, 40, 80));
         assertEquals(0f, FloatingControlPosition.fraction(80, 40, 40), 0.0001f);
     }
+    @Test
+    public void maximumCoordinate_keepsWholeControlInsideSafeViewport() {
+        assertEquals(933, FloatingControlPosition.maximumCoordinate(
+                1080, 0, 137, 10, 10
+        ));
+        assertEquals(909, FloatingControlPosition.maximumCoordinate(
+                1080, 24, 137, 10, 10
+        ));
+        assertEquals(40, FloatingControlPosition.maximumCoordinate(
+                100, 30, 80, 20, 40
+        ));
+    }
+    @Test
+    public void expansionTranslation_keepsGrowthInsideSafeViewport() {
+        assertEquals(17.125f, FloatingControlPosition.expansionTranslation(
+                10, 137, 1.25f, 10, 933
+        ), 0.0001f);
+        assertEquals(0f, FloatingControlPosition.expansionTranslation(
+                400, 137, 1.25f, 10, 933
+        ), 0.0001f);
+        assertEquals(-17.125f, FloatingControlPosition.expansionTranslation(
+                933, 137, 1.25f, 10, 933
+        ), 0.0001f);
+    }
+
+
 }

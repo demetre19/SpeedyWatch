@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.27**, debug-signed |
+| Current public APK: **v0.29**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK remains v0.27.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.29.
 
 ### Watch at your speed
 
@@ -53,7 +53,6 @@ Reach the useful part sooner. Keep the pace that works for you.
 
 The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Swipe right for the next chapter, left for the previous chapter, up for YouTube History, or down for Watch Later. Triple-tap it to lock the screen; hold briefly to move it wherever it feels natural.
 
-> **Coming in v0.28:** Omnibutton is still in device testing and is not part of the current public v0.27 APK.
 
 ### Skip the dead time
 
@@ -141,7 +140,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.27 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.29 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -159,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.27
-Version code: 27
+Version: 0.29
+Version code: 29
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,127,635 bytes
-SHA-256: b88f41d6188f42024e9c3299be7d013d71398f9bd35842c20939d83ffd6611dd
+APK size: 106,194,666 bytes
+SHA-256: ca3383dc348f61b877f1b966a1bd371e8dc69290859207973f861002fb1c4fc6
 Signing: Android debug signing key
 ```
 
-This public v0.27 APK is debug-signed with APK Signature Scheme v2. It adds direct two-finger resizing for Android summary and follow-up text from 15sp to 30sp while preserving wrapping and vertical scrolling. The complete Android unit suite and APK assembly passed against the exact release candidate. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.29 APK is debug-signed with APK Signature Scheme v2. It adds the draggable Omnibutton, compact YouTube chapter navigation with guarded page swipes, persistent floating-control positions, MEGA bookmark folder naming, and reliable Facebook reel downloads that preserve MP4 video and audio. The complete Android unit suite and APK assembly passed against the exact release candidate, and the reported Facebook reel completed through the Android app on the API 36 emulator as a playable MP4. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## Legacy mobile source
 

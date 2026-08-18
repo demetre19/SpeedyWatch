@@ -27,6 +27,7 @@ final class AppBackup {
                 .put("defaultPlaybackSpeed", settings.getDefaultPlaybackSpeed())
                 .put("defaultMp3Quality", settings.getDefaultMp3Quality())
                 .put("lockIconEnabled", settings.isLockIconEnabled())
+                .put("pictureInPictureControl", settings.getPictureInPictureControl())
                 .put("playbackProfile", settings.getPlaybackProfile())
                 .put("adaptiveSpeedEnabled", settings.isAdaptiveSpeedEnabled())
                 .put("adaptiveSpeedBoost", settings.getAdaptiveSpeedBoost())
@@ -35,6 +36,9 @@ final class AppBackup {
                 .put("lockPositionY", settings.getLockPositionY())
                 .put("pictureInPicturePositionX", settings.getPictureInPicturePositionX())
                 .put("pictureInPicturePositionY", settings.getPictureInPicturePositionY())
+                .put("omniButtonEnabled", settings.isOmniButtonEnabled())
+                .put("omniButtonPositionX", settings.getOmniButtonPositionX())
+                .put("omniButtonPositionY", settings.getOmniButtonPositionY())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -86,6 +90,10 @@ final class AppBackup {
                 SpeedyWatchSettings.MP3_QUALITY_STANDARD
         );
         boolean lockEnabled = preferences.optBoolean("lockIconEnabled", true);
+        String pictureInPictureControl = preferences.optString(
+                "pictureInPictureControl",
+                settings.getPictureInPictureControl()
+        );
         String playbackProfile = preferences.optString(
                 "playbackProfile", SpeedyWatchSettings.PROFILE_NORMAL);
         boolean adaptiveEnabled = preferences.optBoolean("adaptiveSpeedEnabled", false);
@@ -113,6 +121,20 @@ final class AppBackup {
                 preferences,
                 "pictureInPicturePositionY",
                 settings.getPictureInPicturePositionY()
+        );
+        boolean omniButtonEnabled = preferences.optBoolean(
+                "omniButtonEnabled",
+                settings.isOmniButtonEnabled()
+        );
+        float omniButtonPositionX = optionalSavedPosition(
+                preferences,
+                "omniButtonPositionX",
+                settings.getOmniButtonPositionX()
+        );
+        float omniButtonPositionY = optionalSavedPosition(
+                preferences,
+                "omniButtonPositionY",
+                settings.getOmniButtonPositionY()
         );
         if (!Double.isFinite(speed) || speed < 0.25 || speed > 4) {
             throw new JSONException("Backup playback speed is invalid");
@@ -156,6 +178,7 @@ final class AppBackup {
                 watchPath,
                 speed,
                 lockEnabled,
+                pictureInPictureControl,
                 playbackProfile,
                 adaptiveEnabled,
                 adaptiveBoost,
@@ -164,7 +187,10 @@ final class AppBackup {
                 lockPositionX,
                 lockPositionY,
                 pictureInPicturePositionX,
-                pictureInPicturePositionY
+                pictureInPicturePositionY,
+                omniButtonEnabled,
+                omniButtonPositionX,
+                omniButtonPositionY
         )) {
             try {
                 store.replaceAll(previous);

@@ -21,6 +21,8 @@ public final class MediaDownloadEngineTest {
     private static final String VIMEO_PAGE = "https://vimeo.com/980152407";
     private static final String SOUNDCLOUD_TRACK =
             "https://soundcloud.com/monstercat/pegboard-nerds-disconnected";
+    private static final String FACEBOOK_REEL =
+            "https://www.facebook.com/share/r/1Dwb7QYGu1/";
     private static final String VIMEO_MANIFEST =
             "https://vod.vimeocdn.com/video/master.m3u8?token=signed";
 
@@ -118,6 +120,13 @@ public final class MediaDownloadEngineTest {
                         true
                 )
         );
+        assertEquals(
+                List.of(
+                        SpeedyWatchDownloadService.AttemptSource.PAGE,
+                        SpeedyWatchDownloadService.AttemptSource.CAPTURED_MEDIA
+                ),
+                SpeedyWatchDownloadService.attemptSequence(FACEBOOK_REEL, true)
+        );
     }
 
     @Test
@@ -208,6 +217,27 @@ public final class MediaDownloadEngineTest {
         int refererOption = command.indexOf("--referer");
         assertTrue(refererOption >= 0);
         assertEquals(SOUNDCLOUD_TRACK, command.get(refererOption + 1));
+    }
+
+    @Test
+    public void facebookRequestDoesNotOverrideYtDlpUserAgent() throws Exception {
+        File directory = temporaryFolder.newFolder("facebook-request");
+        YoutubeDLRequest request = SpeedyWatchDownloadService.buildRequest(
+                FACEBOOK_REEL,
+                SpeedyWatchDownloadService.KIND_MP4,
+                720,
+                SpeedyWatchSettings.MP3_QUALITY_STANDARD,
+                "Android WebView",
+                FACEBOOK_REEL,
+                null,
+                directory
+        );
+
+        List<String> command = request.buildCommand();
+        assertFalse(command.contains("--user-agent"));
+        int refererOption = command.indexOf("--referer");
+        assertTrue(refererOption >= 0);
+        assertEquals(FACEBOOK_REEL, command.get(refererOption + 1));
     }
 
 

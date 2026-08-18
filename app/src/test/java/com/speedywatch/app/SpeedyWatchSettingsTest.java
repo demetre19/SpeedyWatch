@@ -44,4 +44,18 @@ public final class SpeedyWatchSettingsTest {
         assertFalse(SpeedyWatchSettings.isSavedPosition(1.1f));
         assertFalse(SpeedyWatchSettings.isSavedPosition(Float.NaN));
     }
+
+    @Test
+    public void pictureInPictureControl_acceptsOnlyButtonOrPinch() {
+        assertTrue(SpeedyWatchSettings.isPictureInPictureControl(
+                SpeedyWatchSettings.PIP_CONTROL_BUTTON
+        ));
+        assertTrue(SpeedyWatchSettings.isPictureInPictureControl(
+                SpeedyWatchSettings.PIP_CONTROL_PINCH
+        ));
+        assertFalse(SpeedyWatchSettings.isPictureInPictureControl("both"));
+        assertFalse(SpeedyWatchSettings.isPictureInPictureControl(""));
+        assertFalse(SpeedyWatchSettings.isPictureInPictureControl(null));
+    }
+
 }
