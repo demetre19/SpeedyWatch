@@ -162,12 +162,12 @@ Version: 0.29
 Version code: 29
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,194,666 bytes
-SHA-256: ca3383dc348f61b877f1b966a1bd371e8dc69290859207973f861002fb1c4fc6
+APK size: 106,648,986 bytes
+SHA-256: f9f742af84aba66dbae7b3f07a780e18fb65083808870a27898ef880e30a44f2
 Signing: Android debug signing key
 ```
 
-This public v0.29 APK is debug-signed with APK Signature Scheme v2. It adds the draggable Omnibutton, compact YouTube chapter navigation with guarded page swipes, persistent floating-control positions, MEGA bookmark folder naming, and reliable Facebook reel downloads that preserve MP4 video and audio. The complete Android unit suite and APK assembly passed against the exact release candidate, and the reported Facebook reel completed through the Android app on the API 36 emulator as a playable MP4. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.29 APK is debug-signed with APK Signature Scheme v2. It adds the draggable Omnibutton, compact YouTube chapter navigation with guarded page swipes, persistent floating-control positions, MEGA bookmark folder naming, and reliable Facebook reel downloads with bounded session, anonymous, mobile-compatible, and captured-media fallbacks. Download choices now remain hidden while metadata loads, then show only formats verified for the exact URL instead of guessed resolutions. The complete Android unit suite and APK assembly passed against the exact release candidate. The reported Facebook reel completed through the Android app on both the API 36 emulator and Samsung test phone as a playable MP4 with video and audio, and the Samsung installed APK matched the published candidate byte-for-byte. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## Legacy mobile source
 

@@ -171,6 +171,8 @@ public final class SpeedyWatchDownloadService extends Service {
     }
     enum AttemptSource {
         PAGE,
+        PAGE_ANONYMOUS,
+        PAGE_COMPATIBLE,
         PAGE_WITH_CAPTURED_CONTEXT,
         CAPTURED_MEDIA
     }
@@ -180,6 +182,17 @@ public final class SpeedyWatchDownloadService extends Service {
             List.of(AttemptSource.CAPTURED_MEDIA, AttemptSource.PAGE);
     private static final List<AttemptSource> PAGE_THEN_CAPTURED_ATTEMPTS =
             List.of(AttemptSource.PAGE, AttemptSource.CAPTURED_MEDIA);
+    private static final List<AttemptSource> FACEBOOK_PAGE_ATTEMPTS = List.of(
+            AttemptSource.PAGE,
+            AttemptSource.PAGE_ANONYMOUS,
+            AttemptSource.PAGE_COMPATIBLE
+    );
+    private static final List<AttemptSource> FACEBOOK_CAPTURED_ATTEMPTS = List.of(
+            AttemptSource.PAGE,
+            AttemptSource.PAGE_ANONYMOUS,
+            AttemptSource.PAGE_COMPATIBLE,
+            AttemptSource.CAPTURED_MEDIA
+    );
     private static final List<AttemptSource> VIMEO_ATTEMPTS = List.of(
             AttemptSource.PAGE_WITH_CAPTURED_CONTEXT,
             AttemptSource.CAPTURED_MEDIA,
@@ -523,9 +536,14 @@ public final class SpeedyWatchDownloadService extends Service {
             File jobDir,
             AttemptSource attempt
     ) throws Exception {
-        boolean capturedContext = attempt != AttemptSource.PAGE;
+        boolean capturedContext = attempt == AttemptSource.PAGE_WITH_CAPTURED_CONTEXT
+                || attempt == AttemptSource.CAPTURED_MEDIA;
         String attemptName = attempt == AttemptSource.PAGE
                 ? "page"
+                : attempt == AttemptSource.PAGE_ANONYMOUS
+                ? "page-anonymous"
+                : attempt == AttemptSource.PAGE_COMPATIBLE
+                ? "page-compatible"
                 : attempt == AttemptSource.PAGE_WITH_CAPTURED_CONTEXT
                 ? "page-context"
                 : "captured";
@@ -555,6 +573,9 @@ public final class SpeedyWatchDownloadService extends Service {
                     targetUrl,
                     job.capturedCookieHeader
             );
+        } else if (attempt == AttemptSource.PAGE_ANONYMOUS
+                || attempt == AttemptSource.PAGE_COMPATIBLE) {
+            cookieFile = null;
         } else {
             cookieFile = MediaDownloadEngine.writeSessionCookies(
                     attemptDir,
@@ -562,17 +583,26 @@ public final class SpeedyWatchDownloadService extends Service {
                     job.cookieHeader
             );
         }
+        boolean compatiblePage = attempt == AttemptSource.PAGE_COMPATIBLE;
         YoutubeDLRequest request = buildRequest(
                 targetUrl,
                 job.kind,
                 job.height,
                 job.mp3Quality,
-                capturedContext ? null : job.userAgent,
-                capturedContext ? null : job.referer,
+                capturedContext || compatiblePage ? null : job.userAgent,
+                capturedContext || compatiblePage ? null : job.referer,
                 cookieFile,
-                attemptDir
+                attemptDir,
+                compatiblePage
         );
-        if (capturedContext) {
+        if (SupportedSite.forUrl(job.url) == SupportedSite.FACEBOOK) {
+            request.addOption("--retries", "2");
+            request.addOption("--fragment-retries", "2");
+            request.addOption("--socket-timeout", "20");
+        }
+        if (compatiblePage && job.userAgent != null && !job.userAgent.isEmpty()) {
+            request.addOption("--user-agent", job.userAgent);
+        } else if (capturedContext) {
             addCapturedRequestOptions(request, job, attempt);
         }
         job.beginExecutionAttempt();
@@ -826,10 +856,16 @@ public final class SpeedyWatchDownloadService extends Service {
             String sourceUrl,
             boolean hasCapturedMedia
     ) {
+        SupportedSite site = SupportedSite.forUrl(sourceUrl);
+        if (site == SupportedSite.FACEBOOK) {
+            return hasCapturedMedia
+                    ? FACEBOOK_CAPTURED_ATTEMPTS
+                    : FACEBOOK_PAGE_ATTEMPTS;
+        }
         if (!hasCapturedMedia) {
             return PAGE_ATTEMPTS;
         }
-        if (SupportedSite.forUrl(sourceUrl) == SupportedSite.VIMEO) {
+        if (site == SupportedSite.VIMEO) {
             return VIMEO_ATTEMPTS;
         }
         return prefersCapturedRequest(sourceUrl)
@@ -865,6 +901,30 @@ public final class SpeedyWatchDownloadService extends Service {
             File cookieFile,
             File jobDir
     ) {
+        return buildRequest(
+                url,
+                kind,
+                height,
+                mp3Quality,
+                userAgent,
+                referer,
+                cookieFile,
+                jobDir,
+                false
+        );
+    }
+
+    static YoutubeDLRequest buildRequest(
+            String url,
+            String kind,
+            int height,
+            String mp3Quality,
+            String userAgent,
+            String referer,
+            File cookieFile,
+            File jobDir,
+            boolean compatibleFormat
+    ) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--no-playlist");
         request.addOption("--newline");
@@ -887,14 +947,20 @@ public final class SpeedyWatchDownloadService extends Service {
                     SpeedyWatchSettings.mp3BitrateForQuality(mp3Quality)
             );
         } else {
-            String selector = "bestvideo[height<=" + height + "][ext=mp4][vcodec^=avc1]"
-                    + "+bestaudio[acodec^=mp4a]"
-                    + "/best[height<=" + height + "][ext=mp4][vcodec^=avc1][acodec^=mp4a]"
-                    + "/bestvideo[height<=" + height + "][ext=mp4]+bestaudio[acodec^=mp4a]"
-                    + "/bestvideo[height<=" + height + "][ext=mp4]+bestaudio"
-                    + "/best[height<=" + height + "][ext=mp4]";
+            String selector = compatibleFormat
+                    ? "bestvideo[height<=" + height + "]+bestaudio"
+                            + "/best[height<=" + height + "]/best"
+                    : "bestvideo[height<=" + height + "][ext=mp4][vcodec^=avc1]"
+                            + "+bestaudio[acodec^=mp4a]"
+                            + "/best[height<=" + height + "][ext=mp4][vcodec^=avc1][acodec^=mp4a]"
+                            + "/bestvideo[height<=" + height + "][ext=mp4]+bestaudio[acodec^=mp4a]"
+                            + "/bestvideo[height<=" + height + "][ext=mp4]+bestaudio"
+                            + "/best[height<=" + height + "][ext=mp4]";
             request.addOption("-f", selector);
             request.addOption("--merge-output-format", "mp4");
+            if (compatibleFormat) {
+                request.addOption("--remux-video", "mp4");
+            }
         }
         return request;
     }

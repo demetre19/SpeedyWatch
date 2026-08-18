@@ -40,6 +40,18 @@ final class MediaDownloadEngine {
             "[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}"
     );
     private static volatile boolean initialized;
+    enum MetadataSource {
+        SESSION,
+        ANONYMOUS,
+        MOBILE
+    }
+    private static final List<MetadataSource> DEFAULT_METADATA_ATTEMPTS =
+            List.of(MetadataSource.SESSION);
+    private static final List<MetadataSource> FACEBOOK_METADATA_ATTEMPTS = List.of(
+            MetadataSource.SESSION,
+            MetadataSource.ANONYMOUS,
+            MetadataSource.MOBILE
+    );
 
     private MediaDownloadEngine() {
     }
@@ -131,15 +143,54 @@ final class MediaDownloadEngine {
             CapturedMediaRequest capturedRequest,
             String capturedCookieHeader
     ) throws Exception {
-        JSONObject root = loadInfo(
-                context,
-                url,
-                cookieHeader,
-                userAgent,
-                referer,
-                capturedRequest,
-                capturedCookieHeader
-        );
+        Exception lastError = null;
+        for (MetadataSource source : metadataAttemptSequence(url)) {
+            try {
+                JSONObject root;
+                if (source == MetadataSource.SESSION) {
+                    root = loadInfo(
+                            context,
+                            url,
+                            cookieHeader,
+                            userAgent,
+                            referer,
+                            capturedRequest,
+                            capturedCookieHeader
+                    );
+                } else {
+                    boolean mobile = source == MetadataSource.MOBILE;
+                    if (mobile && boundedHeaderValue(userAgent, 512).isEmpty()) {
+                        continue;
+                    }
+                    root = loadInfo(
+                            context,
+                            url,
+                            null,
+                            mobile ? userAgent : null,
+                            null,
+                            null,
+                            null,
+                            mobile
+                    );
+                }
+                return metadataFromRoot(url, root);
+            } catch (Exception error) {
+                lastError = error;
+            }
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
+        throw new IllegalStateException("No downloadable media formats were found");
+    }
+
+    static List<MetadataSource> metadataAttemptSequence(String url) {
+        return SupportedSite.forUrl(url) == SupportedSite.FACEBOOK
+                ? FACEBOOK_METADATA_ATTEMPTS
+                : DEFAULT_METADATA_ATTEMPTS;
+    }
+
+    static Metadata metadataFromRoot(String url, JSONObject root) {
         TreeSet<Integer> heights = new TreeSet<>();
         JSONArray formats = root.optJSONArray("formats");
         if (formats != null) {
@@ -154,7 +205,12 @@ final class MediaDownloadEngine {
                 }
             }
         }
-        if (heights.isEmpty() && SupportedSite.forUrl(url) != SupportedSite.SOUNDCLOUD) {
+        boolean unknownVideoResolution = heights.isEmpty()
+                && "mp4".equalsIgnoreCase(root.optString("ext", ""))
+                && root.optString("url", "").startsWith("https://");
+        if (heights.isEmpty()
+                && !unknownVideoResolution
+                && SupportedSite.forUrl(url) != SupportedSite.SOUNDCLOUD) {
             throw new IllegalStateException("No downloadable video resolutions were found");
         }
         List<Integer> descending = new ArrayList<>(heights);
@@ -163,7 +219,12 @@ final class MediaDownloadEngine {
         if (title.isEmpty()) {
             title = "Video";
         }
-        return new Metadata(title, root.optString("id", ""), descending);
+        return new Metadata(
+                title,
+                root.optString("id", ""),
+                descending,
+                unknownVideoResolution
+        );
     }
 
     static boolean isSupportedDownloadUrl(String value) {
@@ -195,6 +256,28 @@ final class MediaDownloadEngine {
             String referer,
             CapturedMediaRequest capturedRequest,
             String capturedCookieHeader
+    ) throws Exception {
+        return loadInfo(
+                context,
+                url,
+                cookieHeader,
+                userAgent,
+                referer,
+                capturedRequest,
+                capturedCookieHeader,
+                false
+        );
+    }
+
+    private static JSONObject loadInfo(
+            Context context,
+            String url,
+            String cookieHeader,
+            String userAgent,
+            String referer,
+            CapturedMediaRequest capturedRequest,
+            String capturedCookieHeader,
+            boolean forceUserAgent
     ) throws Exception {
         if (!isSupportedDownloadUrl(url)) {
             throw new IllegalArgumentException("Open a supported video first");
@@ -237,6 +320,12 @@ final class MediaDownloadEngine {
                     requestReferer,
                     cookieFile
             );
+            if (forceUserAgent) {
+                String forcedUserAgent = boundedHeaderValue(requestUserAgent, 512);
+                if (!forcedUserAgent.isEmpty()) {
+                    request.addOption("--user-agent", forcedUserAgent);
+                }
+            }
             if (capturedRequest != null && capturedRequest.origin != null) {
                 request.addOption("--add-header", "Origin:" + capturedRequest.origin);
             }
@@ -490,11 +579,18 @@ final class MediaDownloadEngine {
         final String title;
         final String videoId;
         final List<Integer> resolutions;
+        final boolean unknownVideoResolution;
 
-        Metadata(String title, String videoId, List<Integer> resolutions) {
+        Metadata(
+                String title,
+                String videoId,
+                List<Integer> resolutions,
+                boolean unknownVideoResolution
+        ) {
             this.title = title;
             this.videoId = videoId;
             this.resolutions = Collections.unmodifiableList(new ArrayList<>(resolutions));
+            this.unknownVideoResolution = unknownVideoResolution;
         }
     }
 }

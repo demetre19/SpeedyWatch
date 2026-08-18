@@ -22,7 +22,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.concurrent.ExecutorService;
-import java.util.Arrays;
 import java.util.List;
 
 final class VideoDownloadDialog {
@@ -31,8 +30,6 @@ final class VideoDownloadDialog {
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(185, 185, 185);
-    private static final List<Integer> STANDARD_RESOLUTIONS =
-            Arrays.asList(2160, 1440, 1080, 720, 480, 360);
     private final Activity activity;
     private final ExecutorService executor;
     private final SpeedyWatchSettings settings;
@@ -166,7 +163,6 @@ final class VideoDownloadDialog {
 
         choices = new LinearLayout(activity);
         choices.setOrientation(LinearLayout.VERTICAL);
-        showChoices(soundCloud ? java.util.Collections.emptyList() : STANDARD_RESOLUTIONS);
 
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
@@ -190,6 +186,17 @@ final class VideoDownloadDialog {
     }
 
     private void loadFormats() {
+        if (dialog == null || !dialog.isShowing()) {
+            return;
+        }
+        checkingProgress.setVisibility(View.VISIBLE);
+        checkingProgress.setIndeterminate(true);
+        status.setText(
+                fromClipboard
+                        ? (soundCloud ? "Checking clipboard track..." : "Checking clipboard video...")
+                        : (soundCloud ? "Checking this track..." : "Checking this video...")
+        );
+        choices.removeAllViews();
         executor.execute(() -> {
             try {
                 MediaDownloadEngine.Metadata metadata = MediaDownloadEngine.loadMetadata(
@@ -203,7 +210,7 @@ final class VideoDownloadDialog {
                 );
                 activity.runOnUiThread(() -> showFormats(metadata));
             } catch (Exception error) {
-                activity.runOnUiThread(this::showStandardOptions);
+                activity.runOnUiThread(this::showFormatError);
             }
         });
     }
@@ -216,16 +223,23 @@ final class VideoDownloadDialog {
         titleVerified = true;
         title.setText(metadata.title);
         checkingProgress.setVisibility(View.GONE);
+        int videoFormats = metadata.resolutions.size()
+                + (metadata.unknownVideoResolution ? 1 : 0);
         status.setText(
                 (fromClipboard ? (soundCloud ? "Clipboard track • " : "Clipboard video • ") : "")
                         + (soundCloud
                         ? "MP3 options ready"
-                        : metadata.resolutions.size() + " video quality options ready")
+                        : videoFormats == 1
+                        ? "1 video format ready"
+                        : videoFormats + " video quality options ready")
         );
-        showChoices(metadata.resolutions);
+        showChoices(metadata.resolutions, metadata.unknownVideoResolution);
     }
 
-    private void showChoices(List<Integer> resolutions) {
+    private void showChoices(
+            List<Integer> resolutions,
+            boolean unknownVideoResolution
+    ) {
         choices.removeAllViews();
 
         String defaultQuality = settings.getDefaultMp3Quality();
@@ -249,6 +263,15 @@ final class VideoDownloadDialog {
             ));
             choices.addView(mp4, choiceParams(false));
         }
+        if (unknownVideoResolution) {
+            Button mp4 = choiceButton("Available MP4");
+            mp4.setOnClickListener(ignored -> startDownload(
+                    SpeedyWatchDownloadService.KIND_MP4,
+                    4320,
+                    SpeedyWatchSettings.MP3_QUALITY_STANDARD
+            ));
+            choices.addView(mp4, choiceParams(false));
+        }
     }
 
     private void addMp3Choice(String quality, boolean first, boolean isDefault) {
@@ -263,7 +286,7 @@ final class VideoDownloadDialog {
         choices.addView(mp3, choiceParams(first));
     }
 
-    private void showStandardOptions() {
+    private void showFormatError() {
         if (dialog == null || !dialog.isShowing()) {
             return;
         }
@@ -271,16 +294,22 @@ final class VideoDownloadDialog {
         status.setText(
                 fromClipboard
                         ? (soundCloud
-                        ? "Clipboard track • MP3 options ready"
-                        : "Clipboard video • standard download options ready")
-                        : (soundCloud ? "MP3 options ready" : "Standard download options ready")
+                        ? "Clipboard track • options unavailable"
+                        : "Clipboard video • options unavailable")
+                        : (soundCloud
+                        ? "Audio options unavailable"
+                        : "Download options unavailable")
         );
-        showChoices(soundCloud ? java.util.Collections.emptyList() : STANDARD_RESOLUTIONS);
-        Toast.makeText(
-                activity,
-                soundCloud ? "MP3 download options are ready" : "Standard download options are ready",
-                Toast.LENGTH_LONG
-        ).show();
+        choices.removeAllViews();
+        TextView error = text(
+                "SpeedyWatch could not confirm the available formats for this URL.",
+                14,
+                MUTED
+        );
+        choices.addView(error, choiceParams(true));
+        Button retry = choiceButton("Retry format check");
+        retry.setOnClickListener(ignored -> loadFormats());
+        choices.addView(retry, choiceParams(false));
     }
 
     private void startDownload(String kind, int height, String mp3Quality) {

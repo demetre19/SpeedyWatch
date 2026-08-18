@@ -123,9 +123,43 @@ public final class MediaDownloadEngineTest {
         assertEquals(
                 List.of(
                         SpeedyWatchDownloadService.AttemptSource.PAGE,
+                        SpeedyWatchDownloadService.AttemptSource.PAGE_ANONYMOUS,
+                        SpeedyWatchDownloadService.AttemptSource.PAGE_COMPATIBLE,
                         SpeedyWatchDownloadService.AttemptSource.CAPTURED_MEDIA
                 ),
                 SpeedyWatchDownloadService.attemptSequence(FACEBOOK_REEL, true)
+        );
+        assertEquals(
+                List.of(
+                        SpeedyWatchDownloadService.AttemptSource.PAGE,
+                        SpeedyWatchDownloadService.AttemptSource.PAGE_ANONYMOUS,
+                        SpeedyWatchDownloadService.AttemptSource.PAGE_COMPATIBLE
+                ),
+                SpeedyWatchDownloadService.attemptSequence(FACEBOOK_REEL, false)
+        );
+        assertEquals(
+                FACEBOOK_REEL,
+                SpeedyWatchDownloadService.targetUrlForAttempt(
+                        FACEBOOK_REEL,
+                        "https://video.xx.fbcdn.net/captured.mp4",
+                        SpeedyWatchDownloadService.AttemptSource.PAGE_COMPATIBLE
+                )
+        );
+    }
+
+    @Test
+    public void facebookMetadataRetriesSessionAnonymousAndMobilePages() {
+        assertEquals(
+                List.of(
+                        MediaDownloadEngine.MetadataSource.SESSION,
+                        MediaDownloadEngine.MetadataSource.ANONYMOUS,
+                        MediaDownloadEngine.MetadataSource.MOBILE
+                ),
+                MediaDownloadEngine.metadataAttemptSequence(FACEBOOK_REEL)
+        );
+        assertEquals(
+                List.of(MediaDownloadEngine.MetadataSource.SESSION),
+                MediaDownloadEngine.metadataAttemptSequence(VIMEO_PAGE)
         );
     }
 
@@ -238,6 +272,33 @@ public final class MediaDownloadEngineTest {
         int refererOption = command.indexOf("--referer");
         assertTrue(refererOption >= 0);
         assertEquals(FACEBOOK_REEL, command.get(refererOption + 1));
+    }
+    @Test
+    public void facebookCompatibleRequestAcceptsDirectMobileFormatAndRemuxesToMp4()
+            throws Exception {
+        File directory = temporaryFolder.newFolder("facebook-compatible-request");
+        YoutubeDLRequest request = SpeedyWatchDownloadService.buildRequest(
+                FACEBOOK_REEL,
+                SpeedyWatchDownloadService.KIND_MP4,
+                720,
+                SpeedyWatchSettings.MP3_QUALITY_STANDARD,
+                null,
+                null,
+                null,
+                directory,
+                true
+        );
+
+        List<String> command = request.buildCommand();
+        int formatOption = command.indexOf("-f");
+        assertTrue(formatOption >= 0);
+        assertEquals(
+                "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+                command.get(formatOption + 1)
+        );
+        int remuxOption = command.indexOf("--remux-video");
+        assertTrue(remuxOption >= 0);
+        assertEquals("mp4", command.get(remuxOption + 1));
     }
 
 
