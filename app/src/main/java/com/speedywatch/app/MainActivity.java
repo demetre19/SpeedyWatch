@@ -1439,11 +1439,17 @@ public final class MainActivity extends Activity {
     }
 
     private void showSavedSummaries() {
-        new SavedSummariesDialog(this, savedSummaryStore, url -> {
-            if (SavedSummaryStore.isSupportedSourceUrl(url)) {
-                webView.loadUrl(url);
-            }
-        }).show();
+        new SavedSummariesDialog(
+                this,
+                savedSummaryStore,
+                ioExecutor,
+                appSettings.areSavedThumbnailsEnabled(),
+                url -> {
+                    if (SavedSummaryStore.isSupportedSourceUrl(url)) {
+                        webView.loadUrl(url);
+                    }
+                }
+        ).show();
     }
 
     private void showSettings() {

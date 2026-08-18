@@ -18,6 +18,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         final String summaryText;
         final String sourceUrl;
         final String channelName;
+        final byte[] thumbnail;
         final long createdAt;
 
         Entry(
@@ -27,6 +28,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                 String summaryText,
                 String sourceUrl,
                 String channelName,
+                byte[] thumbnail,
                 long createdAt
         ) {
             this.id = id;
@@ -35,12 +37,13 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             this.summaryText = summaryText;
             this.sourceUrl = sourceUrl;
             this.channelName = channelName;
+            this.thumbnail = thumbnail == null ? null : thumbnail.clone();
             this.createdAt = createdAt;
         }
     }
 
     private static final String DATABASE_NAME = "saved_summaries.db";
-    private static final int DATABASE_VERSION = 4;
+    private static final int DATABASE_VERSION = 5;
     private static final String TABLE = "saved_summaries";
     private static final String CACHE_TABLE = "summary_cache";
 
@@ -58,6 +61,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         + "summary_text TEXT NOT NULL,"
                         + "source_url TEXT NOT NULL,"
                         + "channel_name TEXT NOT NULL DEFAULT '',"
+                        + "thumbnail BLOB,"
                         + "created_at INTEGER NOT NULL)"
         );
         database.execSQL(
@@ -77,6 +81,9 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                             + " ADD COLUMN channel_name TEXT NOT NULL DEFAULT ''"
             );
         }
+        if (oldVersion < 5) {
+            database.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN thumbnail BLOB");
+        }
     }
 
     private static void createCacheTable(SQLiteDatabase database) {
@@ -94,7 +101,8 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             String summaryLabel,
             String summaryText,
             String sourceUrl,
-            String channelName
+            String channelName,
+            byte[] thumbnail
     ) {
         String normalizedTitle = requireText(videoTitle, "Video title");
         String normalizedLabel = requireText(summaryLabel, "Saved item label");
@@ -104,6 +112,9 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         if (!isSupportedSourceUrl(normalizedUrl)) {
             throw new IllegalArgumentException("Original video URL is unavailable");
         }
+        if (thumbnail != null && (thumbnail.length == 0 || thumbnail.length > SavedThumbnail.MAX_BYTES)) {
+            throw new IllegalArgumentException("Video thumbnail is invalid");
+        }
 
         SQLiteDatabase database = getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -112,6 +123,9 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         values.put("summary_text", normalizedSummary);
         values.put("source_url", normalizedUrl);
         values.put("channel_name", normalizedChannel);
+        if (thumbnail != null) {
+            values.put("thumbnail", thumbnail);
+        }
         values.put("created_at", System.currentTimeMillis());
         if (database.insertOrThrow(TABLE, null, values) < 0) {
             throw new IllegalStateException("Item could not be saved");
@@ -163,6 +177,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         "summary_text",
                         "source_url",
                         "channel_name",
+                        "thumbnail",
                         "created_at"
                 },
                 null,
@@ -179,7 +194,8 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                         cursor.getString(3),
                         cursor.getString(4),
                         cursor.getString(5),
-                        cursor.getLong(6)
+                        cursor.isNull(6) ? null : cursor.getBlob(6),
+                        cursor.getLong(7)
                 ));
             }
         }
@@ -197,10 +213,23 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
             String text = requireText(entry.summaryText, "Saved item content");
             String sourceUrl = requireText(entry.sourceUrl, "Source URL");
             String channelName = normalizeChannel(entry.channelName);
-            if (!isSupportedSourceUrl(sourceUrl) || entry.createdAt <= 0) {
+            if (!isSupportedSourceUrl(sourceUrl)
+                    || entry.createdAt <= 0
+                    || (entry.thumbnail != null
+                            && (entry.thumbnail.length == 0
+                                    || entry.thumbnail.length > SavedThumbnail.MAX_BYTES))) {
                 throw new IllegalArgumentException("Saved item data is invalid");
             }
-            validated.add(new Entry(0, title, label, text, sourceUrl, channelName, entry.createdAt));
+            validated.add(new Entry(
+                    0,
+                    title,
+                    label,
+                    text,
+                    sourceUrl,
+                    channelName,
+                    entry.thumbnail,
+                    entry.createdAt
+            ));
         }
 
         SQLiteDatabase database = getWritableDatabase();
@@ -214,6 +243,9 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
                 values.put("summary_text", entry.summaryText);
                 values.put("source_url", entry.sourceUrl);
                 values.put("channel_name", entry.channelName);
+                if (entry.thumbnail != null) {
+                    values.put("thumbnail", entry.thumbnail);
+                }
                 values.put("created_at", entry.createdAt);
                 database.insertOrThrow(TABLE, null, values);
             }
@@ -221,6 +253,23 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         } finally {
             database.endTransaction();
         }
+    }
+
+    synchronized boolean updateThumbnail(long id, byte[] thumbnail) {
+        if (id <= 0
+                || thumbnail == null
+                || thumbnail.length == 0
+                || thumbnail.length > SavedThumbnail.MAX_BYTES) {
+            throw new IllegalArgumentException("Video thumbnail is invalid");
+        }
+        ContentValues values = new ContentValues();
+        values.put("thumbnail", thumbnail);
+        return getWritableDatabase().update(
+                TABLE,
+                values,
+                "id = ?",
+                new String[]{Long.toString(id)}
+        ) == 1;
     }
 
     synchronized boolean delete(long id) {

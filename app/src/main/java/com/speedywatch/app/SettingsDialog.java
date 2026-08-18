@@ -70,6 +70,8 @@ final class SettingsDialog {
     private EditText defaultSpeedInput;
     private Button defaultMp3QualityButton;
     private String defaultMp3Quality;
+    private Button savedThumbnailsButton;
+    private boolean savedThumbnailsEnabled;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button pictureInPictureControlButton;
@@ -170,7 +172,7 @@ final class SettingsDialog {
         root.addView(header);
 
         LinearLayout content = verticalLayout();
-        content.addView(text("Playback", 13, MUTED), matchWrap(dp(2), dp(12)));
+        content.addView(text("Playback", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
         playbackProfile = settings.getPlaybackProfile();
         playbackProfileButton = button("");
         playbackProfileButton.setOnClickListener(ignored -> {
@@ -286,7 +288,7 @@ final class SettingsDialog {
                 matchWrap(dp(8), dp(12))
         );
 
-        content.addView(text("Downloads", 13, MUTED), matchWrap(dp(2), dp(8)));
+        content.addView(text("Downloads", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
         defaultMp3Quality = settings.getDefaultMp3Quality();
         defaultMp3QualityButton = button("");
         defaultMp3QualityButton.setOnClickListener(ignored -> {
@@ -301,10 +303,28 @@ final class SettingsDialog {
                         12,
                         MUTED
                 ),
-                matchWrap(dp(2), dp(12))
+                matchWrap(dp(2), 0)
         );
 
-        content.addView(text("Updates", 13, MUTED), matchWrap(dp(2), dp(8)));
+        content.addView(text("Saved", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
+        savedThumbnailsEnabled = settings.areSavedThumbnailsEnabled();
+        savedThumbnailsButton = button("");
+        savedThumbnailsButton.setOnClickListener(ignored -> {
+            savedThumbnailsEnabled = !savedThumbnailsEnabled;
+            updateSavedThumbnailsButton();
+        });
+        updateSavedThumbnailsButton();
+        content.addView(savedThumbnailsButton, matchWrap(0, 0));
+        content.addView(
+                text(
+                        "Adds a small YouTube preview to newly saved summaries and quizzes. Existing items are unchanged.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), 0)
+        );
+
+        content.addView(text("Updates", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
         TextView currentVersion = text(
                 "Current version " + installedVersionName
                         + " (version code " + installedVersionCode + ")",
@@ -337,7 +357,7 @@ final class SettingsDialog {
         updateActions.addView(downloadUpdateButton, downloadParams);
         content.addView(updateActions, matchWrap(dp(8), dp(14)));
 
-        content.addView(text("Backup", 13, MUTED), matchWrap(dp(2), dp(8)));
+        content.addView(text("Backup", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
         content.addView(
                 text(
                         "Exports settings and saved summaries or quizzes. OpenRouter and MEGA access keys are never included.",
@@ -368,7 +388,7 @@ final class SettingsDialog {
         backupActions.addView(importBackup, importParams);
         content.addView(backupActions, matchWrap(0, dp(14)));
 
-        content.addView(text("OpenRouter", 13, MUTED), matchWrap(dp(2), dp(12)));
+        content.addView(text("OpenRouter", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
 
         content.addView(label("API key"));
         LinearLayout apiKeyRow = horizontalLayout();
@@ -891,6 +911,14 @@ final class SettingsDialog {
         );
     }
 
+    private void updateSavedThumbnailsButton() {
+        savedThumbnailsButton.setText(
+                savedThumbnailsEnabled
+                        ? "Save YouTube thumbnails: On"
+                        : "Save YouTube thumbnails: Off"
+        );
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -915,6 +943,7 @@ final class SettingsDialog {
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        settings.setSavedThumbnailsEnabled(savedThumbnailsEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,

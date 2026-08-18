@@ -294,20 +294,46 @@ final class VideoQuizDialog {
         if (currentQuizText.trim().isEmpty() || currentQuizLabel.trim().isEmpty()) {
             return;
         }
-        try {
-            savedSummaryStore.save(
-                    videoTitle,
-                    currentQuizLabel,
-                    currentQuizText,
-                    videoUrl,
-                    channelName
-            );
-            Toast.makeText(activity, "Quiz saved", Toast.LENGTH_SHORT).show();
-        } catch (IllegalArgumentException error) {
-            Toast.makeText(activity, safeMessage(error, "Quiz could not be saved"), Toast.LENGTH_LONG).show();
-        } catch (RuntimeException error) {
-            Toast.makeText(activity, "Quiz could not be saved", Toast.LENGTH_LONG).show();
-        }
+        String savedTitle = videoTitle;
+        String savedLabel = currentQuizLabel;
+        String savedText = currentQuizText;
+        String savedUrl = videoUrl;
+        String savedChannel = channelName;
+        saveQuizButton.setEnabled(false);
+        saveQuizButton.setText("Saving...");
+        executor.execute(() -> {
+            byte[] thumbnail = null;
+            if (settings.areSavedThumbnailsEnabled()) {
+                try {
+                    thumbnail = SavedThumbnail.fetch(savedUrl);
+                } catch (java.io.IOException ignored) {
+                    // A quiz still saves when the optional preview is unavailable.
+                }
+            }
+            try {
+                savedSummaryStore.save(
+                        savedTitle,
+                        savedLabel,
+                        savedText,
+                        savedUrl,
+                        savedChannel,
+                        thumbnail
+                );
+                finishQuizSave("Quiz saved", Toast.LENGTH_SHORT);
+            } catch (IllegalArgumentException error) {
+                finishQuizSave(safeMessage(error, "Quiz could not be saved"), Toast.LENGTH_LONG);
+            } catch (RuntimeException error) {
+                finishQuizSave("Quiz could not be saved", Toast.LENGTH_LONG);
+            }
+        });
+    }
+
+    private void finishQuizSave(String message, int duration) {
+        activity.runOnUiThread(() -> {
+            saveQuizButton.setText("Save quiz");
+            saveQuizButton.setEnabled(!currentQuizText.trim().isEmpty());
+            Toast.makeText(activity, message, duration).show();
+        });
     }
 
 

@@ -89,6 +89,7 @@ public final class SavedListOrderTest {
                 "Content",
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                 channel,
+                null,
                 createdAt
         );
     }

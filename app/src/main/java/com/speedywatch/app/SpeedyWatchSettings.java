@@ -46,6 +46,7 @@ final class SpeedyWatchSettings {
     private static final String OMNI_BUTTON_ENABLED = "omni_button_enabled";
     private static final String OMNI_POSITION_X = "omni_position_x";
     private static final String OMNI_POSITION_Y = "omni_position_y";
+    private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -265,6 +266,14 @@ final class SpeedyWatchSettings {
         preferences.edit().putBoolean(OMNI_BUTTON_ENABLED, enabled).apply();
     }
 
+    boolean areSavedThumbnailsEnabled() {
+        return preferences.getBoolean(SAVED_THUMBNAILS_ENABLED, true);
+    }
+
+    void setSavedThumbnailsEnabled(boolean enabled) {
+        preferences.edit().putBoolean(SAVED_THUMBNAILS_ENABLED, enabled).apply();
+    }
+
     boolean areSpeedControlsCollapsed() {
         return preferences.getBoolean(SPEED_CONTROLS_COLLAPSED, false);
     }
@@ -427,7 +436,8 @@ final class SpeedyWatchSettings {
             float pictureInPicturePositionY,
             boolean omniButtonEnabled,
             float omniButtonPositionX,
-            float omniButtonPositionY
+            float omniButtonPositionY,
+            boolean savedThumbnailsEnabled
     ) {
         String normalizedModel = modelId == null ? "" : modelId.trim();
         if (normalizedModel.length() > 300
@@ -464,7 +474,8 @@ final class SpeedyWatchSettings {
                 .putLong(ADAPTIVE_SPEED_BOOST, Double.doubleToRawLongBits(adaptiveBoost))
                 .putString(DEFAULT_MP3_QUALITY, mp3Quality)
                 .putBoolean(SPEED_CONTROLS_COLLAPSED, speedControlsCollapsed)
-                .putBoolean(OMNI_BUTTON_ENABLED, omniButtonEnabled);
+                .putBoolean(OMNI_BUTTON_ENABLED, omniButtonEnabled)
+                .putBoolean(SAVED_THUMBNAILS_ENABLED, savedThumbnailsEnabled);
         restorePosition(editor, LOCK_POSITION_X, lockPositionX);
         restorePosition(editor, LOCK_POSITION_Y, lockPositionY);
         restorePosition(editor, PIP_POSITION_X, pictureInPicturePositionX);

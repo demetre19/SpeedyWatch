@@ -6,6 +6,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Base64;
 
 final class AppBackup {
     static final int MAXIMUM_BYTES = 16 * 1024 * 1024;
@@ -39,27 +40,36 @@ final class AppBackup {
                 .put("omniButtonEnabled", settings.isOmniButtonEnabled())
                 .put("omniButtonPositionX", settings.getOmniButtonPositionX())
                 .put("omniButtonPositionY", settings.getOmniButtonPositionY())
+                .put("savedThumbnailsEnabled", settings.areSavedThumbnailsEnabled())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
                 .put("interactionCategoryEnabled", settings.skipsInteractionSegments());
         JSONArray items = new JSONArray();
         for (SavedSummaryStore.Entry entry : store.loadAll()) {
-            items.put(new JSONObject()
+            JSONObject item = new JSONObject()
                     .put("videoTitle", entry.videoTitle)
                     .put("contentLabel", entry.summaryLabel)
                     .put("content", entry.summaryText)
                     .put("sourceURL", entry.sourceUrl)
                     .put("channelName", entry.channelName)
-                    .put("createdAt", entry.createdAt));
+                    .put("createdAt", entry.createdAt);
+            if (entry.thumbnail != null) {
+                item.put("thumbnail", Base64.getEncoder().encodeToString(entry.thumbnail));
+            }
+            items.put(item);
         }
-        return new JSONObject()
+        String backup = new JSONObject()
                 .put("schemaVersion", SCHEMA_VERSION)
                 .put("exportedAt", System.currentTimeMillis())
                 .put("containsSecrets", false)
                 .put("settings", preferences)
                 .put("savedItems", items)
                 .toString(2);
+        if (backup.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAXIMUM_BYTES) {
+            throw new JSONException("Backup is too large");
+        }
+        return backup;
     }
 
     static void restore(String json, SpeedyWatchSettings settings, SavedSummaryStore store)
@@ -136,6 +146,10 @@ final class AppBackup {
                 "omniButtonPositionY",
                 settings.getOmniButtonPositionY()
         );
+        boolean savedThumbnailsEnabled = preferences.optBoolean(
+                "savedThumbnailsEnabled",
+                settings.areSavedThumbnailsEnabled()
+        );
         if (!Double.isFinite(speed) || speed < 0.25 || speed > 4) {
             throw new JSONException("Backup playback speed is invalid");
         }
@@ -153,6 +167,9 @@ final class AppBackup {
             String channelName = item.has("channelName")
                     ? boundedString(item, "channelName", 300, true)
                     : "";
+            byte[] thumbnail = item.has("thumbnail")
+                    ? decodeThumbnail(item)
+                    : null;
             long createdAt = item.optLong("createdAt", -1);
             if (!SavedSummaryStore.isSupportedSourceUrl(sourceURL) || createdAt <= 0) {
                 throw new JSONException("Backup saved item source is invalid");
@@ -164,6 +181,7 @@ final class AppBackup {
                     content,
                     sourceURL,
                     channelName,
+                    thumbnail,
                     createdAt
             ));
         }
@@ -190,7 +208,8 @@ final class AppBackup {
                 pictureInPicturePositionY,
                 omniButtonEnabled,
                 omniButtonPositionX,
-                omniButtonPositionY
+                omniButtonPositionY,
+                savedThumbnailsEnabled
         )) {
             try {
                 store.replaceAll(previous);
@@ -205,6 +224,24 @@ final class AppBackup {
                 selfPromotionCategoryEnabled,
                 interactionCategoryEnabled
         );
+    }
+
+    private static byte[] decodeThumbnail(JSONObject item) throws JSONException {
+        String encoded = boundedString(
+                item,
+                "thumbnail",
+                ((SavedThumbnail.MAX_BYTES + 2) / 3) * 4,
+                false
+        );
+        try {
+            byte[] thumbnail = Base64.getDecoder().decode(encoded);
+            if (thumbnail.length == 0 || thumbnail.length > SavedThumbnail.MAX_BYTES) {
+                throw new JSONException("Backup thumbnail is invalid");
+            }
+            return thumbnail;
+        } catch (IllegalArgumentException error) {
+            throw new JSONException("Backup thumbnail is invalid");
+        }
     }
 
     private static float optionalSavedPosition(

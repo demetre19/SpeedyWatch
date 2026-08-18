@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.29**, debug-signed |
+| Current public APK: **v0.30**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.29.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.30.
 
 ### Watch at your speed
 
@@ -92,7 +92,7 @@ Leave with answers you can find again.
 
 ### Keep and share what matters
 
-Search saved summaries and quizzes by title, creator, type, heading, or full text. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
+Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -140,7 +140,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.29 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.30 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -158,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.29
-Version code: 29
+Version: 0.30
+Version code: 30
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,648,986 bytes
-SHA-256: f9f742af84aba66dbae7b3f07a780e18fb65083808870a27898ef880e30a44f2
+APK size: 106,679,114 bytes
+SHA-256: c79b0fe4956884812f586105bd42a3d4949ce6e713486023e1b3bdf1d60b7655
 Signing: Android debug signing key
 ```
 
-This public v0.29 APK is debug-signed with APK Signature Scheme v2. It adds the draggable Omnibutton, compact YouTube chapter navigation with guarded page swipes, persistent floating-control positions, MEGA bookmark folder naming, and reliable Facebook reel downloads with bounded session, anonymous, mobile-compatible, and captured-media fallbacks. Download choices now remain hidden while metadata loads, then show only formats verified for the exact URL instead of guessed resolutions. The complete Android unit suite and APK assembly passed against the exact release candidate. The reported Facebook reel completed through the Android app on both the API 36 emulator and Samsung test phone as a playable MP4 with video and audio, and the Samsung installed APK matched the published candidate byte-for-byte. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.30 APK is debug-signed with APK Signature Scheme v2. It adds an optional, default-on setting that stores a compact thumbnail with newly saved YouTube summaries and quizzes. Each preview is fetched without cookies from the exact trusted YouTube thumbnail URL, re-encoded as a bounded 320×180 JPEG of at most 64 KiB, stored app-private, and included in JSON backups. While the setting is on, Saved shows list and detail previews plus compact Add image or Refresh image controls for eligible YouTube items; turning it off hides those previews and controls without deleting stored data. Unavailable previews and non-YouTube sources remain full-width text-only entries without blocking a save. Saving a summary after follow-up chat now keeps the original summary followed by every completed `You` and `AI` turn in order, while Copy, Share, and the reusable summary cache remain unchanged. Settings section headings are white and slightly larger for clearer scanning. The complete Android unit suite and APK assembly passed against the exact release candidate, and the setting gate, saved thumbnail rendering and regeneration, chat-inclusive saved Markdown, compact Saved detail actions, text-only fallback layout, and Settings heading treatment were verified on the API 36 emulator before it was shut down. The exact 106,679,114-byte APK was then installed on the Samsung phone as version code 30, where the installed base APK matched SHA-256 `c79b0fe4956884812f586105bd42a3d4949ce6e713486023e1b3bdf1d60b7655`. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## Legacy mobile source
 
@@ -200,7 +200,7 @@ The API key is encrypted with Android Keystore AES-GCM. Settings masks the key b
    If you close the modal and choose the same summary again, SpeedyWatch reuses its private cached result when the generation context is unchanged.
    On Android, summary generation and dismissal leave playback untouched; tap a transcript timestamp only when you explicitly want to seek.
 7. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
-8. Tap **Save summary** to add the original generated summary to the local bookmark library, or **Share summary** to send it with the original video URL.
+8. Tap **Save summary** to add the original summary and any completed follow-up `You`/`AI` turns to the local bookmark library, or **Share summary** to send the original summary with its video URL.
 9. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
 10. Use the bookmark icon beside Settings to search saved summaries and quizzes by content or creator, filter through the auto-populated creator dropdown, browse dated results newest or oldest, reopen their original videos, or share a saved item.
 
@@ -214,8 +214,8 @@ Transcript availability depends on the captions exposed by the selected service 
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
 - Your OpenRouter API key remains in Android Keystore-encrypted app storage.
 - Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to OpenRouter only when you request a summary, WatchPath route, follow-up answer, or quiz.
-- Saved summaries, saved quizzes, and their source URLs remain in app-private local storage until you delete them. Follow-up chat history is not saved.
-- Exported backup files contain settings plus saved summaries and quizzes, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
+- Saved summaries, saved quizzes, their source URLs, completed follow-up turns included through **Save summary**, and optional thumbnails remain in app-private local storage until you delete them. Only while **Save YouTube thumbnails** is enabled, SpeedyWatch displays or regenerates those previews and fetches bounded YouTube thumbnail data directly from `i.ytimg.com` without cookies. Disabling the setting hides the feature without deleting stored thumbnail bytes. Unsaved and in-progress follow-up chat remains transient.
+- Exported backup files contain settings plus saved summaries, quizzes, any completed follow-up turns included in those saved summaries, and their thumbnails, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
 - Automatically cached summary and WatchPath results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
 - Unsupported main-frame links open through the platform's external app handler; approved media CDN hosts cannot become browsable destinations.
 

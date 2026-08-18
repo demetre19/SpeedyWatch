@@ -90,7 +90,7 @@ final class YouTubeSubsDialog {
     private final ExecutorService executor;
     private final SavedSummaryStore savedSummaryStore;
     private final List<TranscriptEntry> entries = new ArrayList<>();
-    private final List<ChatTurn> chatTurns = new ArrayList<>();
+    private final List<SavedSummaryChat.Turn> chatTurns = new ArrayList<>();
     private final Handler followHandler = new Handler(Looper.getMainLooper());
     private final Handler filterHandler = new Handler(Looper.getMainLooper());
     private final Runnable followTick = this::updateFollowPosition;
@@ -1016,7 +1016,7 @@ final class YouTubeSubsDialog {
         messages.add(new OpenRouterClient.Message("system", currentSummaryPrompt));
         messages.add(new OpenRouterClient.Message("user", buildUserMessage()));
         messages.add(new OpenRouterClient.Message("assistant", currentSummaryText));
-        for (ChatTurn turn : chatTurns) {
+        for (SavedSummaryChat.Turn turn : chatTurns) {
             messages.add(new OpenRouterClient.Message("user", "Question:\n" + turn.question));
             messages.add(new OpenRouterClient.Message("assistant", turn.answer));
         }
@@ -1028,7 +1028,7 @@ final class YouTubeSubsDialog {
                 String answer = client.generate(apiKey, modelId, messages);
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
-                        chatTurns.add(new ChatTurn(question, answer));
+                        chatTurns.add(new SavedSummaryChat.Turn(question, answer));
                         chatInput.setText("");
                         renderConversation();
                         status.setText(currentSummaryLabel + " chat | " + modelId);
@@ -1053,6 +1053,7 @@ final class YouTubeSubsDialog {
         sendChatButton.setEnabled(enabled);
         summaryOneButton.setEnabled(enabled);
         summaryTwoButton.setEnabled(enabled);
+        saveSummaryButton.setEnabled(enabled && !currentSummaryText.trim().isEmpty());
     }
 
     private void renderConversation() {
@@ -1061,7 +1062,7 @@ final class YouTubeSubsDialog {
         if (summaryContent.getChildCount() > 1) {
             summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
         }
-        for (ChatTurn turn : chatTurns) {
+        for (SavedSummaryChat.Turn turn : chatTurns) {
             TextView userMessage = text("", Math.round(summaryTextSizeSp), Color.WHITE);
             userMessage.setTextIsSelectable(true);
             userMessage.setMovementMethod(LinkMovementMethod.getInstance());
@@ -1274,24 +1275,59 @@ final class YouTubeSubsDialog {
         Toast.makeText(activity, "Summary copied", Toast.LENGTH_SHORT).show();
     }
 
+
     private void saveSummary() {
         if (currentSummaryText.trim().isEmpty() || currentSummaryLabel.trim().isEmpty()) {
             return;
         }
-        try {
-            savedSummaryStore.save(
-                    videoTitle,
-                    currentSummaryLabel,
-                    currentSummaryText,
-                    videoUrl,
-                    channelName
-            );
-            Toast.makeText(activity, "Summary saved", Toast.LENGTH_SHORT).show();
-        } catch (IllegalArgumentException error) {
-            Toast.makeText(activity, safeMessage(error, "Summary could not be saved"), Toast.LENGTH_LONG).show();
-        } catch (RuntimeException error) {
-            Toast.makeText(activity, "Summary could not be saved", Toast.LENGTH_LONG).show();
-        }
+        String savedTitle = videoTitle;
+        String savedLabel = currentSummaryLabel;
+        List<SavedSummaryChat.Turn> savedChatTurns = new ArrayList<>(chatTurns);
+        String savedText = SavedSummaryChat.build(currentSummaryText, savedChatTurns);
+        boolean savedChat = !savedChatTurns.isEmpty();
+        String savedUrl = videoUrl;
+        String savedChannel = channelName;
+        saveSummaryButton.setEnabled(false);
+        saveSummaryButton.setText("Saving...");
+        executor.execute(() -> {
+            byte[] thumbnail = null;
+            if (settings.areSavedThumbnailsEnabled()) {
+                try {
+                    thumbnail = SavedThumbnail.fetch(savedUrl);
+                } catch (java.io.IOException ignored) {
+                    // A summary still saves when the optional preview is unavailable.
+                }
+            }
+            try {
+                savedSummaryStore.save(
+                        savedTitle,
+                        savedLabel,
+                        savedText,
+                        savedUrl,
+                        savedChannel,
+                        thumbnail
+                );
+                finishSummarySave(
+                        savedChat ? "Summary and chat saved" : "Summary saved",
+                        Toast.LENGTH_SHORT
+                );
+            } catch (IllegalArgumentException error) {
+                finishSummarySave(
+                        safeMessage(error, "Summary could not be saved"),
+                        Toast.LENGTH_LONG
+                );
+            } catch (RuntimeException error) {
+                finishSummarySave("Summary could not be saved", Toast.LENGTH_LONG);
+            }
+        });
+    }
+
+    private void finishSummarySave(String message, int duration) {
+        activity.runOnUiThread(() -> {
+            saveSummaryButton.setText("Save summary");
+            saveSummaryButton.setEnabled(!currentSummaryText.trim().isEmpty());
+            Toast.makeText(activity, message, duration).show();
+        });
     }
 
     private void configureSummaryText(TextView view) {
@@ -1394,15 +1430,6 @@ final class YouTubeSubsDialog {
         return message == null || message.trim().isEmpty() ? fallback : message;
     }
 
-    private static final class ChatTurn {
-        final String question;
-        final String answer;
-
-        ChatTurn(String question, String answer) {
-            this.question = question;
-            this.answer = answer;
-        }
-    }
 
     static final class CaptionOption {
         final String languageCode;

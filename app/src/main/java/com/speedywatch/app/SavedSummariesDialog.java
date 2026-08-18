@@ -3,6 +3,8 @@ package com.speedywatch.app;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -21,6 +23,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ScrollView;
@@ -34,6 +37,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
 
 final class SavedSummariesDialog {
     interface Host {
@@ -48,8 +52,9 @@ final class SavedSummariesDialog {
 
     private final Activity activity;
     private final SavedSummaryStore store;
+    private final ExecutorService executor;
+    private final boolean thumbnailsEnabled;
     private final Host host;
-
     private Dialog dialog;
     private TextView status;
     private EditText search;
@@ -59,9 +64,17 @@ final class SavedSummariesDialog {
     private String selectedCreator;
     private boolean sortDescending = true;
 
-    SavedSummariesDialog(Activity activity, SavedSummaryStore store, Host host) {
+    SavedSummariesDialog(
+            Activity activity,
+            SavedSummaryStore store,
+            ExecutorService executor,
+            boolean thumbnailsEnabled,
+            Host host
+    ) {
         this.activity = activity;
         this.store = store;
+        this.executor = executor;
+        this.thumbnailsEnabled = thumbnailsEnabled;
         this.host = host;
     }
 
@@ -333,6 +346,28 @@ final class SavedSummariesDialog {
         detailCloseParams.setMarginStart(dp(8));
         header.addView(close, detailCloseParams);
         content.addView(header);
+        boolean supportsThumbnail = thumbnailsEnabled
+                && SavedThumbnail.urlFor(entry.sourceUrl) != null;
+        ImageView thumbnailPreview = new ImageView(activity);
+        thumbnailPreview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        thumbnailPreview.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+        thumbnailPreview.setClipToOutline(true);
+        thumbnailPreview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        Bitmap detailBitmap = decodeThumbnail(entry.thumbnail);
+        if (detailBitmap == null) {
+            thumbnailPreview.setVisibility(View.GONE);
+        } else {
+            thumbnailPreview.setImageBitmap(detailBitmap);
+        }
+        if (supportsThumbnail) {
+            LinearLayout.LayoutParams thumbnailParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(150)
+            );
+            thumbnailParams.setMargins(0, dp(12), 0, 0);
+            content.addView(thumbnailPreview, thumbnailParams);
+        }
+
 
         TextView sourceLabel = text("Original video URL", 12, MUTED);
         LinearLayout.LayoutParams sourceLabelParams = new LinearLayout.LayoutParams(
@@ -352,12 +387,12 @@ final class SavedSummariesDialog {
         content.addView(sourceUrl);
 
         LinearLayout actions = horizontalLayout();
-        Button openVideo = button("Open video");
+        Button openVideo = detailActionButton("Open");
         openVideo.setBackground(panelBackground(ACTIVE, ACTIVE));
         openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
-        actions.addView(openVideo, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        actions.addView(openVideo, detailActionParams(false));
 
-        Button share = button("Share");
+        Button share = detailActionButton("Share");
         share.setOnClickListener(ignored -> TextShare.showChooser(
                 activity,
                 entry.videoTitle,
@@ -365,16 +400,26 @@ final class SavedSummariesDialog {
                 entry.summaryText,
                 entry.sourceUrl
         ));
-        LinearLayout.LayoutParams shareParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        shareParams.setMarginStart(dp(8));
-        actions.addView(share, shareParams);
+        actions.addView(share, detailActionParams(true));
 
-        Button delete = button("Delete");
+        if (supportsThumbnail) {
+            Button thumbnailAction = detailActionButton(
+                    detailBitmap == null ? "Add image" : "Refresh image"
+            );
+            thumbnailAction.setContentDescription(
+                    detailBitmap == null
+                            ? "Add video thumbnail"
+                            : "Refresh video thumbnail"
+            );
+            thumbnailAction.setOnClickListener(ignored ->
+                    regenerateThumbnail(entry, detail, thumbnailPreview, thumbnailAction));
+            actions.addView(thumbnailAction, detailActionParams(true));
+        }
+
+        Button delete = detailActionButton("Delete");
         delete.setTextColor(ACTIVE);
         delete.setOnClickListener(ignored -> confirmDelete(entry, detail));
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        deleteParams.setMarginStart(dp(8));
-        actions.addView(delete, deleteParams);
+        actions.addView(delete, detailActionParams(true));
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -410,6 +455,61 @@ final class SavedSummariesDialog {
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             window.setGravity(Gravity.CENTER);
         }
+    }
+
+    private void regenerateThumbnail(
+            SavedSummaryStore.Entry entry,
+            Dialog detail,
+            ImageView preview,
+            Button action
+    ) {
+        action.setEnabled(false);
+        action.setText("Loading...");
+        executor.execute(() -> {
+            try {
+                byte[] thumbnail = SavedThumbnail.fetch(entry.sourceUrl);
+                if (thumbnail == null || !store.updateThumbnail(entry.id, thumbnail)) {
+                    throw new IllegalStateException("Video thumbnail is unavailable");
+                }
+                Bitmap bitmap = BitmapFactory.decodeByteArray(thumbnail, 0, thumbnail.length);
+                if (bitmap == null) {
+                    throw new IllegalStateException("Video thumbnail is unavailable");
+                }
+                activity.runOnUiThread(() -> {
+                    if (!detail.isShowing()) {
+                        return;
+                    }
+                    preview.setImageBitmap(bitmap);
+                    preview.setVisibility(View.VISIBLE);
+                    action.setText("Refresh image");
+                    action.setContentDescription("Refresh video thumbnail");
+                    action.setEnabled(true);
+                    refresh();
+                    Toast.makeText(activity, "Thumbnail updated", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception error) {
+                activity.runOnUiThread(() -> {
+                    if (!detail.isShowing()) {
+                        return;
+                    }
+                    action.setText(decodeThumbnail(entry.thumbnail) == null
+                            ? "Add image"
+                            : "Refresh image");
+                    action.setEnabled(true);
+                    Toast.makeText(
+                            activity,
+                            "Thumbnail could not be updated",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            }
+        });
+    }
+
+    private Bitmap decodeThumbnail(byte[] thumbnail) {
+        return !thumbnailsEnabled || thumbnail == null
+                ? null
+                : BitmapFactory.decodeByteArray(thumbnail, 0, thumbnail.length);
     }
 
     private void openVideo(SavedSummaryStore.Entry entry, Dialog detail) {
@@ -484,6 +584,23 @@ final class SavedSummariesDialog {
         button.setBackground(panelBackground(BUTTON, BUTTON));
         return button;
     }
+    private Button detailActionButton(String value) {
+        Button action = button(value);
+        action.setTextSize(12);
+        action.setSingleLine(true);
+        action.setEllipsize(TextUtils.TruncateAt.END);
+        action.setPadding(dp(2), 0, dp(2), 0);
+        return action;
+    }
+
+    private LinearLayout.LayoutParams detailActionParams(boolean hasLeadingGap) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        if (hasLeadingGap) {
+            params.setMarginStart(dp(4));
+        }
+        return params;
+    }
+
 
     private TextView text(String value, int size, int color) {
         TextView text = new TextView(activity);
@@ -588,6 +705,8 @@ final class SavedSummariesDialog {
             LinearLayout divider;
             TextView dividerLabel;
             LinearLayout item;
+            ImageView thumbnail;
+            LinearLayout copy;
             TextView title;
             TextView metadata;
             TextView excerpt;
@@ -596,34 +715,50 @@ final class SavedSummariesDialog {
                 divider = (LinearLayout) row.getChildAt(0);
                 dividerLabel = (TextView) divider.getChildAt(1);
                 item = (LinearLayout) row.getChildAt(1);
-                title = (TextView) item.getChildAt(0);
-                metadata = (TextView) item.getChildAt(1);
-                excerpt = (TextView) item.getChildAt(2);
+                thumbnail = (ImageView) item.getChildAt(0);
+                copy = (LinearLayout) item.getChildAt(1);
+                title = (TextView) copy.getChildAt(0);
+                metadata = (TextView) copy.getChildAt(1);
+                excerpt = (TextView) copy.getChildAt(2);
             } else {
                 row = verticalLayout();
                 divider = groupDivider();
                 dividerLabel = (TextView) divider.getChildAt(1);
                 row.addView(divider);
 
-                item = verticalLayout();
+                item = horizontalLayout();
+                item.setGravity(Gravity.TOP);
                 item.setPadding(dp(10), dp(8), dp(10), dp(10));
+                thumbnail = new ImageView(activity);
+                thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                thumbnail.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+                thumbnail.setClipToOutline(true);
+                thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                item.addView(thumbnail, new LinearLayout.LayoutParams(dp(112), dp(63)));
+
+                copy = verticalLayout();
                 title = text("", 15, Color.WHITE);
                 title.setTypeface(title.getTypeface(), Typeface.BOLD);
                 title.setMaxLines(2);
                 title.setEllipsize(TextUtils.TruncateAt.END);
-                item.addView(title);
+                copy.addView(title);
                 metadata = text("", 12, MUTED);
                 LinearLayout.LayoutParams metadataParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
                 metadataParams.setMargins(0, dp(2), 0, dp(5));
-                item.addView(metadata, metadataParams);
+                copy.addView(metadata, metadataParams);
                 excerpt = text("", 13, Color.rgb(225, 225, 225));
                 excerpt.setMaxLines(3);
                 excerpt.setEllipsize(TextUtils.TruncateAt.END);
                 excerpt.setLineSpacing(0, 1.1f);
-                item.addView(excerpt);
+                copy.addView(excerpt);
+                item.addView(copy, new LinearLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f
+                ));
                 row.addView(item, new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
@@ -636,6 +771,19 @@ final class SavedSummariesDialog {
             if (startsGroup) {
                 dividerLabel.setText(groupLabel(entry));
             }
+            Bitmap bitmap = decodeThumbnail(entry.thumbnail);
+            LinearLayout.LayoutParams copyParams =
+                    (LinearLayout.LayoutParams) copy.getLayoutParams();
+            if (bitmap == null) {
+                thumbnail.setImageBitmap(null);
+                thumbnail.setVisibility(View.GONE);
+                copyParams.setMarginStart(0);
+            } else {
+                thumbnail.setImageBitmap(bitmap);
+                thumbnail.setVisibility(View.VISIBLE);
+                copyParams.setMarginStart(dp(8));
+            }
+            copy.setLayoutParams(copyParams);
             title.setText(entry.videoTitle);
             metadata.setText(listMetadata(entry));
             excerpt.setText(preview(entry.summaryText));
