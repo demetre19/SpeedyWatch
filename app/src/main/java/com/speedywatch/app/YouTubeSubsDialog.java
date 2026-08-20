@@ -43,6 +43,11 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
 final class YouTubeSubsDialog {
+    enum InitialSummary {
+        NONE,
+        ONE,
+        TWO
+    }
     interface TranscriptHost {
         default void loadTranscript(TranscriptCallback callback) {
             loadTranscript("", callback);
@@ -96,6 +101,7 @@ final class YouTubeSubsDialog {
     private final Runnable followTick = this::updateFollowPosition;
     private final Runnable filterTick = this::applyTranscriptFilter;
     private final List<CaptionOption> captionOptions = new ArrayList<>();
+    private InitialSummary pendingInitialSummary;
 
     private Dialog dialog;
     private TextView status;
@@ -146,7 +152,8 @@ final class YouTubeSubsDialog {
             SpeedyWatchSettings settings,
             OpenRouterClient client,
             ExecutorService executor,
-            SavedSummaryStore savedSummaryStore
+            SavedSummaryStore savedSummaryStore,
+            InitialSummary initialSummary
     ) {
         this.activity = activity;
         this.host = host;
@@ -154,6 +161,7 @@ final class YouTubeSubsDialog {
         this.client = client;
         this.executor = executor;
         this.savedSummaryStore = savedSummaryStore;
+        pendingInitialSummary = initialSummary == null ? InitialSummary.NONE : initialSummary;
     }
 
     void show() {
@@ -814,6 +822,15 @@ final class YouTubeSubsDialog {
                 }
                 if (captionOptions.isEmpty()) {
                     loadCaptionOptions();
+                }
+                InitialSummary initialSummary = pendingInitialSummary;
+                pendingInitialSummary = InitialSummary.NONE;
+                if (!entries.isEmpty()) {
+                    if (initialSummary == InitialSummary.ONE) {
+                        summarize(settings.getSummaryOnePrompt(), "Summary One");
+                    } else if (initialSummary == InitialSummary.TWO) {
+                        summarize(settings.getSummaryTwoPrompt(), "Summary Two");
+                    }
                 }
             }
 

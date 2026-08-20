@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.30**, debug-signed |
+| Current public APK: **v0.31**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.30.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.31.
 
 ### Watch at your speed
 
@@ -49,9 +49,9 @@ Reach the useful part sooner. Keep the pace that works for you.
 - Move faster through quiet YouTube caption gaps, then return to your chosen pace automatically.
 
 
-### Skip chapters from one thumb
+### Control more from one thumb
 
-The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Swipe right for the next chapter, left for the previous chapter, up for YouTube History, or down for Watch Later. Triple-tap it to lock the screen; hold briefly to move it wherever it feels natural.
+The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Configure all eight swipe directions independently for chapters, browser navigation, History, Watch Later, Search, Share, playback speed, timed forward or rewind, Play/Pause, Picture-in-Picture, Video Subs, Summary One, Summary Two, Quiz, Download, Saved, Settings, screen lock, and more. Speed and seek actions accept their own amounts. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
 
 
 ### Skip the dead time
@@ -140,7 +140,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.30 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.31 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -158,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.30
-Version code: 30
+Version: 0.31
+Version code: 31
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,679,114 bytes
-SHA-256: c79b0fe4956884812f586105bd42a3d4949ce6e713486023e1b3bdf1d60b7655
+APK size: 106,246,354 bytes
+SHA-256: a3f7684b0f1dd293500d6dda97e2692327e21adcb83d3d2cc115d9c3185d14cf
 Signing: Android debug signing key
 ```
 
-This public v0.30 APK is debug-signed with APK Signature Scheme v2. It adds an optional, default-on setting that stores a compact thumbnail with newly saved YouTube summaries and quizzes. Each preview is fetched without cookies from the exact trusted YouTube thumbnail URL, re-encoded as a bounded 320×180 JPEG of at most 64 KiB, stored app-private, and included in JSON backups. While the setting is on, Saved shows list and detail previews plus compact Add image or Refresh image controls for eligible YouTube items; turning it off hides those previews and controls without deleting stored data. Unavailable previews and non-YouTube sources remain full-width text-only entries without blocking a save. Saving a summary after follow-up chat now keeps the original summary followed by every completed `You` and `AI` turn in order, while Copy, Share, and the reusable summary cache remain unchanged. Settings section headings are white and slightly larger for clearer scanning. The complete Android unit suite and APK assembly passed against the exact release candidate, and the setting gate, saved thumbnail rendering and regeneration, chat-inclusive saved Markdown, compact Saved detail actions, text-only fallback layout, and Settings heading treatment were verified on the API 36 emulator before it was shut down. The exact 106,679,114-byte APK was then installed on the Samsung phone as version code 30, where the installed base APK matched SHA-256 `c79b0fe4956884812f586105bd42a3d4949ce6e713486023e1b3bdf1d60b7655`. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.31 APK is debug-signed with APK Signature Scheme v2. It adds a programmable eight-direction Omnibutton with independently autosaved actions and bounded speed or seek amounts. The action catalog includes browser and chapter navigation, History, Watch Later, Search, Share, playback controls, Picture-in-Picture, Video Subs, Summary One, Summary Two, Quiz, Download, Saved, Settings, and screen lock. Summary One and Summary Two wait for transcript readiness and then open an eligible exact-context cache entry or run only the selected autosaved prompt. Settings now autosaves toggles and pickers immediately, debounces typed fields, flushes valid pending edits on close, keeps the API key Android Keystore-encrypted, and removes the hidden global Save step. Versioned JSON backup includes the Omnibutton mapping and amounts while continuing to exclude secrets and MEGA bookmark material. All 84 Android unit tests passed; the exact release candidate was installed and hash-verified on API 36 and on the Samsung phone as version code 31. The installed Samsung base APK matched the 106,246,354-byte candidate at SHA-256 `a3f7684b0f1dd293500d6dda97e2692327e21adcb83d3d2cc115d9c3185d14cf`. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
 
 ## Legacy mobile source
 
@@ -185,7 +185,7 @@ Summaries, follow-up questions, WatchPath routes, and quizzes require your own O
 2. Paste your OpenRouter API key.
 3. Refresh the model list.
 4. Choose a text model. SpeedyWatch prefers **Inception: Mercury 2** when it is available and shows each model's context length and advertised per-million-token input/output prices. Use the model picker filters to narrow the list to free or long-context options.
-5. Edit the summary, WatchPath, or quiz prompts if needed, then tap **Save**.
+5. Edit the summary, WatchPath, or quiz prompts if needed. Settings autosaves valid changes.
 
 The API key is encrypted with Android Keystore AES-GCM. Settings masks the key by default and shows only a short prefix and suffix check.
 

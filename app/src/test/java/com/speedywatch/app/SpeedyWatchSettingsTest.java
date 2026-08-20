@@ -1,6 +1,7 @@
 package com.speedywatch.app;
 
 import org.junit.Test;
+import java.util.EnumMap;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -56,6 +57,63 @@ public final class SpeedyWatchSettingsTest {
         assertFalse(SpeedyWatchSettings.isPictureInPictureControl("both"));
         assertFalse(SpeedyWatchSettings.isPictureInPictureControl(""));
         assertFalse(SpeedyWatchSettings.isPictureInPictureControl(null));
+    }
+
+    @Test
+    public void omniButtonDefaults_matchApprovedEightDirectionLayout() {
+        assertEquals(
+                OmniButtonAction.YOUTUBE_HISTORY,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.UP)
+        );
+        assertEquals(
+                OmniButtonAction.SPEED_UP,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.UP_RIGHT)
+        );
+        assertEquals(
+                OmniButtonAction.NEXT_CHAPTER,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.RIGHT)
+        );
+        assertEquals(
+                OmniButtonAction.SEEK_FORWARD,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.DOWN_RIGHT)
+        );
+        assertEquals(
+                OmniButtonAction.WATCH_LATER,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.DOWN)
+        );
+        assertEquals(
+                OmniButtonAction.SEEK_BACKWARD,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.DOWN_LEFT)
+        );
+        assertEquals(
+                OmniButtonAction.PREVIOUS_CHAPTER,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.LEFT)
+        );
+        assertEquals(
+                OmniButtonAction.SPEED_DOWN,
+                OmniButtonAction.defaultFor(OmniButtonGesture.Direction.UP_LEFT)
+        );
+        assertEquals(0.5, OmniButtonAction.defaultAmount(OmniButtonAction.SPEED_UP), 0.0);
+        assertEquals(0.25, OmniButtonAction.defaultAmount(OmniButtonAction.SPEED_DOWN), 0.0);
+        assertEquals(15.0, OmniButtonAction.defaultAmount(OmniButtonAction.SEEK_FORWARD), 0.0);
+    }
+
+    @Test
+    public void omniButtonActionIdsAndAmounts_areValidatedBeforePersistence() {
+        for (OmniButtonAction action : OmniButtonAction.values()) {
+            assertEquals(action, OmniButtonAction.fromId(action.id));
+        }
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                SpeedyWatchSettings.defaultOmniButtonActions();
+        EnumMap<OmniButtonGesture.Direction, Double> amounts =
+                SpeedyWatchSettings.defaultOmniButtonAmounts();
+        assertTrue(SpeedyWatchSettings.validOmniButtonBindings(actions, amounts));
+
+        amounts.put(OmniButtonGesture.Direction.UP_RIGHT, 3.76);
+        assertFalse(SpeedyWatchSettings.validOmniButtonBindings(actions, amounts));
+        amounts.put(OmniButtonGesture.Direction.UP_RIGHT, 0.5);
+        amounts.put(OmniButtonGesture.Direction.DOWN_RIGHT, 601.0);
+        assertFalse(SpeedyWatchSettings.validOmniButtonBindings(actions, amounts));
     }
 
 }

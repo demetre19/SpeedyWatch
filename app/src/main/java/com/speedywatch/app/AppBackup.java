@@ -6,6 +6,8 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Base64;
 
 final class AppBackup {
@@ -45,6 +47,19 @@ final class AppBackup {
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
                 .put("interactionCategoryEnabled", settings.skipsInteractionSegments());
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniActions.put(direction, settings.getOmniButtonAction(direction));
+            omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
+        }
+        preferences.put(
+                "omniButtonGestures",
+                encodeOmniButtonBindings(omniActions, omniAmounts)
+        );
         JSONArray items = new JSONArray();
         for (SavedSummaryStore.Entry entry : store.loadAll()) {
             JSONObject item = new JSONObject()
@@ -150,6 +165,22 @@ final class AppBackup {
                 "savedThumbnailsEnabled",
                 settings.areSavedThumbnailsEnabled()
         );
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniActions.put(direction, settings.getOmniButtonAction(direction));
+            omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
+        }
+        if (preferences.has("omniButtonGestures")) {
+            Object rawBindings = preferences.opt("omniButtonGestures");
+            if (!(rawBindings instanceof JSONObject bindings)) {
+                throw new JSONException("Backup Omnibutton gestures are invalid");
+            }
+            decodeOmniButtonBindings(bindings, omniActions, omniAmounts);
+        }
         if (!Double.isFinite(speed) || speed < 0.25 || speed > 4) {
             throw new JSONException("Backup playback speed is invalid");
         }
@@ -209,6 +240,8 @@ final class AppBackup {
                 omniButtonEnabled,
                 omniButtonPositionX,
                 omniButtonPositionY,
+                omniActions,
+                omniAmounts,
                 savedThumbnailsEnabled
         )) {
             try {
@@ -224,6 +257,74 @@ final class AppBackup {
                 selfPromotionCategoryEnabled,
                 interactionCategoryEnabled
         );
+    }
+
+    static JSONObject encodeOmniButtonBindings(
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) throws JSONException {
+        if (!SpeedyWatchSettings.validOmniButtonBindings(actions, amounts)) {
+            throw new JSONException("Omnibutton gestures are invalid");
+        }
+        JSONObject encoded = new JSONObject();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = actions.get(direction);
+            JSONObject binding = new JSONObject().put("action", action.id);
+            if (action.usesAmount()) {
+                binding.put("amount", amounts.get(direction));
+            }
+            encoded.put(direction.id, binding);
+        }
+        return encoded;
+    }
+
+    static void decodeOmniButtonBindings(
+            JSONObject encoded,
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) throws JSONException {
+        if (encoded == null
+                || encoded.length() != OmniButtonGesture.Direction.configurableValues().length) {
+            throw new JSONException("Backup Omnibutton gestures are incomplete");
+        }
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> decodedActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> decodedAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            Object rawBinding = encoded.opt(direction.id);
+            if (!(rawBinding instanceof JSONObject binding)) {
+                throw new JSONException("Backup Omnibutton direction is invalid");
+            }
+            Object rawAction = binding.opt("action");
+            OmniButtonAction action = rawAction instanceof String
+                    ? OmniButtonAction.fromId((String) rawAction)
+                    : null;
+            int expectedFields = action != null && action.usesAmount() ? 2 : 1;
+            if (action == null || binding.length() != expectedFields) {
+                throw new JSONException("Backup Omnibutton action is invalid");
+            }
+            decodedActions.put(direction, action);
+            if (action.usesAmount()) {
+                Object rawAmount = binding.opt("amount");
+                if (!(rawAmount instanceof Number number)
+                        || !action.acceptsAmount(number.doubleValue())) {
+                    throw new JSONException("Backup Omnibutton amount is invalid");
+                }
+                decodedAmounts.put(direction, number.doubleValue());
+            } else {
+                decodedAmounts.put(direction, Double.NaN);
+            }
+        }
+        if (!SpeedyWatchSettings.validOmniButtonBindings(decodedActions, decodedAmounts)) {
+            throw new JSONException("Backup Omnibutton gestures are invalid");
+        }
+        actions.clear();
+        actions.putAll(decodedActions);
+        amounts.clear();
+        amounts.putAll(decodedAmounts);
     }
 
     private static byte[] decodeThumbnail(JSONObject item) throws JSONException {

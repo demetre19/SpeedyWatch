@@ -6,38 +6,50 @@ import org.junit.Test;
 
 public final class OmniButtonGestureTest {
     @Test
-    public void horizontalSwipes_followRequestedChapterDirection() {
+    public void swipesResolveAllEightDirections() {
         assertEquals(
-                OmniButtonGesture.Action.NEXT_CHAPTER,
-                OmniButtonGesture.action(18f, 2f, 16f)
+                OmniButtonGesture.Direction.RIGHT,
+                OmniButtonGesture.direction(18f, 0f, 16f)
         );
         assertEquals(
-                OmniButtonGesture.Action.PREVIOUS_CHAPTER,
-                OmniButtonGesture.action(-18f, -2f, 16f)
+                OmniButtonGesture.Direction.DOWN_RIGHT,
+                OmniButtonGesture.direction(18f, 18f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.DOWN,
+                OmniButtonGesture.direction(0f, 18f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.DOWN_LEFT,
+                OmniButtonGesture.direction(-18f, 18f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.LEFT,
+                OmniButtonGesture.direction(-18f, 0f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.UP_LEFT,
+                OmniButtonGesture.direction(-18f, -18f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.UP,
+                OmniButtonGesture.direction(0f, -18f, 16f)
+        );
+        assertEquals(
+                OmniButtonGesture.Direction.UP_RIGHT,
+                OmniButtonGesture.direction(18f, -18f, 16f)
         );
     }
 
     @Test
-    public void verticalSwipes_openRequestedYouTubeDestinations() {
+    public void shortOrInvalidMovement_hasNoDirection() {
         assertEquals(
-                OmniButtonGesture.Action.YOUTUBE_HISTORY,
-                OmniButtonGesture.action(1f, -18f, 16f)
+                OmniButtonGesture.Direction.NONE,
+                OmniButtonGesture.direction(8f, 8f, 16f)
         );
         assertEquals(
-                OmniButtonGesture.Action.WATCH_LATER,
-                OmniButtonGesture.action(-1f, 18f, 16f)
-        );
-    }
-
-    @Test
-    public void shortOrInvalidMovement_hasNoAction() {
-        assertEquals(
-                OmniButtonGesture.Action.NONE,
-                OmniButtonGesture.action(8f, 8f, 16f)
-        );
-        assertEquals(
-                OmniButtonGesture.Action.NONE,
-                OmniButtonGesture.action(Float.NaN, 20f, 16f)
+                OmniButtonGesture.Direction.NONE,
+                OmniButtonGesture.direction(Float.NaN, 20f, 16f)
         );
     }
 

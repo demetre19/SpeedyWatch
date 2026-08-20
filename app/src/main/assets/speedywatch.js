@@ -651,7 +651,10 @@
             if (!video || !Number.isFinite(parsed)) {
                 return false;
             }
-            video.currentTime = Math.min(604800, Math.max(0, parsed));
+            const maximum = Number.isFinite(video.duration) && video.duration >= 0
+                ? Math.min(604800, video.duration)
+                : 604800;
+            video.currentTime = Math.min(maximum, Math.max(0, parsed));
             return true;
         },
         currentTime() {
@@ -670,6 +673,24 @@
                 currentTime,
                 duration
             };
+        },
+        togglePlayback() {
+            const media = mediaElements().find((element) => !element.ended);
+            const soundCloudButton = soundCloudPlaybackButton();
+            if (!media && !soundCloudButton) {
+                return "unavailable";
+            }
+            const shouldPlay = media ? media.paused : !soundCloudPlaying();
+            if (media) {
+                if (shouldPlay) {
+                    media.play().catch(() => {});
+                } else {
+                    media.pause();
+                }
+            } else {
+                soundCloudButton.click();
+            }
+            return shouldPlay ? "playing" : "paused";
         },
         preparePictureInPicture() {
             return activePictureInPictureMedia() || soundCloudPlaying()

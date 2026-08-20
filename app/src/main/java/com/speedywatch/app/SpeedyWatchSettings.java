@@ -9,6 +9,8 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.util.EnumMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -46,6 +48,8 @@ final class SpeedyWatchSettings {
     private static final String OMNI_BUTTON_ENABLED = "omni_button_enabled";
     private static final String OMNI_POSITION_X = "omni_position_x";
     private static final String OMNI_POSITION_Y = "omni_position_y";
+    private static final String OMNI_ACTION_PREFIX = "omni_action_";
+    private static final String OMNI_AMOUNT_PREFIX = "omni_amount_";
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
@@ -266,6 +270,90 @@ final class SpeedyWatchSettings {
         preferences.edit().putBoolean(OMNI_BUTTON_ENABLED, enabled).apply();
     }
 
+    OmniButtonAction getOmniButtonAction(OmniButtonGesture.Direction direction) {
+        if (direction == null || direction == OmniButtonGesture.Direction.NONE) {
+            return OmniButtonAction.NONE;
+        }
+        OmniButtonAction fallback = OmniButtonAction.defaultFor(direction);
+        OmniButtonAction saved = OmniButtonAction.fromId(
+                preferences.getString(omniActionKey(direction), fallback.id)
+        );
+        return saved == null ? fallback : saved;
+    }
+
+    double getOmniButtonAmount(OmniButtonGesture.Direction direction) {
+        OmniButtonAction action = getOmniButtonAction(direction);
+        double fallback = OmniButtonAction.defaultAmount(action);
+        if (!action.usesAmount()) {
+            return Double.NaN;
+        }
+        double saved = Double.longBitsToDouble(preferences.getLong(
+                omniAmountKey(direction),
+                Double.doubleToRawLongBits(fallback)
+        ));
+        return action.acceptsAmount(saved) ? saved : fallback;
+    }
+
+    boolean setOmniButtonBindings(
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        if (!validOmniButtonBindings(actions, amounts)) {
+            return false;
+        }
+        SharedPreferences.Editor editor = preferences.edit();
+        putOmniButtonBindings(editor, actions, amounts);
+        editor.apply();
+        return true;
+    }
+
+
+    static boolean validOmniButtonBindings(
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        if (actions == null || amounts == null) {
+            return false;
+        }
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = actions.get(direction);
+            if (action == null) {
+                return false;
+            }
+            if (action.usesAmount()) {
+                Double amount = amounts.get(direction);
+                if (amount == null || !action.acceptsAmount(amount)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    static EnumMap<OmniButtonGesture.Direction, OmniButtonAction> defaultOmniButtonActions() {
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            actions.put(direction, OmniButtonAction.defaultFor(direction));
+        }
+        return actions;
+    }
+
+    static EnumMap<OmniButtonGesture.Direction, Double> defaultOmniButtonAmounts() {
+        EnumMap<OmniButtonGesture.Direction, Double> amounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            amounts.put(
+                    direction,
+                    OmniButtonAction.defaultAmount(OmniButtonAction.defaultFor(direction))
+            );
+        }
+        return amounts;
+    }
+
     boolean areSavedThumbnailsEnabled() {
         return preferences.getBoolean(SAVED_THUMBNAILS_ENABLED, true);
     }
@@ -320,6 +408,34 @@ final class SpeedyWatchSettings {
 
     static boolean isSavedPosition(float value) {
         return value == -1f || (Float.isFinite(value) && value >= 0f && value <= 1f);
+    }
+
+    private static String omniActionKey(OmniButtonGesture.Direction direction) {
+        return OMNI_ACTION_PREFIX + direction.id;
+    }
+
+    private static String omniAmountKey(OmniButtonGesture.Direction direction) {
+        return OMNI_AMOUNT_PREFIX + direction.id;
+    }
+
+    private static void putOmniButtonBindings(
+            SharedPreferences.Editor editor,
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = actions.get(direction);
+            editor.putString(omniActionKey(direction), action.id);
+            if (action.usesAmount()) {
+                editor.putLong(
+                        omniAmountKey(direction),
+                        Double.doubleToRawLongBits(amounts.get(direction))
+                );
+            } else {
+                editor.remove(omniAmountKey(direction));
+            }
+        }
     }
 
 
@@ -437,6 +553,8 @@ final class SpeedyWatchSettings {
             boolean omniButtonEnabled,
             float omniButtonPositionX,
             float omniButtonPositionY,
+            Map<OmniButtonGesture.Direction, OmniButtonAction> omniActions,
+            Map<OmniButtonGesture.Direction, Double> omniAmounts,
             boolean savedThumbnailsEnabled
     ) {
         String normalizedModel = modelId == null ? "" : modelId.trim();
@@ -457,7 +575,8 @@ final class SpeedyWatchSettings {
                 || !isSavedPosition(pictureInPicturePositionX)
                 || !isSavedPosition(pictureInPicturePositionY)
                 || !isSavedPosition(omniButtonPositionX)
-                || !isSavedPosition(omniButtonPositionY)) {
+                || !isSavedPosition(omniButtonPositionY)
+                || !validOmniButtonBindings(omniActions, omniAmounts)) {
             return false;
         }
         SharedPreferences.Editor editor = preferences.edit()
@@ -482,6 +601,7 @@ final class SpeedyWatchSettings {
         restorePosition(editor, PIP_POSITION_Y, pictureInPicturePositionY);
         restorePosition(editor, OMNI_POSITION_X, omniButtonPositionX);
         restorePosition(editor, OMNI_POSITION_Y, omniButtonPositionY);
+        putOmniButtonBindings(editor, omniActions, omniAmounts);
         return editor.commit();
     }
 

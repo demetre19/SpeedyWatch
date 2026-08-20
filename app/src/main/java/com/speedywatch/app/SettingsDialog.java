@@ -12,6 +12,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.SpannableString;
@@ -39,6 +41,8 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 final class SettingsDialog {
@@ -48,6 +52,7 @@ final class SettingsDialog {
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(180, 180, 180);
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
+    private static final long AUTO_SAVE_DELAY_MILLIS = 650L;
 
     private final MainActivity activity;
     private final SpeedyWatchSettings settings;
@@ -55,12 +60,22 @@ final class SettingsDialog {
     private final ExecutorService executor;
     private final List<OpenRouterClient.Model> models = new ArrayList<>();
     private final Runnable onSettingsSaved;
+    private final Runnable onDefaultSpeedSaved;
     private final Runnable onExportBackup;
     private final Runnable onImportBackup;
     private final String installedVersionName;
     private final long installedVersionCode;
 
     private Dialog dialog;
+    private TextView autoSaveStatus;
+    private final Handler autoSaveHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pendingEditableSave = this::saveEditableSettings;
+    private final Runnable hideAutoSaveStatus = () -> {
+        if (autoSaveStatus != null) {
+            autoSaveStatus.setVisibility(View.INVISIBLE);
+        }
+    };
+    private boolean autoSaveReady;
     private EditText apiKeyInput;
     private TextView apiKeyPreview;
     private ImageButton apiKeyVisibilityButton;
@@ -78,6 +93,16 @@ final class SettingsDialog {
     private String pictureInPictureControl;
     private Button omniButtonToggleButton;
     private boolean omniButtonEnabled;
+    private Button omniButtonConfigureButton;
+    private TextView omniButtonSummary;
+    private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, EditText> omniAmountInputs =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private Dialog omniEditorDialog;
+    private LinearLayout omniEditorRows;
     private Button playbackProfileButton;
     private Button adaptiveSpeedButton;
     private String playbackProfile;
@@ -106,6 +131,7 @@ final class SettingsDialog {
             OpenRouterClient client,
             ExecutorService executor,
             Runnable onSettingsSaved,
+            Runnable onDefaultSpeedSaved,
             Runnable onExportBackup,
             Runnable onImportBackup
     ) {
@@ -114,6 +140,7 @@ final class SettingsDialog {
         this.client = client;
         this.executor = executor;
         this.onSettingsSaved = onSettingsSaved;
+        this.onDefaultSpeedSaved = onDefaultSpeedSaved;
         this.onExportBackup = onExportBackup;
         this.onImportBackup = onImportBackup;
         try {
@@ -134,6 +161,7 @@ final class SettingsDialog {
         dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(buildContent());
+        dialog.setOnDismissListener(ignored -> flushPendingAutoSave());
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -160,6 +188,16 @@ final class SettingsDialog {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
+        autoSaveStatus = text("Saved", 12, MUTED);
+        autoSaveStatus.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        autoSaveStatus.setVisibility(View.INVISIBLE);
+        autoSaveStatus.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        LinearLayout.LayoutParams savedParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        savedParams.setMarginStart(dp(8));
+        header.addView(autoSaveStatus, savedParams);
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close Settings");
@@ -179,6 +217,8 @@ final class SettingsDialog {
             playbackProfile = nextPlaybackProfile(playbackProfile);
             defaultSpeedInput.setText(formatSpeed(SpeedyWatchSettings.speedForProfile(playbackProfile)));
             updatePlaybackButtons();
+            saveImmediateSettings();
+            saveEditableSettings();
         });
         content.addView(playbackProfileButton, matchWrap(0, dp(8)));
 
@@ -187,6 +227,7 @@ final class SettingsDialog {
         adaptiveSpeedButton.setOnClickListener(ignored -> {
             adaptiveSpeedEnabled = !adaptiveSpeedEnabled;
             updatePlaybackButtons();
+            saveImmediateSettings();
         });
         content.addView(adaptiveSpeedButton, matchWrap(0, dp(6)));
         content.addView(
@@ -201,6 +242,7 @@ final class SettingsDialog {
         sponsorBlockButton.setOnClickListener(ignored -> {
             sponsorBlockEnabled = !sponsorBlockEnabled;
             updateSponsorBlockButtons();
+            saveImmediateSettings();
         });
         content.addView(sponsorBlockButton, matchWrap(0, dp(6)));
         sponsorCategoryButton = categoryButton("Sponsors", () -> sponsorCategoryEnabled = !sponsorCategoryEnabled);
@@ -244,6 +286,7 @@ final class SettingsDialog {
         lockIconToggleButton.setOnClickListener(ignored -> {
             lockIconEnabled = !lockIconEnabled;
             updateLockIconButton();
+            saveImmediateSettings();
         });
         updateLockIconButton();
         content.addView(lockIconToggleButton, matchWrap(0, 0));
@@ -260,6 +303,7 @@ final class SettingsDialog {
                     ? SpeedyWatchSettings.PIP_CONTROL_PINCH
                     : SpeedyWatchSettings.PIP_CONTROL_BUTTON;
             updatePictureInPictureControlButton();
+            saveImmediateSettings();
         });
         updatePictureInPictureControlButton();
         content.addView(pictureInPictureControlButton, matchWrap(dp(8), 0));
@@ -271,22 +315,30 @@ final class SettingsDialog {
                 ),
                 matchWrap(dp(8), dp(12))
         );
+        content.addView(text("Omnibutton", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
         omniButtonEnabled = settings.isOmniButtonEnabled();
+        loadOmniButtonBindings();
         omniButtonToggleButton = button("");
         omniButtonToggleButton.setOnClickListener(ignored -> {
             omniButtonEnabled = !omniButtonEnabled;
             updateOmniButtonToggle();
+            saveImmediateSettings();
         });
-        updateOmniButtonToggle();
-        content.addView(omniButtonToggleButton, matchWrap(0, 0));
+        content.addView(omniButtonToggleButton, matchWrap(0, dp(8)));
+        omniButtonConfigureButton = button("Configure 8 gestures");
+        omniButtonConfigureButton.setOnClickListener(ignored -> showOmniButtonEditor());
+        content.addView(omniButtonConfigureButton, matchWrap(0, 0));
+        omniButtonSummary = text("", 12, MUTED);
+        content.addView(omniButtonSummary, matchWrap(dp(8), 0));
         content.addView(
                 text(
-                        "Swipe the button right for Next, left for Previous, up for YouTube History, or down for Watch Later. Long-press before dragging to move it; triple-tap locks the screen.",
+                        "Swipe in any of eight directions. Hold for 350 ms before dragging; triple-tap still locks the screen.",
                         12,
                         MUTED
                 ),
                 matchWrap(dp(8), dp(12))
         );
+        updateOmniButtonToggle();
 
         content.addView(text("Downloads", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
         defaultMp3Quality = settings.getDefaultMp3Quality();
@@ -294,6 +346,7 @@ final class SettingsDialog {
         defaultMp3QualityButton.setOnClickListener(ignored -> {
             defaultMp3Quality = SpeedyWatchSettings.nextMp3Quality(defaultMp3Quality);
             updateDefaultMp3QualityButton();
+            saveImmediateSettings();
         });
         updateDefaultMp3QualityButton();
         content.addView(defaultMp3QualityButton, matchWrap(0, dp(6)));
@@ -312,6 +365,7 @@ final class SettingsDialog {
         savedThumbnailsButton.setOnClickListener(ignored -> {
             savedThumbnailsEnabled = !savedThumbnailsEnabled;
             updateSavedThumbnailsButton();
+            saveImmediateSettings();
         });
         updateSavedThumbnailsButton();
         content.addView(savedThumbnailsButton, matchWrap(0, 0));
@@ -419,6 +473,7 @@ final class SettingsDialog {
             @Override
             public void afterTextChanged(Editable editable) {
                 updateApiKeyPreview();
+                scheduleEditableAutoSave();
             }
         });
         updateApiKeyPreview();
@@ -464,19 +519,23 @@ final class SettingsDialog {
         watchPathInput.setText(promptFieldValue(
                 settings.getWatchPathPrompt(), R.string.watch_path_prompt_default));
         content.addView(watchPathInput, matchWrap(dp(8), dp(14)));
+        attachEditableAutoSave(defaultSpeedInput);
+        attachEditableAutoSave(summaryOneInput);
+        attachEditableAutoSave(summaryTwoInput);
+        attachEditableAutoSave(quizInput);
+        attachEditableAutoSave(watchPathInput);
+        autoSaveReady = true;
 
 
-        LinearLayout actions = horizontalLayout();
-        Button cancel = button("Cancel");
-        cancel.setOnClickListener(ignored -> dialog.dismiss());
-        actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        Button save = button("Save");
-        save.setBackground(panelBackground(ACTIVE, ACTIVE));
-        save.setOnClickListener(ignored -> save());
-        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        saveParams.setMarginStart(dp(8));
-        actions.addView(save, saveParams);
-        content.addView(actions);
+        Button closeSettings = button("Close");
+        closeSettings.setOnClickListener(ignored -> dialog.dismiss());
+        content.addView(
+                closeSettings,
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(44)
+                )
+        );
 
         String attributionPrefix = "Brought to you by the team from ";
         String attributionBrand = "SEO Time Machines";
@@ -732,23 +791,30 @@ final class SettingsDialog {
                     if (dialog != null && dialog.isShowing()) {
                         modelStatus.setText("Load failed");
                         modelButton.setEnabled(!models.isEmpty());
-                        Toast.makeText(activity, safeMessage(error, "Could not load models"), Toast.LENGTH_LONG).show();
+                        Toast.makeText(
+                                activity,
+                                safeMessage(error, "Could not load models"),
+                                Toast.LENGTH_LONG
+                        ).show();
                     }
                 });
             }
         });
     }
-
     private void applyModels(List<OpenRouterClient.Model> loaded) {
         if (dialog == null || !dialog.isShowing()) {
             return;
         }
         models.clear();
         models.addAll(loaded);
+        String previousModelId = selectedModelId;
         boolean selectedExists = findModel(selectedModelId) != null;
         if (!selectedExists) {
             OpenRouterClient.Model preferred = findModel(SpeedyWatchSettings.PREFERRED_MODEL_ID);
             selectedModelId = preferred == null ? "" : preferred.id;
+        }
+        if (!selectedModelId.isEmpty() && !selectedModelId.equals(previousModelId)) {
+            settings.setModelId(selectedModelId);
         }
         updateModelButton();
         modelButton.setEnabled(!models.isEmpty());
@@ -810,6 +876,8 @@ final class SettingsDialog {
             OpenRouterClient.Model selected = adapter.getItem(position);
             selectedModelId = selected.id;
             updateModelButton();
+            settings.setModelId(selectedModelId);
+            showAutoSaved();
             picker.dismiss();
         });
         content.addView(list, new LinearLayout.LayoutParams(
@@ -869,6 +937,7 @@ final class SettingsDialog {
         result.setOnClickListener(ignored -> {
             toggle.run();
             updateSponsorBlockButtons();
+            saveImmediateSettings();
         });
         return result;
     }
@@ -898,10 +967,255 @@ final class SettingsDialog {
         );
     }
 
+    private void loadOmniButtonBindings() {
+        omniActions.clear();
+        omniAmounts.clear();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniActions.put(direction, settings.getOmniButtonAction(direction));
+            omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
+        }
+    }
+
+    private void showOmniButtonEditor() {
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> originalActions =
+                new EnumMap<>(omniActions);
+        EnumMap<OmniButtonGesture.Direction, Double> originalAmounts =
+                new EnumMap<>(omniAmounts);
+
+        omniEditorDialog = new Dialog(activity);
+        omniEditorDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout root = verticalLayout();
+        root.setPadding(dp(18), dp(14), dp(18), dp(14));
+        root.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+
+        TextView title = text("Omnibutton gestures", 20, Color.WHITE);
+        title.setTypeface(title.getTypeface(), Typeface.BOLD);
+        root.addView(title);
+        root.addView(
+                text(
+                        "Assign any SpeedyWatch action to each swipe direction. Amount fields appear only where needed.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(6), dp(8))
+        );
+
+        omniEditorRows = verticalLayout();
+        rebuildOmniButtonEditorRows();
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setFillViewport(true);
+        scroll.addView(omniEditorRows);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
+
+        Button reset = button("Reset defaults");
+        reset.setOnClickListener(ignored -> {
+            omniActions.clear();
+            omniActions.putAll(SpeedyWatchSettings.defaultOmniButtonActions());
+            omniAmounts.clear();
+            omniAmounts.putAll(SpeedyWatchSettings.defaultOmniButtonAmounts());
+            rebuildOmniButtonEditorRows();
+        });
+        root.addView(reset, matchWrap(dp(8), dp(8)));
+
+        LinearLayout actions = horizontalLayout();
+        Button cancel = button("Cancel");
+        cancel.setOnClickListener(ignored -> {
+            omniActions.clear();
+            omniActions.putAll(originalActions);
+            omniAmounts.clear();
+            omniAmounts.putAll(originalAmounts);
+            omniEditorDialog.dismiss();
+        });
+        actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        Button done = button("Done");
+        done.setBackground(panelBackground(ACTIVE, ACTIVE));
+        done.setOnClickListener(ignored -> {
+            if (!readOmniButtonAmounts(true)) {
+                return;
+            }
+            updateOmniButtonSummary();
+            saveImmediateSettings();
+            omniEditorDialog.dismiss();
+        });
+        LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        doneParams.setMarginStart(dp(8));
+        actions.addView(done, doneParams);
+        root.addView(actions);
+
+        omniEditorDialog.setOnCancelListener(ignored -> {
+            omniActions.clear();
+            omniActions.putAll(originalActions);
+            omniAmounts.clear();
+            omniAmounts.putAll(originalAmounts);
+        });
+        omniEditorDialog.setContentView(root);
+        Window window = omniEditorDialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        omniEditorDialog.show();
+        if (window != null) {
+            window.setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            );
+            window.setGravity(Gravity.CENTER);
+        }
+    }
+
+    private void rebuildOmniButtonEditorRows() {
+        omniEditorRows.removeAllViews();
+        omniAmountInputs.clear();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = omniActions.get(direction);
+            LinearLayout group = verticalLayout();
+
+            LinearLayout row = horizontalLayout();
+            TextView directionLabel = label(direction.label);
+            directionLabel.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            row.addView(directionLabel, new LinearLayout.LayoutParams(dp(92), dp(44)));
+            Button actionButton = button(action.label);
+            actionButton.setContentDescription(
+                    direction.label + " swipe action: " + action.label
+            );
+            actionButton.setOnClickListener(ignored -> showOmniButtonActionPicker(direction));
+            row.addView(actionButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
+            group.addView(row);
+
+            if (action.usesAmount()) {
+                LinearLayout amountRow = horizontalLayout();
+                String amountLabel = action.amountType == OmniButtonAction.AmountType.SPEED
+                        ? "Amount (x)"
+                        : "Seconds";
+                TextView label = text(amountLabel, 12, MUTED);
+                label.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                amountRow.addView(label, new LinearLayout.LayoutParams(0, dp(44), 1f));
+                EditText input = input(false, 1);
+                input.setGravity(Gravity.CENTER);
+                input.setSelectAllOnFocus(true);
+                input.setInputType(
+                        InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
+                );
+                double amount = omniAmounts.getOrDefault(
+                        direction,
+                        OmniButtonAction.defaultAmount(action)
+                );
+                if (!action.acceptsAmount(amount)) {
+                    amount = OmniButtonAction.defaultAmount(action);
+                    omniAmounts.put(direction, amount);
+                }
+                input.setText(formatSpeed(amount));
+                input.setContentDescription(direction.label + " " + amountLabel);
+                omniAmountInputs.put(direction, input);
+                LinearLayout.LayoutParams amountParams =
+                        new LinearLayout.LayoutParams(dp(100), dp(44));
+                amountParams.setMarginStart(dp(8));
+                amountRow.addView(input, amountParams);
+                group.addView(amountRow);
+            }
+            omniEditorRows.addView(group, matchWrap(dp(8), 0));
+        }
+    }
+
+    private void showOmniButtonActionPicker(OmniButtonGesture.Direction direction) {
+        captureValidOmniButtonAmounts();
+        OmniButtonAction[] actions = OmniButtonAction.values();
+        String[] labels = new String[actions.length];
+        int selected = 0;
+        for (int index = 0; index < actions.length; index++) {
+            labels[index] = actions[index].label;
+            if (actions[index] == omniActions.get(direction)) {
+                selected = index;
+            }
+        }
+        new AlertDialog.Builder(activity)
+                .setTitle(direction.label + " swipe")
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    OmniButtonAction action = actions[which];
+                    omniActions.put(direction, action);
+                    Double amount = omniAmounts.get(direction);
+                    if (action.usesAmount()
+                            && (amount == null || !action.acceptsAmount(amount))) {
+                        omniAmounts.put(direction, OmniButtonAction.defaultAmount(action));
+                    }
+                    dialog.dismiss();
+                    rebuildOmniButtonEditorRows();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void captureValidOmniButtonAmounts() {
+        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry
+                : omniAmountInputs.entrySet()) {
+            OmniButtonAction action = omniActions.get(entry.getKey());
+            try {
+                double amount = Double.parseDouble(entry.getValue().getText().toString().trim());
+                if (action.acceptsAmount(amount)) {
+                    omniAmounts.put(entry.getKey(), amount);
+                }
+            } catch (NumberFormatException ignored) {
+                // The value is validated when the user taps Done.
+            }
+        }
+    }
+
+    private boolean readOmniButtonAmounts(boolean showErrors) {
+        boolean valid = true;
+        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry
+                : omniAmountInputs.entrySet()) {
+            OmniButtonAction action = omniActions.get(entry.getKey());
+            EditText input = entry.getValue();
+            try {
+                double amount = Double.parseDouble(input.getText().toString().trim());
+                if (!action.acceptsAmount(amount)) {
+                    throw new NumberFormatException();
+                }
+                omniAmounts.put(entry.getKey(), amount);
+                input.setError(null);
+            } catch (NumberFormatException error) {
+                valid = false;
+                if (showErrors) {
+                    input.setError(action.amountType == OmniButtonAction.AmountType.SPEED
+                            ? "Enter 0.01 to 3.75"
+                            : "Enter 1 to 600");
+                }
+            }
+        }
+        return valid;
+    }
+
+    private void updateOmniButtonSummary() {
+        if (omniButtonSummary == null) {
+            return;
+        }
+        StringBuilder summary = new StringBuilder();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = omniActions.get(direction);
+            if (summary.length() > 0) {
+                summary.append('\n');
+            }
+            summary.append(direction.label).append(": ");
+            summary.append(action.usesAmount()
+                    ? action.label(omniAmounts.get(direction))
+                    : action.label);
+        }
+        omniButtonSummary.setText(summary);
+        omniButtonSummary.setContentDescription("Configured Omnibutton gestures. " + summary);
+    }
+
     private void updateOmniButtonToggle() {
         omniButtonToggleButton.setText(
                 omniButtonEnabled ? "Omnibutton: On" : "Omnibutton: Off"
         );
+        updateOmniButtonSummary();
     }
 
     private void updateDefaultMp3QualityButton() {
@@ -925,24 +1239,27 @@ final class SettingsDialog {
             if (speed < 0.25 || speed > 4.0) {
                 throw new NumberFormatException();
             }
+            defaultSpeedInput.setError(null);
             return speed;
         } catch (NumberFormatException error) {
-            Toast.makeText(activity, "Enter a default speed from 0.25 to 4", Toast.LENGTH_SHORT).show();
+            defaultSpeedInput.setError("Enter 0.25 to 4");
             return null;
         }
     }
 
-
-    private void save() {
-        Double defaultSpeed = readDefaultSpeed();
-        if (defaultSpeed == null) {
-            return;
-        }
-        settings.setDefaultPlaybackSpeed(defaultSpeed);
+    private void saveImmediateSettings() {
         settings.setDefaultMp3Quality(defaultMp3Quality);
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        if (!settings.setOmniButtonBindings(omniActions, omniAmounts)) {
+            Toast.makeText(
+                    activity,
+                    "Finish the Omnibutton gesture amounts",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
         settings.setSavedThumbnailsEnabled(savedThumbnailsEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
@@ -952,34 +1269,100 @@ final class SettingsDialog {
                 interactionCategoryEnabled
         );
         onSettingsSaved.run();
-        if (selectedModelId == null || selectedModelId.isEmpty()) {
-            Toast.makeText(
-                    activity,
-                    "Default speed saved; choose an OpenRouter model",
-                    Toast.LENGTH_SHORT
-            ).show();
+        showAutoSaved();
+    }
+
+    private void attachEditableAutoSave(EditText input) {
+        input.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                scheduleEditableAutoSave();
+            }
+        });
+    }
+
+    private void scheduleEditableAutoSave() {
+        if (!autoSaveReady) {
             return;
         }
-        String summaryOne = summaryOneInput.getText().toString();
-        String summaryTwo = summaryTwoInput.getText().toString();
-        String quiz = quizInput.getText().toString();
-        String watchPath = watchPathInput.getText().toString();
-        if (summaryOne.trim().isEmpty()
-                || summaryTwo.trim().isEmpty()
-                || quiz.trim().isEmpty()
-                || watchPath.trim().isEmpty()) {
-            Toast.makeText(activity, "Prompt fields cannot be empty", Toast.LENGTH_SHORT).show();
+        autoSaveHandler.removeCallbacks(pendingEditableSave);
+        autoSaveHandler.postDelayed(pendingEditableSave, AUTO_SAVE_DELAY_MILLIS);
+    }
+
+    private void flushPendingAutoSave() {
+        if (!autoSaveReady) {
             return;
         }
-        try {
-            settings.setApiKey(apiKeyInput.getText().toString());
-            settings.setModelId(selectedModelId);
+        autoSaveHandler.removeCallbacks(pendingEditableSave);
+        saveEditableSettings();
+    }
+
+    private void saveEditableSettings() {
+        if (!autoSaveReady) {
+            return;
+        }
+        boolean changed = false;
+        Double defaultSpeed = readDefaultSpeed();
+        if (defaultSpeed != null
+                && Double.compare(defaultSpeed, settings.getDefaultPlaybackSpeed()) != 0) {
+            settings.setDefaultPlaybackSpeed(defaultSpeed);
+            onDefaultSpeedSaved.run();
+            changed = true;
+        }
+
+        String summaryOne = validPromptValue(
+                summaryOneInput,
+                settings.getSummaryOnePrompt()
+        );
+        String summaryTwo = validPromptValue(
+                summaryTwoInput,
+                settings.getSummaryTwoPrompt()
+        );
+        String quiz = validPromptValue(quizInput, settings.getQuizPrompt());
+        String watchPath = validPromptValue(watchPathInput, settings.getWatchPathPrompt());
+        if (!summaryOne.equals(settings.getSummaryOnePrompt())
+                || !summaryTwo.equals(settings.getSummaryTwoPrompt())
+                || !quiz.equals(settings.getQuizPrompt())
+                || !watchPath.equals(settings.getWatchPathPrompt())) {
             settings.setPrompts(summaryOne, summaryTwo, quiz, watchPath);
-            Toast.makeText(activity, "Settings saved", Toast.LENGTH_SHORT).show();
-            dialog.dismiss();
-        } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "API key could not be stored securely", Toast.LENGTH_LONG).show();
+            changed = true;
         }
+
+        try {
+            String apiKey = apiKeyInput.getText().toString();
+            if (!apiKey.equals(settings.getApiKey())) {
+                settings.setApiKey(apiKey);
+                changed = true;
+            }
+            apiKeyInput.setError(null);
+        } catch (GeneralSecurityException error) {
+            apiKeyInput.setError("Could not store this key securely");
+        }
+
+        if (changed) {
+            showAutoSaved();
+        }
+    }
+
+    private String validPromptValue(EditText input, String savedValue) {
+        String value = input.getText().toString();
+        if (value.trim().isEmpty()) {
+            input.setError("Cannot be empty");
+            return savedValue;
+        }
+        input.setError(null);
+        return value;
+    }
+
+    private void showAutoSaved() {
+        if (autoSaveStatus == null) {
+            return;
+        }
+        autoSaveHandler.removeCallbacks(hideAutoSaveStatus);
+        autoSaveStatus.setText("Saved");
+        autoSaveStatus.setVisibility(View.VISIBLE);
+        autoSaveStatus.announceForAccessibility("Settings saved");
+        autoSaveHandler.postDelayed(hideAutoSaveStatus, 1_200L);
     }
 
     private static String formatSpeed(double speed) {

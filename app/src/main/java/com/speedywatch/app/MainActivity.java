@@ -1459,11 +1459,11 @@ public final class MainActivity extends Activity {
                 openRouterClient,
                 ioExecutor,
                 () -> {
-                    setSpeed(appSettings.getDefaultPlaybackSpeed());
                     applyScreenLockSettings();
                     lastSponsorLookupKey = "";
                     refreshSponsorSegments(webView.getUrl());
                 },
+                () -> setSpeed(appSettings.getDefaultPlaybackSpeed()),
                 this::chooseBackupDestination,
                 this::chooseBackupFile
         ).show();
@@ -1544,13 +1544,18 @@ public final class MainActivity extends Activity {
     }
 
     private void showYouTubeSubs() {
+        showYouTubeSubs(YouTubeSubsDialog.InitialSummary.NONE);
+    }
+
+    private void showYouTubeSubs(YouTubeSubsDialog.InitialSummary initialSummary) {
         new YouTubeSubsDialog(
                 this,
                 transcriptHost(),
                 appSettings,
                 openRouterClient,
                 ioExecutor,
-                savedSummaryStore
+                savedSummaryStore,
+                initialSummary
         ).show();
     }
 
@@ -2552,7 +2557,7 @@ public final class MainActivity extends Activity {
         pictureInPictureButton.setAlpha(0.45f);
         omniButton = makeIconButton(
                 R.drawable.ic_omni_control,
-                "Omnibutton. Swipe right for Next, left for Previous, up for YouTube History, or down for Watch Later. Hold to move; triple-tap to lock",
+                "Omnibutton. Hold to move; triple-tap to lock",
                 ignored -> {
                 }
         );
@@ -2614,6 +2619,7 @@ public final class MainActivity extends Activity {
         pictureInPictureButton.setVisibility(shouldShowPictureInPictureButton()
                 ? View.VISIBLE : View.GONE);
         omniButton.setVisibility(!screenLocked && omniEnabled ? View.VISIBLE : View.GONE);
+        updateOmniButtonContentDescription();
         positionFloatingControls();
         screenLockShield.bringToFront();
     }
@@ -3023,15 +3029,15 @@ public final class MainActivity extends Activity {
                         return true;
                     }
                     activeView = null;
-                    OmniButtonGesture.Action action = OmniButtonGesture.action(
+                    OmniButtonGesture.Direction direction = OmniButtonGesture.direction(
                             event.getRawX() - downRawX,
                             event.getRawY() - downRawY,
                             swipeDistance
                     );
-                    if (action != OmniButtonGesture.Action.NONE) {
+                    if (direction != OmniButtonGesture.Direction.NONE) {
                         tapCount = 0;
                         previousTapAt = -1L;
-                        performOmniButtonAction(action);
+                        performOmniButtonAction(direction);
                         return true;
                     }
                     long tapAt = SystemClock.uptimeMillis();
@@ -3062,13 +3068,36 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void performOmniButtonAction(OmniButtonGesture.Action action) {
+    private void performOmniButtonAction(OmniButtonGesture.Direction direction) {
+        OmniButtonAction action = appSettings.getOmniButtonAction(direction);
+        double amount = appSettings.getOmniButtonAmount(direction);
         switch (action) {
+            case NONE:
+                Toast.makeText(
+                        this,
+                        "No action assigned to " + direction.label,
+                        Toast.LENGTH_SHORT
+                ).show();
+                break;
             case PREVIOUS_CHAPTER:
                 navigateChapter(false);
                 break;
             case NEXT_CHAPTER:
                 navigateChapter(true);
+                break;
+            case BROWSER_BACK:
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    Toast.makeText(this, "No previous browser page", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case BROWSER_FORWARD:
+                if (webView.canGoForward()) {
+                    webView.goForward();
+                } else {
+                    Toast.makeText(this, "No forward browser page", Toast.LENGTH_SHORT).show();
+                }
                 break;
             case YOUTUBE_HISTORY:
                 loadSupportedUrl(YOUTUBE_HISTORY_URL);
@@ -3076,8 +3105,189 @@ public final class MainActivity extends Activity {
             case WATCH_LATER:
                 loadSupportedUrl(YOUTUBE_WATCH_LATER_URL);
                 break;
+            case SEARCH:
+                showSiteSearch();
+                break;
+            case CHOOSE_SITE:
+                showSitePicker();
+                break;
+            case RELOAD:
+                webView.reload();
+                break;
+            case SITE_HOME:
+                openSelectedSiteHome();
+                break;
+            case SPEED_UP:
+                setSpeed(selectedSpeed + amount);
+                break;
+            case SPEED_DOWN:
+                setSpeed(selectedSpeed - amount);
+                break;
+            case SPEED_0_5:
+            case SPEED_0_8:
+            case SPEED_1:
+            case SPEED_1_5:
+            case SPEED_2:
+            case SPEED_2_5:
+            case SPEED_3:
+            case SPEED_4:
+                setSpeed(action.exactSpeed);
+                break;
+            case SEEK_FORWARD:
+                seekRelative(amount);
+                break;
+            case SEEK_BACKWARD:
+                seekRelative(-amount);
+                break;
+            case PLAY_PAUSE:
+                toggleMediaPlayback();
+                break;
+            case PICTURE_IN_PICTURE:
+                enterPictureInPictureFromButton();
+                break;
+            case TOGGLE_SPEED_BAR:
+                applySpeedControlsCollapsed(
+                        speedControlsContent.getVisibility() == View.VISIBLE,
+                        true
+                );
+                break;
+            case SHARE:
+                shareCurrentPage();
+                break;
+            case VIDEO_SUBS:
+                showYouTubeSubs();
+                break;
+            case SUMMARY_ONE:
+                showYouTubeSubs(YouTubeSubsDialog.InitialSummary.ONE);
+                break;
+            case SUMMARY_TWO:
+                showYouTubeSubs(YouTubeSubsDialog.InitialSummary.TWO);
+                break;
+            case QUIZ:
+                showQuiz();
+                break;
+            case DOWNLOAD:
+                showDownload();
+                break;
+            case SAVED:
+                showSavedSummaries();
+                break;
+            case SETTINGS:
+                showSettings();
+                break;
+            case LOCK_SCREEN:
+                setScreenLocked(true);
+                break;
             default:
                 break;
+        }
+    }
+
+    private void updateOmniButtonContentDescription() {
+        if (omniButton == null) {
+            return;
+        }
+        StringBuilder description = new StringBuilder("Omnibutton. ");
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = appSettings.getOmniButtonAction(direction);
+            description.append(direction.label).append(": ");
+            description.append(action.usesAmount()
+                    ? action.label(appSettings.getOmniButtonAmount(direction))
+                    : action.label);
+            description.append(". ");
+        }
+        description.append("Hold to move; triple-tap to lock");
+        omniButton.setContentDescription(description);
+    }
+
+    private void openSelectedSiteHome() {
+        if (selectedSite == SupportedSite.MEGA) {
+            showMegaBookmarks();
+            return;
+        }
+        if (selectedSite.homeUrl == null) {
+            Toast.makeText(this, "This site has no home page", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        webView.loadUrl(selectedSite.homeUrl);
+    }
+
+    private void seekRelative(double seconds) {
+        queryCurrentTime(currentTime -> {
+            if (!Double.isFinite(currentTime)) {
+                Toast.makeText(
+                        this,
+                        "Start a video before seeking",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+            seekVideo(currentTime + seconds);
+            String direction = seconds >= 0 ? "Fast-forwarded " : "Rewound ";
+            Toast.makeText(
+                    this,
+                    direction + formatSpeedValue(Math.abs(seconds)) + " seconds",
+                    Toast.LENGTH_SHORT
+            ).show();
+        });
+    }
+
+    private void toggleMediaPlayback() {
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.togglePlayback() : 'unavailable'";
+        webView.evaluateJavascript(script, result -> {
+            String state = "unavailable";
+            try {
+                Object value = new JSONTokener(
+                        result == null ? "\"unavailable\"" : result
+                ).nextValue();
+                if (value instanceof String text) {
+                    state = text;
+                }
+            } catch (Exception ignored) {
+                // The unavailable message below remains authoritative.
+            }
+            if ("unavailable".equals(state)) {
+                Toast.makeText(this, "Start media before using Play/Pause", Toast.LENGTH_SHORT)
+                        .show();
+            } else {
+                Toast.makeText(
+                        this,
+                        "playing".equals(state) ? "Playback started" : "Playback paused",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+    }
+
+    private void shareCurrentPage() {
+        String supportedUrl = SupportedSite.supportedUrlFromText(webView.getUrl());
+        SupportedSite site = SupportedSite.forUrl(supportedUrl);
+        if (supportedUrl == null || site == null) {
+            Toast.makeText(this, "Open a supported page before sharing", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (site == SupportedSite.MEGA) {
+            Toast.makeText(
+                    this,
+                    "MEGA shared-link keys stay private inside SpeedyWatch",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+        String title = webView.getTitle();
+        if (title == null || title.trim().isEmpty()) {
+            title = site.label;
+        }
+        Intent share = new Intent(Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_SUBJECT, title)
+                .putExtra(Intent.EXTRA_TEXT, title + "\n\n" + supportedUrl);
+        try {
+            startActivity(Intent.createChooser(share, "Share with"));
+        } catch (RuntimeException error) {
+            Toast.makeText(this, "No app can share this page", Toast.LENGTH_SHORT).show();
         }
     }
 
