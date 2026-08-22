@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.35**, debug-signed |
+| Current public APK: **v0.36**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -158,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.35
-Version code: 35
+Version: 0.36
+Version code: 36
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,821,898 bytes
-SHA-256: d4ee2bd7606da0fef77247eb1eb886d85d8ea58f8ecb5404ad09d8b37ecf4a5f
+APK size: 106,832,558 bytes
+SHA-256: ae856cd351c45a4ee6b546cb019913b7987c0a5480dc8b7e57bd1d296faf9543
 Signing: Android debug signing key
 ```
 
-This public v0.35 APK is debug-signed with APK Signature Scheme v2. It adds X-thread link harvesting: an optional Auto-scrape X links setting (off by default) plus a manual Save X links Omnibutton action that captures only the links visible on your screen, de-duplicates them by canonical URL so nothing is saved twice, and files them under Saved with dates and an All/Videos/X-links type filter. The Omnibutton is context-aware on X with its own collapsible accordion mapping - Save X links, Download for X videos, Play/Pause, Picture-in-Picture, Share, Reload, Back/Forward, and Saved - while YouTube and other sites keep a separate accordion mapping. Scraped links stay app-private and enter JSON backups only behind an off-by-default toggle.
+This public v0.36 APK is debug-signed with APK Signature Scheme v2. It adds X post and article summarization: Video Subs and Quiz now read the text of the X page you are on - a focused post plus its self-thread, or a long-form X article - and run Summary One, Summary Two, follow-up chat, Copy/Save/Share, and Quiz over that text with timestamp-less entries, disabled video-only controls (Follow, WatchPath, caption language), and saved items filed under the author as creator without thumbnails. Facebook reel downloads gain a page-data fallback that reads media URLs embedded in the rendered document when request interception sees nothing.
 
 ## Legacy mobile source
 

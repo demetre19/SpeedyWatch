@@ -10,8 +10,8 @@ android {
         applicationId = "com.speedywatch.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 35
-        versionName = "0.35"
+        versionCode = 38
+        versionName = "0.38"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")

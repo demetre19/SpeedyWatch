@@ -1583,25 +1583,80 @@ public final class MainActivity extends Activity {
                 ? SupportedSite.validatedHttpsUrl(webView.getUrl())
                 : null;
         String videoUrl = clipboardUrl != null ? clipboardUrl : currentUrl;
-        String cookieHeader = videoUrl == null
-                ? null
-                : CookieManager.getInstance().getCookie(videoUrl);
         CapturedMediaRequest mediaRequest = clipboardUrl == null
                 && capturedMediaRequest != null
                 && capturedMediaRequest.matches(videoUrl)
                 ? capturedMediaRequest
                 : null;
+        if (mediaRequest == null && currentUrl != null
+                && SupportedSite.forUrl(currentUrl) == SupportedSite.FACEBOOK) {
+            requestFacebookPageMedia(currentUrl, videoUrl, clipboardUrl != null);
+            return;
+        }
+        openDownloadDialog(
+                videoUrl,
+                clipboardUrl != null,
+                videoUrl == null ? null : CookieManager.getInstance().getCookie(videoUrl),
+                mediaRequest,
+                clipboardUrl == null ? webView.getTitle() : "Video"
+        );
+    }
+
+    /** Facebook embeds player media inside page data instead of fetching a
+     *  manifest URL, so no request capture fires; ask the injected controller
+     *  to extract those URLs and offer them as a captured download target. */
+    private void requestFacebookPageMedia(String pageUrl, String videoUrl, boolean fromClipboard) {
+        String script = "(function(){try{return window.__speedyWatchController"
+                + "&&window.__speedyWatchController.facebookMedia"
+                + "?window.__speedyWatchController.facebookMedia()"
+                + ":JSON.stringify({url:\"\"})"
+                + "}catch(error){return JSON.stringify({url:\"\"})}})()";
+        webView.evaluateJavascript(script, result -> {
+            CapturedMediaRequest found = null;
+            try {
+                Object outer = new JSONTokener(result == null ? "null" : result).nextValue();
+                if (outer instanceof String payload) {
+                    JSONObject parsed = new JSONObject(payload);
+                    String mediaUrl = parsed.optString("url", "");
+                    if (mediaUrl.startsWith("https://")) {
+                        found = CapturedMediaRequest.fromPageData(
+                                pageUrl,
+                                mediaUrl,
+                                CookieManager.getInstance().getCookie(pageUrl),
+                                webView.getSettings().getUserAgentString()
+                        );
+                    }
+                }
+            } catch (Exception ignored) {
+                found = null;
+            }
+            openDownloadDialog(
+                    videoUrl,
+                    fromClipboard,
+                    videoUrl == null ? null : CookieManager.getInstance().getCookie(videoUrl),
+                    found,
+                    fromClipboard ? "Video" : webView.getTitle()
+            );
+        });
+    }
+
+    private void openDownloadDialog(
+            String videoUrl,
+            boolean fromClipboard,
+            String cookieHeader,
+            CapturedMediaRequest mediaRequest,
+            String initialTitle
+    ) {
         String mediaCookieHeader = mediaRequest == null ? null : mediaRequest.cookieHeader;
         if (mediaRequest != null && mediaCookieHeader == null) {
             mediaCookieHeader = CookieManager.getInstance().getCookie(mediaRequest.mediaUrl);
         }
-        String initialTitle = clipboardUrl == null ? webView.getTitle() : "Video";
         new VideoDownloadDialog(
                 this,
                 ioExecutor,
                 appSettings,
                 videoUrl,
-                clipboardUrl != null,
+                fromClipboard,
                 cookieHeader,
                 webView.getSettings().getUserAgentString(),
                 videoUrl,
@@ -1923,18 +1978,98 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public boolean isTextSource() {
+                return SupportedSite.forUrl(webView.getUrl()) == SupportedSite.X;
+            }
+
+            @Override
             public String sourceLabel() {
                 SupportedSite site = SupportedSite.forUrl(webView.getUrl());
+                if (site == SupportedSite.X) {
+                    return "X page text";
+                }
                 return (site == null ? "Video" : site.label) + " captions";
             }
         };
     }
+
+    private boolean activePageIsX() {
+        return SupportedSite.forUrl(webView.getUrl()) == SupportedSite.X;
+    }
+
+    private void requestXPageTranscript(YouTubeSubsDialog.TranscriptCallback callback) {
+        String pageUrl = webView.getUrl();
+        long requestId = transcriptRequestCounter.incrementAndGet();
+        activeTranscriptRequestId = requestId;
+        activeTranscriptCallback = callback;
+        activeTranscriptDelivered = false;
+        activeTranscriptTitle = "X page";
+        activeTranscriptChannel = "";
+        activeTranscriptPageUrl = SupportedSite.validatedHttpsUrl(webView.getUrl());
+        activeVideoId = "";
+        activeCaptionRequestUrl = "";
+        Uri pageUri = pageUrl == null ? null : Uri.parse(pageUrl);
+        String path = pageUri == null || pageUri.getPath() == null
+                ? "" : pageUri.getPath();
+        // Summaries target posts, self-threads, and long-form articles only;
+        // home timelines and other X pages have no single text source.
+        if (!path.matches(".*/status/\\d+.*") && !path.matches("/i/articles?/.*")) {
+            callback.onError("Open an X post or article first");
+            return;
+        }
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.collectXPageText() : null";
+        webView.evaluateJavascript(script, result -> handleXPageTextResult(requestId, result));
+    }
+
+    private void handleXPageTextResult(long requestId, String evaluationResult) {
+        if (requestId != activeTranscriptRequestId || activeTranscriptDelivered) {
+            return;
+        }
+        try {
+            Object outer = new JSONTokener(
+                    evaluationResult == null ? "null" : evaluationResult
+            ).nextValue();
+            if (!(outer instanceof String json)) {
+                throw new IOException("Controller was unavailable");
+            }
+            JSONObject metadata = new JSONObject(json);
+            JSONArray blocks = metadata.optJSONArray("blocks");
+            List<TranscriptEntry> entries = new ArrayList<>();
+            if (blocks != null) {
+                for (int index = 0; index < blocks.length(); index++) {
+                    String block = blocks.optString(index, "").trim();
+                    if (!block.isEmpty()) {
+                        entries.add(TranscriptEntry.textEntry(block));
+                    }
+                }
+            }
+            if (entries.isEmpty()) {
+                throw new IOException("No readable text found");
+            }
+            boolean article = "article".equals(metadata.optString("kind", ""));
+            String author = SavedSummaryStore.normalizeChannel(metadata.optString("author", ""));
+            String title = metadata.optString("title", "").trim();
+            activeTranscriptTitle = article
+                    ? (title.isEmpty() ? "X article" : title)
+                    : "X post";
+            activeTranscriptChannel = author;
+            deliverTranscript(requestId, entries);
+        } catch (Exception error) {
+            deliverTranscriptError(requestId, "Could not read text from this X page");
+        }
+    }
+
 
     private void requestTranscript(
             String languageCode,
             YouTubeSubsDialog.TranscriptCallback callback
     ) {
         String pageUrl = webView.getUrl();
+        if (activePageIsX()) {
+            requestXPageTranscript(callback);
+            return;
+        }
         Uri pageUri = pageUrl == null ? null : Uri.parse(pageUrl);
         String videoId = pageUri == null ? null : pageUri.getQueryParameter("v");
         boolean isYouTubeWatch = pageUri != null
@@ -2094,6 +2229,11 @@ public final class MainActivity extends Activity {
 
     private void requestCaptionOptions(YouTubeSubsDialog.CaptionOptionsCallback callback) {
         String pageUrl = webView.getUrl();
+        if (SupportedSite.forUrl(pageUrl) == SupportedSite.X) {
+            // X pages have no caption tracks; the language picker stays disabled.
+            callback.onLoaded(new ArrayList<>());
+            return;
+        }
         if (SupportedSite.forUrl(pageUrl) != SupportedSite.YOUTUBE) {
             String validPageUrl = SupportedSite.validatedHttpsUrl(pageUrl);
             if (!SupportedSite.isSupportedDownloadUrl(validPageUrl)) {

@@ -308,7 +308,7 @@ final class VideoDownloadDialog {
         choices.removeAllViews();
         TextView error = text(
                 capturedAvailable
-                        ? "Format check failed, but a video stream was detected while this page played. You can still download it."
+                        ? "Format check failed, but a video stream was detected on the page currently open. These options download that page's video."
                         : "SpeedyWatch could not confirm the available formats for this URL.",
                 14,
                 MUTED
@@ -335,7 +335,6 @@ final class VideoDownloadDialog {
             choices.addView(mp4, choiceParams(false));
         }
         Button retry = choiceButton("Retry format check");
-        retry.setOnClickListener(ignored -> loadFormats());
         choices.addView(retry, choiceParams(false));
     }
 

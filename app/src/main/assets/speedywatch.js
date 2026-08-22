@@ -577,6 +577,164 @@
             pageUrl: String(window.location.href).slice(0, 2000)
         });
     };
+    // X posts and articles expose their content as rendered DOM text rather than
+    // captions, so summarizing reads the visible self-thread or article body.
+    const collectXPageText = () => {
+        if (!onXSite()) {
+            return JSON.stringify({ kind: "", author: "", title: "", blocks: [] });
+        }
+        const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+        const noise = /^(?:follow|following|reply|replies|repost(?:s|ed)?|like[d]?|views?|share|copy link|see more|show this thread|show more|show less|less|article|save|pinned|translate post|read \d+ r(?:eply|eplies)|\d+(?:\/\d+)?|home|search|explore|notifications|messages|grok|premium|bookmarks|lists|profile|more|settings|highlight|who to follow|subscribe to premium|verified organizations|create account|sign up|log in|terms of service|privacy policy|cookie policy|accessibility|ads info)$/;
+        const blocks = [];
+        let total = 0;
+        const push = (value) => {
+            const text = clean(value).slice(0, 2000);
+            if (text.length < 2 || noise.test(text)
+                    || blocks.length >= 400 || total + text.length > 40000) {
+                return;
+            }
+            if (blocks.length && blocks[blocks.length - 1] === text) {
+                return;
+            }
+            blocks.push(text);
+            total += text.length;
+        };
+        let kind = "";
+        let author = "";
+        let title = "";
+        const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+        if (tweets.length > 0) {
+            kind = "post";
+            const handleOf = (tweet) => {
+                const link = tweet.querySelector('a[href^="/"][href*="/status/"]');
+                const match = link
+                    ? /^\/([A-Za-z0-9_]{1,20})(?:\/|$)/.exec(link.getAttribute("href") || "")
+                    : null;
+                return match ? match[1].toLowerCase() : "";
+            };
+            author = handleOf(tweets[0]);
+            let included = 0;
+            for (const tweet of tweets) {
+                if (blocks.length >= 400 || total >= 40000) {
+                    break;
+                }
+                const body = tweet.querySelector('[data-testid="tweetText"]');
+                if (!body) {
+                    continue;
+                }
+                const handle = handleOf(tweet);
+                // Self-thread only: once the focused post is captured, replies
+                // from other accounts stay out of the extracted text.
+                if (included > 0 && ((!author && !handle) || (author && handle !== author))) {
+                    break;
+                }
+                included += 1;
+                push(body.innerText);
+            }
+        }
+        if (blocks.length === 0) {
+            // Tier 2: rendered post text nodes wherever X's container markup
+            // puts them; article shells can render without matching testids.
+            const bodies = document.querySelectorAll('[data-testid="tweetText"]');
+            if (bodies.length > 0) {
+                kind = kind || "post";
+                for (const body of bodies) {
+                    if (blocks.length >= 400 || total >= 40000) {
+                        break;
+                    }
+                    push(body.innerText);
+                }
+            }
+        }
+        if (blocks.length === 0) {
+            // Tier 3: long-form article body or any readable primary region.
+            const container =
+                document.querySelector('[data-testid="articleContent"]')
+                || document.querySelector("article")
+                || document.querySelector('[role="dialog"]')
+                || document.querySelector('[data-testid="primaryColumn"]')
+                || document.querySelector("main");
+            if (container) {
+                kind = "article";
+                const heading = container.querySelector("h1");
+                title = heading ? clean(heading.innerText).slice(0, 200) : "";
+                const parts = container.querySelectorAll("h2, h3, p, blockquote, li");
+                if (parts.length >= 3) {
+                    for (const part of parts) {
+                        if (part.querySelector("h2, h3, p, blockquote")) {
+                            continue; // Leaf blocks only; containers duplicate text.
+                        }
+                        push(part.innerText);
+                    }
+                } else {
+                    for (const line of String(container.innerText || "").split("\n")) {
+                        push(line);
+                    }
+                }
+            }
+        }
+        return JSON.stringify({
+            kind,
+            author: author.slice(0, 40),
+            title,
+            blocks,
+            pageUrl: String(window.location.href).slice(0, 2000)
+        });
+    };
+    // Facebook bakes player data (progressive renditions, DASH manifests) into
+    // inline page payloads instead of fetching a manifest URL, so request
+    // interception never sees a media request; dig those URLs out of the
+    // inline script nodes. Rendered Facebook documents serialize far past any
+    // single-pass cap, so scan script-by-script under a total byte budget
+    // instead of bailing on document size.
+    const facebookMedia = () => {
+        const host = String(window.location.hostname || "").toLowerCase();
+        if (!(host === "facebook.com" || host.endsWith(".facebook.com"))) {
+            return JSON.stringify({ url: "" });
+        }
+        let scripts = [];
+        try {
+            scripts = Array.prototype.slice.call(document.querySelectorAll("script"));
+        } catch (error) {
+            return JSON.stringify({ url: "" });
+        }
+        const pattern = /"(?:browser_native_hd_url|browser_native_sd_url|playable_url|hd_src|sd_src)"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+        let budget = 12000000;
+        for (let index = 0; index < scripts.length && budget > 0; index++) {
+            let text = "";
+            try {
+                text = String(scripts[index].textContent || "");
+            } catch (error) {
+                continue;
+            }
+            if (!text) {
+                continue;
+            }
+            budget -= text.length;
+            const sources = [text];
+            const unescaped = text.replace(/\\"/g, '"');
+            if (unescaped !== text) {
+                sources.push(unescaped);
+            }
+            for (const source of sources) {
+                const match = pattern.exec(source);
+                if (!match) {
+                    continue;
+                }
+                try {
+                    const decoded = JSON.parse('"' + match[1] + '"');
+                    if (/^https:\/\/[^\s"<>]+$/.test(decoded)) {
+                        return JSON.stringify({
+                            url: decoded.slice(0, 2000)
+                        });
+                    }
+                } catch (error) {
+                    /* keep scanning */
+                }
+            }
+        }
+        return JSON.stringify({ url: "" });
+    };
     const tick = () => {
         state.pending = false;
         selectMegaBrowserChoice();
@@ -596,9 +754,11 @@
     };
 
     const api = {
-        version: 20,
+        version: 22,
         megaFolderName,
         collectXLinks,
+        collectXPageText,
+        facebookMedia,
         setSpeed(value) {
             const parsed = Number(value);
             if (!Number.isFinite(parsed)) {

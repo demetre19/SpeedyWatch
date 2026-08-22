@@ -73,6 +73,46 @@ final class CapturedMediaRequest {
                 priority
         );
     }
+    /** Builds a same-page media target extracted from embedded page data rather
+     *  than an observed network request, carrying the WebView session cookies. */
+    static CapturedMediaRequest fromPageData(
+            String pageUrl,
+            String mediaUrl,
+            String cookieHeader,
+            String userAgent
+    ) {
+        String validPageUrl = SupportedSite.validatedHttpsUrl(pageUrl);
+        String validMediaUrl = SupportedSite.validatedHttpsUrl(mediaUrl);
+        if (validPageUrl == null || validMediaUrl == null) {
+            return null;
+        }
+        int priority = mediaPriority(validMediaUrl);
+        if (priority == 0) {
+            return null;
+        }
+        return new CapturedMediaRequest(
+                validPageUrl,
+                validMediaUrl,
+                boundedHeader(cookieHeader, MAX_HEADER_LENGTH),
+                boundedHeader(userAgent, 512),
+                validPageUrl,
+                null,
+                null,
+                priority
+        );
+    }
+
+    private static String boundedHeader(String value, int maxLength) {
+        if (value == null
+                || value.isEmpty()
+                || value.length() > maxLength
+                || value.indexOf('\r') >= 0
+                || value.indexOf('\n') >= 0
+                || value.indexOf('\0') >= 0) {
+            return null;
+        }
+        return value;
+    }
 
     boolean matches(String sourceUrl) {
         String validSourceUrl = SupportedSite.validatedHttpsUrl(sourceUrl);

@@ -57,6 +57,9 @@ final class YouTubeSubsDialog {
         void seekTo(double seconds);
         void currentTime(CurrentTimeCallback callback);
         void startWatchPath(WatchPathPlan plan);
+        default boolean isTextSource() {
+            return false;
+        }
         default String sourceLabel() {
             return "Video captions";
         }
@@ -215,10 +218,12 @@ final class YouTubeSubsDialog {
         transcriptButton.setEnabled(false);
         transcriptButton.setOnClickListener(ignored -> showTranscript());
         watchPathButton = button("WatchPath");
-        watchPathButton.setEnabled(false);
+        watchPathButton.setEnabled(!host.isTextSource());
+        if (host.isTextSource()) {
+            watchPathButton.setContentDescription(
+                    "WatchPath is available for videos with timestamps only");
+        }
         watchPathButton.setOnClickListener(ignored -> showWatchPath());
-        addWeighted(modeActions, transcriptButton, 1f, 0);
-        addWeighted(modeActions, watchPathButton, 1f, dp(8));
         LinearLayout.LayoutParams modeParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -262,21 +267,25 @@ final class YouTubeSubsDialog {
             readingModeButton.setText(paragraphs ? "Paragraphs" : "Lines");
             updateTranscriptStatus();
         });
+        Button copyTranscriptButton = button("Copy transcript");
+        copyTranscriptButton.setOnClickListener(ignored -> copyTranscript());
+        addWeighted(readingActions, readingModeButton, 1f, 0);
         followButton = button("Follow: Off");
+        if (host.isTextSource()) {
+            followButton.setEnabled(false);
+            followButton.setContentDescription(
+                    "Follow playback is available for videos only");
+        }
         followButton.setOnClickListener(ignored -> {
             followPlayback = !followPlayback;
             followButton.setText(followPlayback ? "Follow: On" : "Follow: Off");
             if (followPlayback) {
-                updateFollowPosition();
+                followHandler.post(followTick);
             } else {
                 followHandler.removeCallbacks(followTick);
-                currentPlaybackTime = -1;
-                transcriptAdapter.notifyDataSetChanged();
             }
         });
-        Button copyTranscriptButton = button("Copy transcript");
-        copyTranscriptButton.setOnClickListener(ignored -> copyTranscript());
-        addWeighted(readingActions, readingModeButton, 1f, 0);
+
         addWeighted(readingActions, followButton, 1f, dp(8));
         addWeighted(readingActions, copyTranscriptButton, 1f, dp(8));
         LinearLayout.LayoutParams readingParams = new LinearLayout.LayoutParams(
@@ -323,6 +332,14 @@ final class YouTubeSubsDialog {
         transcriptAdapter = new TranscriptAdapter();
         transcriptList.setAdapter(transcriptAdapter);
         transcriptList.setOnItemClickListener((parent, view, position, id) -> {
+            if (host.isTextSource()) {
+                Toast.makeText(
+                        activity,
+                        "Line selection seeks videos only",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
             TranscriptEntry entry = transcriptAdapter.getItem(position);
             host.seekTo(entry.startSeconds);
             dialog.dismiss();
@@ -1126,7 +1143,9 @@ final class YouTubeSubsDialog {
     private String buildUserMessage() {
         StringBuilder transcript = new StringBuilder();
         for (TranscriptEntry entry : entries) {
-            transcript.append(entry.timestamp()).append(' ').append(entry.text).append('\n');
+            String stamp = entry.timestamp();
+            transcript.append(stamp.isEmpty() ? "" : stamp + " ")
+                    .append(entry.text).append('\n');
         }
         return "Source: " + host.sourceLabel() + "\nTitle: "
                 + videoTitle
@@ -1218,7 +1237,8 @@ final class YouTubeSubsDialog {
             if (output.length() > 0) {
                 output.append('\n');
             }
-            output.append(entry.timestamp()).append(' ').append(entry.text);
+            String stamp = entry.timestamp();
+            output.append(stamp.isEmpty() ? "" : stamp + " ").append(entry.text);
         }
         ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("SpeedyWatch transcript", output.toString()));
@@ -1504,6 +1524,23 @@ final class YouTubeSubsDialog {
             all.clear();
             if (!paragraphMode) {
                 all.addAll(source);
+            } else if (!source.isEmpty() && source.get(0).isTextOnly()) {
+                // Text sources have no timeline, so paragraphs group by count only.
+                StringBuilder text = new StringBuilder(source.get(0).text);
+                int count = 1;
+                for (int index = 1; index < source.size(); index++) {
+                    TranscriptEntry entry = source.get(index);
+                    if (count >= 4) {
+                        all.add(TranscriptEntry.textEntry(text.toString()));
+                        text.setLength(0);
+                        text.append(entry.text);
+                        count = 1;
+                    } else {
+                        text.append(' ').append(entry.text);
+                        count++;
+                    }
+                }
+                all.add(TranscriptEntry.textEntry(text.toString()));
             } else if (!source.isEmpty()) {
                 double start = source.get(0).startSeconds;
                 double end = start + source.get(0).durationSeconds;

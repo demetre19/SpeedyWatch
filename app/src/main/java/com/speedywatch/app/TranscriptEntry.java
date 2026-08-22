@@ -11,7 +11,19 @@ final class TranscriptEntry {
         this.text = text;
     }
 
+    /** Builds a timestamp-less entry for text sources such as X posts and articles. */
+    static TranscriptEntry textEntry(String text) {
+        return new TranscriptEntry(-1, 0, text);
+    }
+
+    boolean isTextOnly() {
+        return startSeconds < 0;
+    }
+
     String timestamp() {
+        if (isTextOnly()) {
+            return "";
+        }
         int totalSeconds = Math.max(0, (int) Math.floor(startSeconds));
         int hours = totalSeconds / 3600;
         int minutes = (totalSeconds % 3600) / 60;
