@@ -74,6 +74,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
@@ -116,12 +117,14 @@ public final class MainActivity extends Activity {
     private final OpenRouterClient openRouterClient = new OpenRouterClient();
     private final ExecutorService ioExecutor = Executors.newFixedThreadPool(2);
     private final AtomicLong transcriptRequestCounter = new AtomicLong();
+    private final AtomicLong xLinkRequestCounter = new AtomicLong();
     private final SponsorBlockClient sponsorBlockClient = new SponsorBlockClient();
     private final AtomicLong sponsorBlockRequestCounter = new AtomicLong();
     private final AtomicLong chapterRequestCounter = new AtomicLong();
     private SpeedyWatchSettings appSettings;
     private SavedSummaryStore savedSummaryStore;
     private MegaBookmarkStore megaBookmarkStore;
+    private ScrapedLinkStore scrapedLinkStore;
     private LinearLayout appRoot;
     private LinearLayout speedControls;
     private View speedControlsContent;
@@ -220,6 +223,7 @@ public final class MainActivity extends Activity {
         selectedSpeed = appSettings.getDefaultPlaybackSpeed();
         savedSummaryStore = new SavedSummaryStore(this);
         megaBookmarkStore = new MegaBookmarkStore(this);
+        scrapedLinkStore = new ScrapedLinkStore(this);
         controllerScript = readAsset("speedywatch.js");
         chineseTranslatorScript = readAsset("chinese_translate.js");
         appRoot = buildUi();
@@ -296,6 +300,8 @@ public final class MainActivity extends Activity {
                 clearObservedCaptionRequestForNavigation(url);
                 refreshSponsorSegments(url);
                 scheduleChapterRefresh();
+                collectXThreadLinks();
+                updateOmniButtonContentDescription();
                 if (activeWatchPath != null && !watchPathSourceMatches(url)) {
                     stopWatchPath(false);
                 }
@@ -847,6 +853,7 @@ public final class MainActivity extends Activity {
             refreshSponsorSegments(webView.getUrl());
             injectChineseTranslator();
             attemptPendingMegaResume();
+            collectXThreadLinks();
         });
     }
 
@@ -858,6 +865,241 @@ public final class MainActivity extends Activity {
         }
         webView.evaluateJavascript(chineseTranslatorScript, ignored -> {
         });
+    }
+
+    private void collectXThreadLinks() {
+        String sourceUrl = webView.getUrl();
+        if (!appSettings.isAutoScrapeXLinksEnabled()
+                || sourceUrl == null
+                || SupportedSite.forUrl(sourceUrl) != SupportedSite.X) {
+            return;
+        }
+        long requestId = xLinkRequestCounter.incrementAndGet();
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.collectXLinks() : null";
+        webView.evaluateJavascript(script, result -> {
+            if (requestId != xLinkRequestCounter.get()
+                    || sourceUrl == null
+                    || !sourceUrl.equals(webView.getUrl())) {
+                return;
+            }
+            handleXLinkResult(result, sourceUrl, false);
+        });
+    }
+
+    private void saveXLinksManually() {
+        String sourceUrl = webView.getUrl();
+        if (sourceUrl == null || SupportedSite.forUrl(sourceUrl) != SupportedSite.X) {
+            Toast.makeText(this, "Open an X thread or chat first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        long requestId = xLinkRequestCounter.incrementAndGet();
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.collectXLinks() : null";
+        webView.evaluateJavascript(script, result -> {
+            if (requestId != xLinkRequestCounter.get()
+                    || sourceUrl == null
+                    || !sourceUrl.equals(webView.getUrl())) {
+                return;
+            }
+            handleXLinkResult(result, sourceUrl, true);
+        });
+    }
+
+    private void handleXLinkResult(String result, String sourceUrl, boolean manual) {
+        List<ScrapedLinkCandidate> candidates = parseXLinkResult(result);
+        if (candidates.isEmpty()) {
+            if (manual) {
+                runOnUiThread(() -> Toast.makeText(
+                        MainActivity.this,
+                        "No links found on this page yet",
+                        Toast.LENGTH_SHORT
+                ).show());
+            }
+            return;
+        }
+        ioExecutor.execute(() -> {
+            long now = System.currentTimeMillis();
+            int added = 0;
+            List<String> newUrls = new ArrayList<>();
+            Map<Long, String> shortLinks = new LinkedHashMap<>();
+            for (ScrapedLinkCandidate candidate : candidates) {
+                long id = scrapedLinkStore.record(
+                        candidate.url,
+                        candidate.hint,
+                        candidate.text,
+                        candidate.poster,
+                        sourceUrl,
+                        candidate.postedAt,
+                        now
+                );
+                if (id > 0) {
+                    added++;
+                    newUrls.add(candidate.url);
+                    if (ScrapedLinkStore.isShortLink(candidate.url)) {
+                        shortLinks.put(id, candidate.url);
+                    }
+                }
+            }
+            int expansionLimit = Math.min(20, shortLinks.size());
+            int expanded = 0;
+            for (Map.Entry<Long, String> entry : shortLinks.entrySet()) {
+                if (expanded >= expansionLimit) {
+                    break;
+                }
+                String destination = expandShortLink(entry.getValue());
+                if (destination != null && !ScrapedLinkStore.isShortLink(destination)) {
+                    scrapedLinkStore.updateExpandedUrl(entry.getKey(), destination);
+                }
+                expanded++;
+            }
+            final int savedCount = added;
+            final List<String> copiedUrls = new ArrayList<>(newUrls);
+            runOnUiThread(() -> {
+                if (!manual) {
+                    if (savedCount > 0) {
+                        statusText.setText("Links saved");
+                    }
+                    return;
+                }
+                if (savedCount == 0) {
+                    Toast.makeText(
+                            MainActivity.this,
+                            "No new X links on this page",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                    return;
+                }
+                ClipboardManager clipboard =
+                        (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText(
+                        "X links", String.join("\n", copiedUrls)));
+                Toast.makeText(
+                        MainActivity.this,
+                        "Saved " + savedCount
+                                + (savedCount == 1 ? " new link" : " new links")
+                                + ", copied to clipboard",
+                        Toast.LENGTH_LONG
+                ).show();
+            });
+        });
+    }
+
+    private List<ScrapedLinkCandidate> parseXLinkResult(String result) {
+        List<ScrapedLinkCandidate> candidates = new ArrayList<>();
+        try {
+            Object value = new JSONTokener(result == null ? "null" : result).nextValue();
+            if (value instanceof String encoded) {
+                value = new JSONTokener(encoded).nextValue();
+            }
+            if (!(value instanceof JSONObject payload)) {
+                return candidates;
+            }
+            JSONArray links = payload.optJSONArray("links");
+            if (links == null) {
+                return candidates;
+            }
+            for (int index = 0; index < links.length() && index < 500; index++) {
+                JSONObject link = links.optJSONObject(index);
+                if (link == null) {
+                    continue;
+                }
+                String url = boundedText(link.optString("url"), 2000);
+                if (url.isEmpty()) {
+                    continue;
+                }
+                candidates.add(new ScrapedLinkCandidate(
+                        url,
+                        boundedText(link.optString("hint"), 2000),
+                        boundedText(link.optString("text"), 500),
+                        boundedText(link.optString("poster"), 120),
+                        parseXPostedAt(link.optString("at"))
+                ));
+            }
+        } catch (org.json.JSONException | RuntimeException ignored) {
+            // Malformed controller output simply yields no candidates.
+        }
+        return candidates;
+    }
+
+    private static String boundedText(String value, int maximumLength) {
+        String trimmed = value == null ? "" : value.trim();
+        return trimmed.length() > maximumLength
+                ? trimmed.substring(0, maximumLength) : trimmed;
+    }
+
+    /** One link harvested from an X thread by the injected controller. */
+    private static final class ScrapedLinkCandidate {
+        final String url;
+        final String hint;
+        final String text;
+        final String poster;
+        final Long postedAt;
+
+        ScrapedLinkCandidate(
+                String url,
+                String hint,
+                String text,
+                String poster,
+                Long postedAt
+        ) {
+            this.url = url;
+            this.hint = hint;
+            this.text = text;
+            this.poster = poster;
+            this.postedAt = postedAt;
+        }
+    }
+
+    private static Long parseXPostedAt(String isoTimestamp) {
+        if (isoTimestamp == null || isoTimestamp.isEmpty()) {
+            return null;
+        }
+        try {
+            return java.time.Instant.parse(isoTimestamp).toEpochMilli();
+        } catch (RuntimeException ignored) {
+            // Fall through to offset parsing for non-UTC timestamps.
+        }
+        try {
+            return java.time.OffsetDateTime.parse(isoTimestamp).toInstant().toEpochMilli();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    /** Follows a short-link redirect chain manually with HTTPS-only hops and hard bounds. */
+    private static String expandShortLink(String shortUrl) {
+        URI current;
+        try {
+            current = URI.create(shortUrl);
+        } catch (RuntimeException error) {
+            return null;
+        }
+        for (int hop = 0; hop < 4 && current != null; hop++) {
+            if (!"https".equalsIgnoreCase(current.getScheme())) {
+                return null;
+            }
+            try {
+                java.net.HttpURLConnection connection =
+                        (java.net.HttpURLConnection) current.toURL().openConnection();
+                connection.setInstanceFollowRedirects(false);
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(8000);
+                connection.setRequestMethod("GET");
+                int status = connection.getResponseCode();
+                String location = status >= 300 && status < 400
+                        ? connection.getHeaderField("Location") : null;
+                connection.disconnect();
+                if (location == null) {
+                    return status >= 200 && status < 300 ? current.toString() : null;
+                }
+                URI next = current.resolve(location.trim());
+                current = next.equals(current) ? null : next;
+            } catch (IOException | RuntimeException error) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private void applyControllerState() {
@@ -1442,11 +1684,30 @@ public final class MainActivity extends Activity {
         new SavedSummariesDialog(
                 this,
                 savedSummaryStore,
+                scrapedLinkStore,
                 ioExecutor,
                 appSettings.areSavedThumbnailsEnabled(),
-                url -> {
-                    if (SavedSummaryStore.isSupportedSourceUrl(url)) {
-                        webView.loadUrl(url);
+                new SavedSummariesDialog.Host() {
+                    @Override
+                    public void openVideo(String url) {
+                        if (SavedSummaryStore.isSupportedSourceUrl(url)) {
+                            webView.loadUrl(url);
+                        }
+                    }
+
+                    @Override
+                    public void openLink(String url) {
+                        String valid = SupportedSite.validatedHttpsUrl(url);
+                        if (valid == null) {
+                            Toast.makeText(MainActivity.this,
+                                    "This link is unavailable", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        if (SupportedSite.isInAppNavigationUrl(valid)) {
+                            loadSupportedUrl(valid);
+                            return;
+                        }
+                        openExternallyIfNeeded(Uri.parse(valid));
                     }
                 }
         ).show();
@@ -1487,7 +1748,7 @@ public final class MainActivity extends Activity {
     private void exportBackup(Uri uri) {
         ioExecutor.execute(() -> {
             try {
-                String json = AppBackup.create(appSettings, savedSummaryStore);
+                String json = AppBackup.create(appSettings, savedSummaryStore, scrapedLinkStore);
                 try (java.io.OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
                     if (output == null) {
                         throw new IOException("Backup destination is unavailable");
@@ -1524,7 +1785,7 @@ public final class MainActivity extends Activity {
                     }
                     json = output.toString(StandardCharsets.UTF_8.name());
                 }
-                AppBackup.restore(json, appSettings, savedSummaryStore);
+                AppBackup.restore(json, appSettings, savedSummaryStore, scrapedLinkStore);
                 runOnUiThread(() -> {
                     setSpeed(appSettings.getDefaultPlaybackSpeed());
                     applyScreenLockSettings();
@@ -3068,9 +3329,19 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean isXOmniButtonContext() {
+        String url = webView == null ? null : webView.getUrl();
+        return url != null && SupportedSite.forUrl(url) == SupportedSite.X;
+    }
+
     private void performOmniButtonAction(OmniButtonGesture.Direction direction) {
-        OmniButtonAction action = appSettings.getOmniButtonAction(direction);
-        double amount = appSettings.getOmniButtonAmount(direction);
+        boolean xContext = isXOmniButtonContext();
+        OmniButtonAction action = xContext
+                ? appSettings.getOmniXButtonAction(direction)
+                : appSettings.getOmniButtonAction(direction);
+        double amount = xContext
+                ? appSettings.getOmniXButtonAmount(direction)
+                : appSettings.getOmniButtonAmount(direction);
         switch (action) {
             case NONE:
                 Toast.makeText(
@@ -3178,6 +3449,9 @@ public final class MainActivity extends Activity {
             case LOCK_SCREEN:
                 setScreenLocked(true);
                 break;
+            case SAVE_X_LINKS:
+                saveXLinksManually();
+                break;
             default:
                 break;
         }
@@ -3187,14 +3461,22 @@ public final class MainActivity extends Activity {
         if (omniButton == null) {
             return;
         }
-        StringBuilder description = new StringBuilder("Omnibutton. ");
+        boolean xContext = isXOmniButtonContext();
+        StringBuilder description = new StringBuilder(
+                xContext ? "Omnibutton, X actions. " : "Omnibutton. ");
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
-            OmniButtonAction action = appSettings.getOmniButtonAction(direction);
+            OmniButtonAction action = xContext
+                    ? appSettings.getOmniXButtonAction(direction)
+                    : appSettings.getOmniButtonAction(direction);
             description.append(direction.label).append(": ");
-            description.append(action.usesAmount()
-                    ? action.label(appSettings.getOmniButtonAmount(direction))
-                    : action.label);
+            if (!action.usesAmount()) {
+                description.append(action.label);
+            } else {
+                description.append(action.label(xContext
+                        ? appSettings.getOmniXButtonAmount(direction)
+                        : appSettings.getOmniButtonAmount(direction)));
+            }
             description.append(". ");
         }
         description.append("Hold to move; triple-tap to lock");

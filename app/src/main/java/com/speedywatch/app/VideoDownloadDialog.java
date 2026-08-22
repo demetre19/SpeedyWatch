@@ -291,22 +291,49 @@ final class VideoDownloadDialog {
             return;
         }
         checkingProgress.setVisibility(View.GONE);
-        status.setText(
-                fromClipboard
-                        ? (soundCloud
-                        ? "Clipboard track • options unavailable"
-                        : "Clipboard video • options unavailable")
-                        : (soundCloud
-                        ? "Audio options unavailable"
-                        : "Download options unavailable")
-        );
+        boolean capturedAvailable = capturedMediaRequest != null;
+        if (capturedAvailable) {
+            status.setText(soundCloud ? "Detected audio stream" : "Detected video stream");
+        } else {
+            status.setText(
+                    fromClipboard
+                            ? (soundCloud
+                            ? "Clipboard track • options unavailable"
+                            : "Clipboard video • options unavailable")
+                            : (soundCloud
+                            ? "Audio options unavailable"
+                            : "Download options unavailable")
+            );
+        }
         choices.removeAllViews();
         TextView error = text(
-                "SpeedyWatch could not confirm the available formats for this URL.",
+                capturedAvailable
+                        ? "Format check failed, but a video stream was detected while this page played. You can still download it."
+                        : "SpeedyWatch could not confirm the available formats for this URL.",
                 14,
                 MUTED
         );
         choices.addView(error, choiceParams(true));
+        if (capturedAvailable) {
+            String defaultQuality = settings.getDefaultMp3Quality();
+            addMp3Choice(defaultQuality, true, true);
+            if (!SpeedyWatchSettings.MP3_QUALITY_HIGH.equals(defaultQuality)) {
+                addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_HIGH, false, false);
+            }
+            if (!SpeedyWatchSettings.MP3_QUALITY_STANDARD.equals(defaultQuality)) {
+                addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_STANDARD, false, false);
+            }
+            if (!SpeedyWatchSettings.MP3_QUALITY_COMPACT.equals(defaultQuality)) {
+                addMp3Choice(SpeedyWatchSettings.MP3_QUALITY_COMPACT, false, false);
+            }
+            Button mp4 = choiceButton("Available MP4");
+            mp4.setOnClickListener(ignored -> startDownload(
+                    SpeedyWatchDownloadService.KIND_MP4,
+                    4320,
+                    SpeedyWatchSettings.MP3_QUALITY_STANDARD
+            ));
+            choices.addView(mp4, choiceParams(false));
+        }
         Button retry = choiceButton("Retry format check");
         retry.setOnClickListener(ignored -> loadFormats());
         choices.addView(retry, choiceParams(false));

@@ -42,6 +42,8 @@ import java.util.concurrent.ExecutorService;
 final class SavedSummariesDialog {
     interface Host {
         void openVideo(String url);
+
+        void openLink(String url);
     }
 
     private static final int BACKGROUND = Color.rgb(15, 15, 15);
@@ -52,6 +54,7 @@ final class SavedSummariesDialog {
 
     private final Activity activity;
     private final SavedSummaryStore store;
+    private final ScrapedLinkStore scrapedLinkStore;
     private final ExecutorService executor;
     private final boolean thumbnailsEnabled;
     private final Host host;
@@ -60,19 +63,27 @@ final class SavedSummariesDialog {
     private EditText search;
     private SavedSummaryAdapter adapter;
     private Button creatorFilterButton;
+    private Button typeFilterButton;
     private Button sortDirectionButton;
     private String selectedCreator;
     private boolean sortDescending = true;
+    private int typeFilter = TYPE_ALL;
+
+    private static final int TYPE_ALL = 0;
+    private static final int TYPE_VIDEOS = 1;
+    private static final int TYPE_X_LINKS = 2;
 
     SavedSummariesDialog(
             Activity activity,
             SavedSummaryStore store,
+            ScrapedLinkStore scrapedLinkStore,
             ExecutorService executor,
             boolean thumbnailsEnabled,
             Host host
     ) {
         this.activity = activity;
         this.store = store;
+        this.scrapedLinkStore = scrapedLinkStore;
         this.executor = executor;
         this.thumbnailsEnabled = thumbnailsEnabled;
         this.host = host;
@@ -142,6 +153,15 @@ final class SavedSummariesDialog {
         creatorFilterButton.setOnClickListener(ignored -> showCreatorPicker());
         sorting.addView(creatorFilterButton, new LinearLayout.LayoutParams(0, dp(44), 2f));
 
+        typeFilterButton = button("All ▾");
+        typeFilterButton.setSingleLine(true);
+        typeFilterButton.setEllipsize(TextUtils.TruncateAt.END);
+        typeFilterButton.setContentDescription("Filter saved items by type");
+        typeFilterButton.setOnClickListener(ignored -> showTypePicker());
+        LinearLayout.LayoutParams typeParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        typeParams.setMarginStart(dp(8));
+        sorting.addView(typeFilterButton, typeParams);
+
         sortDirectionButton = button("Newest");
         sortDirectionButton.setContentDescription("Show oldest saved items first");
         sortDirectionButton.setOnClickListener(ignored -> {
@@ -165,13 +185,20 @@ final class SavedSummariesDialog {
         list.setDividerHeight(0);
         adapter = new SavedSummaryAdapter();
         list.setAdapter(adapter);
-        list.setOnItemClickListener((parent, view, position, id) -> showDetail(adapter.getItem(position)));
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            SavedItem item = adapter.getItem(position);
+            if (item.isLink) {
+                showLinkDetail(item);
+            } else {
+                showDetail(item.saved);
+            }
+        });
         body.addView(list, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        TextView empty = text("Saved summaries and quizzes appear here.", 14, MUTED);
+        TextView empty = text("Saved summaries, quizzes, and X links appear here.", 14, MUTED);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(dp(28), dp(28), dp(28), dp(28));
         body.addView(empty, new FrameLayout.LayoutParams(
@@ -197,7 +224,14 @@ final class SavedSummariesDialog {
 
     private void refresh() {
         try {
-            adapter.setEntries(store.loadAll());
+            List<SavedItem> items = new ArrayList<>();
+            for (SavedSummaryStore.Entry entry : store.loadAll()) {
+                items.add(SavedItem.forSaved(entry));
+            }
+            for (ScrapedLinkStore.Entry link : scrapedLinkStore.list()) {
+                items.add(SavedItem.forLink(link));
+            }
+            adapter.setItems(items);
             if (selectedCreator != null && !adapter.hasCreator(selectedCreator)) {
                 selectedCreator = null;
                 updateSortControls();
@@ -205,7 +239,7 @@ final class SavedSummariesDialog {
             }
             updateStatus();
         } catch (RuntimeException error) {
-            adapter.setEntries(new ArrayList<>());
+            adapter.setItems(new ArrayList<>());
             status.setText("Saved items could not be loaded");
             Toast.makeText(activity, "Saved items could not be loaded", Toast.LENGTH_LONG).show();
         }
@@ -227,10 +261,36 @@ final class SavedSummariesDialog {
         creatorFilterButton.setContentDescription(
                 "Filter saved items by creator. Current selection: " + creatorLabel
         );
+        String typeLabel = typeFilter == TYPE_VIDEOS
+                ? "Videos"
+                : (typeFilter == TYPE_X_LINKS ? "X links" : "All");
+        typeFilterButton.setText(typeLabel + " ▾");
+        typeFilterButton.setContentDescription(
+                "Filter saved items by type. Current selection: " + typeLabel
+        );
         sortDirectionButton.setText(sortDescending ? "Newest" : "Oldest");
         sortDirectionButton.setContentDescription(sortDescending
                 ? "Show oldest saved items first"
                 : "Show newest saved items first");
+    }
+
+    private void showTypePicker() {
+        CharSequence[] options = {"All", "Videos (summaries and quizzes)", "X links"};
+        new AlertDialog.Builder(activity)
+                .setTitle("Filter by type")
+                .setSingleChoiceItems(
+                        options,
+                        typeFilter,
+                        (dialog, which) -> {
+                            typeFilter = which;
+                            updateSortControls();
+                            adapter.filter(search.getText().toString());
+                            updateStatus();
+                            dialog.dismiss();
+                        }
+                )
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showCreatorPicker() {
@@ -457,6 +517,154 @@ final class SavedSummariesDialog {
         }
     }
 
+    /** One row in the unified Saved list: either a saved summary/quiz or an X link. */
+    private static final class SavedItem {
+        final SavedSummaryStore.Entry saved;
+        final ScrapedLinkStore.Entry link;
+        final boolean isLink;
+
+        private SavedItem(SavedSummaryStore.Entry saved, ScrapedLinkStore.Entry link) {
+            this.saved = saved;
+            this.link = link;
+            this.isLink = link != null;
+        }
+
+        static SavedItem forSaved(SavedSummaryStore.Entry entry) {
+            return new SavedItem(entry, null);
+        }
+
+        static SavedItem forLink(ScrapedLinkStore.Entry entry) {
+            return new SavedItem(null, entry);
+        }
+
+        long datedAt() {
+            return isLink ? link.datedAt() : saved.createdAt;
+        }
+
+        long sortId() {
+            return isLink ? link.id : saved.id;
+        }
+    }
+
+    private void showLinkDetail(SavedItem item) {
+        ScrapedLinkStore.Entry link = item.link;
+        Dialog detail = new Dialog(activity);
+        detail.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        LinearLayout content = verticalLayout();
+        content.setPadding(dp(14), dp(12), dp(14), dp(12));
+        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+
+        LinearLayout header = horizontalLayout();
+        LinearLayout headerText = verticalLayout();
+        TextView title = text(link.displayText.isEmpty() ? link.url : link.displayText,
+                20, Color.WHITE);
+        title.setTypeface(title.getTypeface(), Typeface.BOLD);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        headerText.addView(title);
+        String poster = link.posterName.isEmpty() ? "" : " | " + link.posterName;
+        headerText.addView(text(
+                "X link" + poster + " | " + formatDate(link.datedAt()), 12, MUTED));
+        header.addView(headerText, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        ImageButton close = new ImageButton(activity);
+        close.setImageResource(R.drawable.ic_close);
+        close.setContentDescription("Close X link");
+        close.setPadding(dp(9), dp(9), dp(9), dp(9));
+        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setOnClickListener(ignored -> detail.dismiss());
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        closeParams.setMarginStart(dp(8));
+        header.addView(close, closeParams);
+        content.addView(header);
+
+        TextView sourceLabel = text("Link URL", 12, MUTED);
+        LinearLayout.LayoutParams sourceLabelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        sourceLabelParams.setMargins(0, dp(12), 0, dp(8));
+        content.addView(sourceLabel, sourceLabelParams);
+        TextView urlView = text(link.url, 13, Color.rgb(90, 180, 255));
+        urlView.setTextIsSelectable(true);
+        urlView.setMaxLines(4);
+        urlView.setEllipsize(TextUtils.TruncateAt.END);
+        urlView.setPadding(dp(10), dp(8), dp(10), dp(8));
+        urlView.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+        urlView.setOnClickListener(ignored -> host.openLink(link.url));
+        content.addView(urlView);
+
+        LinearLayout actions = horizontalLayout();
+        Button open = detailActionButton("Open");
+        open.setBackground(panelBackground(ACTIVE, ACTIVE));
+        open.setOnClickListener(ignored -> host.openLink(link.url));
+        actions.addView(open, detailActionParams(false));
+
+        Button copy = detailActionButton("Copy");
+        copy.setOnClickListener(ignored -> {
+            android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager)
+                            activity.getSystemService(Activity.CLIPBOARD_SERVICE);
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                    "X link", link.url));
+            Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
+        });
+        actions.addView(copy, detailActionParams(true));
+
+        Button share = detailActionButton("Share");
+        share.setOnClickListener(ignored -> TextShare.showChooser(
+                activity,
+                link.displayText.isEmpty() ? "X link" : link.displayText,
+                "X link",
+                link.url,
+                link.url
+        ));
+        actions.addView(share, detailActionParams(true));
+
+        Button delete = detailActionButton("Delete");
+        delete.setTextColor(ACTIVE);
+        delete.setOnClickListener(ignored -> confirmDeleteLink(link, detail));
+        actions.addView(delete, detailActionParams(true));
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionsParams.setMargins(0, dp(10), 0, dp(8));
+        content.addView(actions, actionsParams);
+
+        detail.setContentView(content);
+        Window window = detail.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        detail.show();
+        if (window != null) {
+            window.setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            window.setGravity(Gravity.CENTER);
+        }
+    }
+
+    private void confirmDeleteLink(ScrapedLinkStore.Entry link, Dialog detail) {
+        new AlertDialog.Builder(activity)
+                .setTitle("Delete X link?")
+                .setMessage("This removes the scraped link from this device.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete", (confirmation, which) -> {
+                    scrapedLinkStore.delete(link.id);
+                    detail.dismiss();
+                    refresh();
+                    Toast.makeText(activity, "X link deleted", Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
     private void regenerateThumbnail(
             SavedSummaryStore.Entry entry,
             Dialog detail,
@@ -644,25 +852,70 @@ final class SavedSummariesDialog {
     }
 
     private final class SavedSummaryAdapter extends BaseAdapter {
-        private final List<SavedSummaryStore.Entry> all = new ArrayList<>();
-        private final List<SavedSummaryStore.Entry> visible = new ArrayList<>();
+        private final List<SavedItem> all = new ArrayList<>();
+        private final List<SavedItem> visible = new ArrayList<>();
 
-        void setEntries(List<SavedSummaryStore.Entry> entries) {
+        void setItems(List<SavedItem> items) {
             all.clear();
-            all.addAll(entries);
+            all.addAll(items);
             filter(search == null ? "" : search.getText().toString());
         }
 
         void filter(String query) {
             visible.clear();
-            for (SavedSummaryStore.Entry entry : all) {
-                if (SavedListOrder.matchesEntry(entry, query, selectedCreator)) {
-                    visible.add(entry);
+            String normalizedQuery = query == null
+                    ? "" : query.trim().toLowerCase(Locale.ROOT);
+            for (SavedItem item : all) {
+                if (!passesTypeFilter(item)) {
+                    continue;
+                }
+                if (item.isLink) {
+                    if (matchesLink(item.link, normalizedQuery)) {
+                        visible.add(item);
+                    }
+                } else if (SavedListOrder.matchesEntry(item.saved, query, selectedCreator)) {
+                    visible.add(item);
                 }
             }
-            visible.sort((left, right) ->
-                    SavedListOrder.compareEntries(left, right, sortDescending));
+            visible.sort((left, right) -> {
+                int dateOrder = sortDescending
+                        ? Long.compare(right.datedAt(), left.datedAt())
+                        : Long.compare(left.datedAt(), right.datedAt());
+                if (dateOrder != 0) {
+                    return dateOrder;
+                }
+                return sortDescending
+                        ? Long.compare(right.sortId(), left.sortId())
+                        : Long.compare(left.sortId(), right.sortId());
+            });
             notifyDataSetChanged();
+        }
+
+        private boolean passesTypeFilter(SavedItem item) {
+            if (typeFilter == TYPE_VIDEOS) {
+                return !item.isLink;
+            }
+            if (typeFilter == TYPE_X_LINKS) {
+                return item.isLink;
+            }
+            return true;
+        }
+
+        private boolean matchesLink(ScrapedLinkStore.Entry link, String normalizedQuery) {
+            if (selectedCreator != null) {
+                boolean creatorMatches = selectedCreator.isEmpty()
+                        ? link.posterName.isEmpty()
+                        : selectedCreator.equalsIgnoreCase(link.posterName);
+                if (!creatorMatches) {
+                    return false;
+                }
+            }
+            if (normalizedQuery.isEmpty()) {
+                return true;
+            }
+            return link.displayText.toLowerCase(Locale.ROOT).contains(normalizedQuery)
+                    || link.url.toLowerCase(Locale.ROOT).contains(normalizedQuery)
+                    || link.posterName.toLowerCase(Locale.ROOT).contains(normalizedQuery);
         }
 
         int getTotalCount() {
@@ -670,14 +923,34 @@ final class SavedSummariesDialog {
         }
 
         List<SavedListOrder.CreatorCount> creatorCounts() {
-            return SavedListOrder.creatorCounts(all);
+            java.util.TreeMap<String, Integer> known = new java.util.TreeMap<>(
+                    String.CASE_INSENSITIVE_ORDER
+            );
+            int unknown = 0;
+            for (SavedItem item : all) {
+                String creator = item.isLink ? item.link.posterName : item.saved.channelName;
+                if (creator.isEmpty()) {
+                    unknown++;
+                } else {
+                    known.merge(creator, 1, Integer::sum);
+                }
+            }
+            List<SavedListOrder.CreatorCount> counts =
+                    new ArrayList<>(known.size() + (unknown == 0 ? 0 : 1));
+            for (java.util.Map.Entry<String, Integer> creator : known.entrySet()) {
+                counts.add(new SavedListOrder.CreatorCount(
+                        creator.getKey(), creator.getValue()));
+            }
+            if (unknown > 0) {
+                counts.add(new SavedListOrder.CreatorCount("", unknown));
+            }
+            return counts;
         }
 
         boolean hasCreator(String creator) {
-            for (SavedSummaryStore.Entry entry : all) {
-                if (creator.isEmpty()
-                        ? entry.channelName.isEmpty()
-                        : creator.equalsIgnoreCase(entry.channelName)) {
+            for (SavedItem item : all) {
+                String name = item.isLink ? item.link.posterName : item.saved.channelName;
+                if (creator.isEmpty() ? name.isEmpty() : creator.equalsIgnoreCase(name)) {
                     return true;
                 }
             }
@@ -690,13 +963,13 @@ final class SavedSummariesDialog {
         }
 
         @Override
-        public SavedSummaryStore.Entry getItem(int position) {
+        public SavedItem getItem(int position) {
             return visible.get(position);
         }
 
         @Override
         public long getItemId(int position) {
-            return getItem(position).id;
+            return getItem(position).sortId();
         }
 
         @Override
@@ -765,13 +1038,15 @@ final class SavedSummariesDialog {
                 ));
             }
 
-            SavedSummaryStore.Entry entry = getItem(position);
-            boolean startsGroup = position == 0 || !sameGroup(entry, getItem(position - 1));
+            SavedItem rowItem = getItem(position);
+            boolean startsGroup =
+                    position == 0 || !sameGroup(rowItem, getItem(position - 1));
             divider.setVisibility(startsGroup ? View.VISIBLE : View.GONE);
             if (startsGroup) {
-                dividerLabel.setText(groupLabel(entry));
+                dividerLabel.setText(groupLabel(rowItem));
             }
-            Bitmap bitmap = decodeThumbnail(entry.thumbnail);
+            Bitmap bitmap = rowItem.isLink
+                    ? null : decodeThumbnail(rowItem.saved.thumbnail);
             LinearLayout.LayoutParams copyParams =
                     (LinearLayout.LayoutParams) copy.getLayoutParams();
             if (bitmap == null) {
@@ -784,29 +1059,33 @@ final class SavedSummariesDialog {
                 copyParams.setMarginStart(dp(8));
             }
             copy.setLayoutParams(copyParams);
-            title.setText(entry.videoTitle);
-            metadata.setText(listMetadata(entry));
-            excerpt.setText(preview(entry.summaryText));
+            if (rowItem.isLink) {
+                title.setText(rowItem.link.displayText.isEmpty()
+                        ? rowItem.link.url : rowItem.link.displayText);
+                metadata.setText(listLinkMetadata(rowItem.link));
+                excerpt.setText(rowItem.link.url);
+            } else {
+                title.setText(rowItem.saved.videoTitle);
+                metadata.setText(listMetadata(rowItem.saved));
+                excerpt.setText(preview(rowItem.saved.summaryText));
+            }
             row.setBackgroundColor(BACKGROUND);
             return row;
         }
 
-        private boolean sameGroup(
-                SavedSummaryStore.Entry left,
-                SavedSummaryStore.Entry right
-        ) {
+        private boolean sameGroup(SavedItem left, SavedItem right) {
             Calendar leftDate = Calendar.getInstance();
-            leftDate.setTimeInMillis(left.createdAt);
+            leftDate.setTimeInMillis(left.datedAt());
             Calendar rightDate = Calendar.getInstance();
-            rightDate.setTimeInMillis(right.createdAt);
+            rightDate.setTimeInMillis(right.datedAt());
             return leftDate.get(Calendar.ERA) == rightDate.get(Calendar.ERA)
                     && leftDate.get(Calendar.YEAR) == rightDate.get(Calendar.YEAR)
                     && leftDate.get(Calendar.DAY_OF_YEAR) == rightDate.get(Calendar.DAY_OF_YEAR);
         }
 
-        private String groupLabel(SavedSummaryStore.Entry entry) {
+        private String groupLabel(SavedItem item) {
             return SavedListOrder.dayLabel(
-                    entry.createdAt,
+                    item.datedAt(),
                     System.currentTimeMillis(),
                     Locale.getDefault(),
                     TimeZone.getDefault()
@@ -816,6 +1095,11 @@ final class SavedSummariesDialog {
         private String listMetadata(SavedSummaryStore.Entry entry) {
             String channel = entry.channelName.isEmpty() ? "" : " | " + entry.channelName;
             return entry.summaryLabel + channel + " | " + formatTime(entry.createdAt);
+        }
+
+        private String listLinkMetadata(ScrapedLinkStore.Entry link) {
+            String poster = link.posterName.isEmpty() ? "" : " | " + link.posterName;
+            return "X link" + poster + " | " + formatTime(link.datedAt());
         }
     }
 

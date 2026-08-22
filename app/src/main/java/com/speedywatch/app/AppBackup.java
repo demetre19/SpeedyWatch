@@ -20,7 +20,11 @@ final class AppBackup {
     private AppBackup() {
     }
 
-    static String create(SpeedyWatchSettings settings, SavedSummaryStore store) throws JSONException {
+    static String create(
+            SpeedyWatchSettings settings,
+            SavedSummaryStore store,
+            ScrapedLinkStore scrapedLinkStore
+    ) throws JSONException {
         JSONObject preferences = new JSONObject()
                 .put("modelId", settings.getModelId())
                 .put("summaryOnePrompt", settings.getSummaryOnePrompt())
@@ -43,6 +47,8 @@ final class AppBackup {
                 .put("omniButtonPositionX", settings.getOmniButtonPositionX())
                 .put("omniButtonPositionY", settings.getOmniButtonPositionY())
                 .put("savedThumbnailsEnabled", settings.areSavedThumbnailsEnabled())
+                .put("scrapedLinksBackupEnabled", settings.isScrapedLinksBackupEnabled())
+                .put("autoScrapeXLinks", settings.isAutoScrapeXLinksEnabled())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -60,6 +66,19 @@ final class AppBackup {
                 "omniButtonGestures",
                 encodeOmniButtonBindings(omniActions, omniAmounts)
         );
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniXActions.put(direction, settings.getOmniXButtonAction(direction));
+            omniXAmounts.put(direction, settings.getOmniXButtonAmount(direction));
+        }
+        preferences.put(
+                "omniButtonGesturesX",
+                encodeOmniButtonBindings(omniXActions, omniXAmounts)
+        );
         JSONArray items = new JSONArray();
         for (SavedSummaryStore.Entry entry : store.loadAll()) {
             JSONObject item = new JSONObject()
@@ -74,21 +93,45 @@ final class AppBackup {
             }
             items.put(item);
         }
-        String backup = new JSONObject()
+        JSONArray scrapedLinks = null;
+        if (settings.isScrapedLinksBackupEnabled()) {
+            scrapedLinks = new JSONArray();
+            for (ScrapedLinkStore.Entry link : scrapedLinkStore.snapshotForBackup()) {
+                JSONObject item = new JSONObject()
+                        .put("url", link.url)
+                        .put("displayText", link.displayText)
+                        .put("posterName", link.posterName)
+                        .put("sourceUrl", link.sourceUrl)
+                        .put("firstSeenAt", link.firstSeenAt)
+                        .put("lastSeenAt", link.lastSeenAt);
+                if (link.postedAt != null) {
+                    item.put("postedAt", link.postedAt);
+                }
+                scrapedLinks.put(item);
+            }
+        }
+        JSONObject root = new JSONObject()
                 .put("schemaVersion", SCHEMA_VERSION)
                 .put("exportedAt", System.currentTimeMillis())
                 .put("containsSecrets", false)
                 .put("settings", preferences)
-                .put("savedItems", items)
-                .toString(2);
+                .put("savedItems", items);
+        if (scrapedLinks != null) {
+            root.put("scrapedLinks", scrapedLinks);
+        }
+        String backup = root.toString(2);
         if (backup.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAXIMUM_BYTES) {
             throw new JSONException("Backup is too large");
         }
         return backup;
     }
 
-    static void restore(String json, SpeedyWatchSettings settings, SavedSummaryStore store)
-            throws JSONException {
+    static void restore(
+            String json,
+            SpeedyWatchSettings settings,
+            SavedSummaryStore store,
+            ScrapedLinkStore scrapedLinkStore
+    ) throws JSONException {
         if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAXIMUM_BYTES) {
             throw new JSONException("Backup file is too large");
         }
@@ -165,6 +208,10 @@ final class AppBackup {
                 "savedThumbnailsEnabled",
                 settings.areSavedThumbnailsEnabled()
         );
+        boolean scrapedLinksBackupEnabled = preferences.optBoolean(
+                "scrapedLinksBackupEnabled",
+                settings.isScrapedLinksBackupEnabled()
+        );
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -174,12 +221,28 @@ final class AppBackup {
             omniActions.put(direction, settings.getOmniButtonAction(direction));
             omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
         }
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniXActions.put(direction, settings.getOmniXButtonAction(direction));
+            omniXAmounts.put(direction, settings.getOmniXButtonAmount(direction));
+        }
         if (preferences.has("omniButtonGestures")) {
             Object rawBindings = preferences.opt("omniButtonGestures");
             if (!(rawBindings instanceof JSONObject bindings)) {
                 throw new JSONException("Backup Omnibutton gestures are invalid");
             }
             decodeOmniButtonBindings(bindings, omniActions, omniAmounts);
+        }
+        if (preferences.has("omniButtonGesturesX")) {
+            Object rawXBindings = preferences.opt("omniButtonGesturesX");
+            if (!(rawXBindings instanceof JSONObject xBindings)) {
+                throw new JSONException("Backup Omnibutton X gestures are invalid");
+            }
+            decodeOmniButtonBindings(xBindings, omniXActions, omniXAmounts);
         }
         if (!Double.isFinite(speed) || speed < 0.25 || speed > 4) {
             throw new JSONException("Backup playback speed is invalid");
@@ -217,6 +280,50 @@ final class AppBackup {
             ));
         }
 
+        List<ScrapedLinkStore.Entry> scrapedLinkRestores = new ArrayList<>();
+        if (root.has("scrapedLinks")) {
+            JSONArray linkItems = root.optJSONArray("scrapedLinks");
+            if (linkItems == null
+                    || linkItems.length() > ScrapedLinkStore.MAXIMUM_STORED_ROWS) {
+                throw new JSONException("Backup X links are invalid");
+            }
+            for (int index = 0; index < linkItems.length(); index++) {
+                JSONObject link = linkItems.optJSONObject(index);
+                if (link == null) {
+                    throw new JSONException("Backup X link is invalid");
+                }
+                String url = boundedString(link, "url", 4_000, false);
+                String key = ScrapedLinkStore.canonicalUrlKey(
+                        SupportedSite.validatedHttpsUrl(url));
+                if (key == null || key.isEmpty()) {
+                    throw new JSONException("Backup X link is invalid");
+                }
+                long firstSeenAt = link.optLong("firstSeenAt", -1);
+                long lastSeenAt = link.optLong("lastSeenAt", -1);
+                Long postedAt = null;
+                if (link.has("postedAt")) {
+                    long value = link.optLong("postedAt", -1);
+                    postedAt = value > 0 ? value : null;
+                }
+                if (firstSeenAt <= 0 || lastSeenAt <= 0) {
+                    throw new JSONException("Backup X link is invalid");
+                }
+                scrapedLinkRestores.add(new ScrapedLinkStore.Entry(
+                        0,
+                        key,
+                        url,
+                        link.has("displayText")
+                                ? boundedString(link, "displayText", 500, true) : "",
+                        link.has("posterName")
+                                ? boundedString(link, "posterName", 120, true) : "",
+                        link.has("sourceUrl")
+                                ? boundedString(link, "sourceUrl", 2_000, true) : "",
+                        postedAt,
+                        firstSeenAt,
+                        lastSeenAt
+                ));
+            }
+        }
         List<SavedSummaryStore.Entry> previous = store.loadAll();
         store.replaceAll(restored);
         if (!settings.restoreBackup(
@@ -257,6 +364,17 @@ final class AppBackup {
                 selfPromotionCategoryEnabled,
                 interactionCategoryEnabled
         );
+        settings.setScrapedLinksBackupEnabled(scrapedLinksBackupEnabled);
+        settings.setAutoScrapeXLinksEnabled(preferences.optBoolean(
+                "autoScrapeXLinks",
+                settings.isAutoScrapeXLinksEnabled()
+        ));
+        if (root.has("omniButtonGesturesX")) {
+            settings.setOmniXButtonBindings(omniXActions, omniXAmounts);
+        }
+        if (root.has("scrapedLinks")) {
+            scrapedLinkStore.replaceAll(scrapedLinkRestores);
+        }
     }
 
     static JSONObject encodeOmniButtonBindings(

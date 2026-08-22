@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 19) {
+    if (existing && existing.version === 20) {
         return "reused";
     }
 
@@ -468,6 +468,115 @@
     };
 
 
+    const X_SHORT_LINK_PATTERN = /^https?:\/\/t\.co\/[A-Za-z0-9_-]+\/?$/i;
+    const X_DOMAIN_TEXT_PATTERN =
+        /^(?:https?:\/\/)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)+(?::\d+)?(?:\/\S*)?$/i;
+
+    const onXSite = () => {
+        const host = window.location.hostname.toLowerCase();
+        return host === "x.com" || host.endsWith(".x.com")
+            || host === "twitter.com" || host.endsWith(".twitter.com");
+    };
+
+    // X shows the unwrapped destination in the visible link text (for example
+    // "huggingface.co/VextLabsinc" over a t.co href). Normalize that text to an HTTPS
+    // candidate; native validation decides whether it is a real URL.
+    const xUrlHint = (anchor) => {
+        const candidates = [anchor.getAttribute("data-expanded-url"), anchor.textContent];
+        for (const candidate of candidates) {
+            const trimmed = (candidate || "").replace(/\s+/g, " ").trim();
+            if (!trimmed || !X_DOMAIN_TEXT_PATTERN.test(trimmed)) {
+                continue;
+            }
+            const expanded = /^https?:\/\//i.test(trimmed)
+                ? trimmed : "https://" + trimmed;
+            if (!X_SHORT_LINK_PATTERN.test(expanded)) {
+                return expanded.slice(0, 2000);
+            }
+        }
+        return "";
+    };
+
+    const xPostedAt = (anchor) => {
+        const container = anchor.closest(
+            '[data-testid="tweet"], [data-testid="messageEntry"]'
+        );
+        const scoped = container ? container.querySelector("time[datetime]") : null;
+        if (scoped) {
+            return scoped.getAttribute("datetime") || "";
+        }
+        // Chat messages often expose only date dividers: use the nearest preceding time.
+        const scope = anchor.closest('[data-testid="DmConversation"], main') || document;
+        const times = scope.querySelectorAll("time[datetime]");
+        let found = "";
+        for (const time of times) {
+            if (time.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                found = time.getAttribute("datetime") || "";
+            } else {
+                break;
+            }
+        }
+        return found;
+    };
+
+    const xPosterName = (anchor) => {
+        const container = anchor.closest('[data-testid="tweet"]');
+        const names = container
+            ? container.querySelector('[data-testid="User-Names"]')
+            : null;
+        return names
+            ? (names.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120)
+            : "";
+    };
+
+    const collectXLinks = () => {
+        if (!onXSite()) {
+            return JSON.stringify({ links: [] });
+        }
+        // Live X markup changes often, so harvesting stays container-agnostic: every
+        // outbound http(s) anchor counts (t.co short links, external hosts, and shared
+        // x.com status links); purely internal navigation links are ignored.
+        const anchors = document.querySelectorAll("a[href]");
+        const seen = {};
+        const links = [];
+        for (const anchor of anchors) {
+            if (links.length >= 500) {
+                break;
+            }
+            const rawHref = anchor.getAttribute("href") || "";
+            if (!/^https?:\/\//i.test(rawHref) || seen[rawHref]) {
+                continue;
+            }
+            const internal = /^https?:\/\/(?:www\.)?(?:x|twitter)\.com(?:\/|$)/i.test(rawHref);
+            const statusLink =
+                /^https?:\/\/(?:www\.)?(?:x|twitter)\.com\/[^/]+\/status\/\d+/i.test(rawHref);
+            if (internal && !statusLink) {
+                continue;
+            }
+            // Only links the user is actually looking at: anchor must intersect the
+            // current viewport instead of harvesting the whole rendered history.
+            const bounds = anchor.getBoundingClientRect();
+            if (bounds.bottom <= 0 || bounds.top >= window.innerHeight
+                    || bounds.right <= 0 || bounds.left >= window.innerWidth) {
+                continue;
+            }
+            if (internal && !statusLink) {
+                continue;
+            }
+            seen[rawHref] = true;
+            links.push({
+                url: rawHref.slice(0, 2000),
+                text: (anchor.textContent || "").replace(/\s+/g, " ").trim().slice(0, 500),
+                hint: xUrlHint(anchor),
+                poster: xPosterName(anchor),
+                at: xPostedAt(anchor).slice(0, 64)
+            });
+        }
+        return JSON.stringify({
+            links,
+            pageUrl: String(window.location.href).slice(0, 2000)
+        });
+    };
     const tick = () => {
         state.pending = false;
         selectMegaBrowserChoice();
@@ -487,8 +596,9 @@
     };
 
     const api = {
-        version: 19,
+        version: 20,
         megaFolderName,
+        collectXLinks,
         setSpeed(value) {
             const parsed = Number(value);
             if (!Number.isFinite(parsed)) {

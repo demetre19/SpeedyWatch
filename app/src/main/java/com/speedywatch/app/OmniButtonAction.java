@@ -37,7 +37,8 @@ enum OmniButtonAction {
     DOWNLOAD("download", "Download", AmountType.NONE, Double.NaN),
     SAVED("saved", "Saved", AmountType.NONE, Double.NaN),
     SETTINGS("settings", "Settings", AmountType.NONE, Double.NaN),
-    LOCK_SCREEN("lock_screen", "Lock screen", AmountType.NONE, Double.NaN);
+    LOCK_SCREEN("lock_screen", "Lock screen", AmountType.NONE, Double.NaN),
+    SAVE_X_LINKS("save_x_links", "Save X links", AmountType.NONE, Double.NaN);
 
     enum AmountType {
         NONE,

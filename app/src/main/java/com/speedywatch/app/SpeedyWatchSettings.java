@@ -50,7 +50,11 @@ final class SpeedyWatchSettings {
     private static final String OMNI_POSITION_Y = "omni_position_y";
     private static final String OMNI_ACTION_PREFIX = "omni_action_";
     private static final String OMNI_AMOUNT_PREFIX = "omni_amount_";
+    private static final String OMNI_X_ACTION_PREFIX = "omni_x_action_";
+    private static final String OMNI_X_AMOUNT_PREFIX = "omni_x_amount_";
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
+    private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
+    private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -307,6 +311,89 @@ final class SpeedyWatchSettings {
         return true;
     }
 
+    /** Harvest-focused defaults used on X until the user remaps the X accordion. */
+    static EnumMap<OmniButtonGesture.Direction, OmniButtonAction> defaultOmniXButtonActions() {
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            switch (direction) {
+                case UP:
+                    actions.put(direction, OmniButtonAction.SAVE_X_LINKS);
+                    break;
+                case UP_RIGHT:
+                    actions.put(direction, OmniButtonAction.DOWNLOAD);
+                    break;
+                case RIGHT:
+                    actions.put(direction, OmniButtonAction.BROWSER_FORWARD);
+                    break;
+                case DOWN_RIGHT:
+                    actions.put(direction, OmniButtonAction.SHARE);
+                    break;
+                case DOWN:
+                    actions.put(direction, OmniButtonAction.SAVED);
+                    break;
+                case DOWN_LEFT:
+                    actions.put(direction, OmniButtonAction.RELOAD);
+                    break;
+                case LEFT:
+                    actions.put(direction, OmniButtonAction.BROWSER_BACK);
+                    break;
+                case UP_LEFT:
+                default:
+                    actions.put(direction, OmniButtonAction.PLAY_PAUSE);
+                    break;
+            }
+        }
+        return actions;
+    }
+
+    OmniButtonAction getOmniXButtonAction(OmniButtonGesture.Direction direction) {
+        if (direction == null || direction == OmniButtonGesture.Direction.NONE) {
+            return OmniButtonAction.NONE;
+        }
+        OmniButtonAction fallback = defaultOmniXButtonActions().get(direction);
+        OmniButtonAction saved = OmniButtonAction.fromId(
+                preferences.getString(omniXActionKey(direction), fallback.id)
+        );
+        return saved == null ? fallback : saved;
+    }
+
+    double getOmniXButtonAmount(OmniButtonGesture.Direction direction) {
+        OmniButtonAction action = getOmniXButtonAction(direction);
+        if (!action.usesAmount()) {
+            return Double.NaN;
+        }
+        double fallback = OmniButtonAction.defaultAmount(action);
+        double saved = Double.longBitsToDouble(preferences.getLong(
+                omniXAmountKey(direction),
+                Double.doubleToRawLongBits(fallback)
+        ));
+        return action.acceptsAmount(saved) ? saved : fallback;
+    }
+
+    boolean setOmniXButtonBindings(
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        if (!validOmniButtonBindings(actions, amounts)) {
+            return false;
+        }
+        SharedPreferences.Editor editor = preferences.edit();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            editor.putString(omniXActionKey(direction), actions.get(direction).id);
+            double amount = amounts.get(direction) == null
+                    ? Double.NaN : amounts.get(direction);
+            editor.putLong(
+                    omniXAmountKey(direction),
+                    Double.doubleToRawLongBits(amount)
+            );
+        }
+        editor.apply();
+        return true;
+    }
+
 
     static boolean validOmniButtonBindings(
             Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
@@ -360,6 +447,21 @@ final class SpeedyWatchSettings {
 
     void setSavedThumbnailsEnabled(boolean enabled) {
         preferences.edit().putBoolean(SAVED_THUMBNAILS_ENABLED, enabled).apply();
+    }
+
+    boolean isScrapedLinksBackupEnabled() {
+        return preferences.getBoolean(SCRAPED_LINKS_BACKUP_ENABLED, false);
+    }
+    void setScrapedLinksBackupEnabled(boolean enabled) {
+        preferences.edit().putBoolean(SCRAPED_LINKS_BACKUP_ENABLED, enabled).apply();
+    }
+
+    boolean isAutoScrapeXLinksEnabled() {
+        return preferences.getBoolean(AUTO_SCRAPE_X_LINKS, false);
+    }
+
+    void setAutoScrapeXLinksEnabled(boolean enabled) {
+        preferences.edit().putBoolean(AUTO_SCRAPE_X_LINKS, enabled).apply();
     }
 
     boolean areSpeedControlsCollapsed() {
@@ -416,6 +518,14 @@ final class SpeedyWatchSettings {
 
     private static String omniAmountKey(OmniButtonGesture.Direction direction) {
         return OMNI_AMOUNT_PREFIX + direction.id;
+    }
+
+    private static String omniXActionKey(OmniButtonGesture.Direction direction) {
+        return OMNI_X_ACTION_PREFIX + direction.id;
+    }
+
+    private static String omniXAmountKey(OmniButtonGesture.Direction direction) {
+        return OMNI_X_AMOUNT_PREFIX + direction.id;
     }
 
     private static void putOmniButtonBindings(

@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.31**, debug-signed |
+| Current public APK: **v0.35**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.31.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.35.
 
 ### Watch at your speed
 
@@ -140,7 +140,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.31 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.35 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -158,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.31
-Version code: 31
+Version: 0.35
+Version code: 35
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,246,354 bytes
-SHA-256: a3f7684b0f1dd293500d6dda97e2692327e21adcb83d3d2cc115d9c3185d14cf
+APK size: 106,821,898 bytes
+SHA-256: d4ee2bd7606da0fef77247eb1eb886d85d8ea58f8ecb5404ad09d8b37ecf4a5f
 Signing: Android debug signing key
 ```
 
-This public v0.31 APK is debug-signed with APK Signature Scheme v2. It adds a programmable eight-direction Omnibutton with independently autosaved actions and bounded speed or seek amounts. The action catalog includes browser and chapter navigation, History, Watch Later, Search, Share, playback controls, Picture-in-Picture, Video Subs, Summary One, Summary Two, Quiz, Download, Saved, Settings, and screen lock. Summary One and Summary Two wait for transcript readiness and then open an eligible exact-context cache entry or run only the selected autosaved prompt. Settings now autosaves toggles and pickers immediately, debounces typed fields, flushes valid pending edits on close, keeps the API key Android Keystore-encrypted, and removes the hidden global Save step. Versioned JSON backup includes the Omnibutton mapping and amounts while continuing to exclude secrets and MEGA bookmark material. All 84 Android unit tests passed; the exact release candidate was installed and hash-verified on API 36 and on the Samsung phone as version code 31. The installed Samsung base APK matched the 106,246,354-byte candidate at SHA-256 `a3f7684b0f1dd293500d6dda97e2692327e21adcb83d3d2cc115d9c3185d14cf`. The public APK supports 64-bit and 32-bit ARM Android devices; x86_64 emulator/device builds are not included. A future switch to a production signing key may require uninstalling this debug-signed build first, which would remove app-private SpeedyWatch data unless it is backed up.
+This public v0.35 APK is debug-signed with APK Signature Scheme v2. It adds X-thread link harvesting: an optional Auto-scrape X links setting (off by default) plus a manual Save X links Omnibutton action that captures only the links visible on your screen, de-duplicates them by canonical URL so nothing is saved twice, and files them under Saved with dates and an All/Videos/X-links type filter. The Omnibutton is context-aware on X with its own collapsible accordion mapping - Save X links, Download for X videos, Play/Pause, Picture-in-Picture, Share, Reload, Back/Forward, and Saved - while YouTube and other sites keep a separate accordion mapping. Scraped links stay app-private and enter JSON backups only behind an off-by-default toggle.
 
 ## Legacy mobile source
 

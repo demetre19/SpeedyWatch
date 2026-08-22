@@ -87,6 +87,10 @@ final class SettingsDialog {
     private String defaultMp3Quality;
     private Button savedThumbnailsButton;
     private boolean savedThumbnailsEnabled;
+    private Button scrapedLinksBackupButton;
+    private boolean scrapedLinksBackupEnabled;
+    private Button autoScrapeXLinksButton;
+    private boolean autoScrapeXLinksEnabled;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button pictureInPictureControlButton;
@@ -103,6 +107,17 @@ final class SettingsDialog {
             new EnumMap<>(OmniButtonGesture.Direction.class);
     private Dialog omniEditorDialog;
     private LinearLayout omniEditorRows;
+    private LinearLayout omniXEditorRows;
+    private Button omniGeneralSectionButton;
+    private Button omniXSectionButton;
+    private boolean omniGeneralExpanded = true;
+    private boolean omniXExpanded = false;
+    private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, EditText> omniXAmountInputs =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
     private Button playbackProfileButton;
     private Button adaptiveSpeedButton;
     private String playbackProfile;
@@ -377,7 +392,40 @@ final class SettingsDialog {
                 ),
                 matchWrap(dp(8), 0)
         );
-
+        scrapedLinksBackupEnabled = settings.isScrapedLinksBackupEnabled();
+        scrapedLinksBackupButton = button("");
+        scrapedLinksBackupButton.setOnClickListener(ignored -> {
+            scrapedLinksBackupEnabled = !scrapedLinksBackupEnabled;
+            updateScrapedLinksBackupButton();
+            saveImmediateSettings();
+        });
+        updateScrapedLinksBackupButton();
+        content.addView(scrapedLinksBackupButton, matchWrap(0, 0));
+        content.addView(
+                text(
+                        "Includes scraped X-thread links in JSON backups. Off by default because chats can be private.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), 0)
+        );
+        autoScrapeXLinksEnabled = settings.isAutoScrapeXLinksEnabled();
+        autoScrapeXLinksButton = button("");
+        autoScrapeXLinksButton.setOnClickListener(ignored -> {
+            autoScrapeXLinksEnabled = !autoScrapeXLinksEnabled;
+            updateAutoScrapeXLinksButton();
+            saveImmediateSettings();
+        });
+        updateAutoScrapeXLinksButton();
+        content.addView(autoScrapeXLinksButton, matchWrap(0, 0));
+        content.addView(
+                text(
+                        "While you browse X, automatically saves links from whatever is on your screen into Saved. Off means links are saved only when you run Save X links from the Omnibutton.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), 0)
+        );
         content.addView(text("Updates", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
         TextView currentVersion = text(
                 "Current version " + installedVersionName
@@ -970,10 +1018,14 @@ final class SettingsDialog {
     private void loadOmniButtonBindings() {
         omniActions.clear();
         omniAmounts.clear();
+        omniXActions.clear();
+        omniXAmounts.clear();
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
             omniActions.put(direction, settings.getOmniButtonAction(direction));
             omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
+            omniXActions.put(direction, settings.getOmniXButtonAction(direction));
+            omniXAmounts.put(direction, settings.getOmniXButtonAmount(direction));
         }
     }
 
@@ -1001,11 +1053,34 @@ final class SettingsDialog {
                 matchWrap(dp(6), dp(8))
         );
 
+        LinearLayout sections = verticalLayout();
+        omniGeneralSectionButton = button("▾ YouTube & other sites");
+        omniGeneralSectionButton.setContentDescription(
+                "Omnibutton actions for YouTube and other sites. Tap to collapse or expand"
+        );
+        omniGeneralSectionButton.setOnClickListener(ignored -> {
+            omniGeneralExpanded = !omniGeneralExpanded;
+            applyOmniAccordionState();
+        });
+        sections.addView(omniGeneralSectionButton, matchWrap(dp(8), dp(4)));
         omniEditorRows = verticalLayout();
+        sections.addView(omniEditorRows, matchWrap(0, 0));
+        omniXSectionButton = button("▸ X");
+        omniXSectionButton.setContentDescription(
+                "Omnibutton actions used while viewing X. Tap to collapse or expand"
+        );
+        omniXSectionButton.setOnClickListener(ignored -> {
+            omniXExpanded = !omniXExpanded;
+            applyOmniAccordionState();
+        });
+        sections.addView(omniXSectionButton, matchWrap(dp(8), dp(4)));
+        omniXEditorRows = verticalLayout();
+        sections.addView(omniXEditorRows, matchWrap(0, 0));
+        applyOmniAccordionState();
         rebuildOmniButtonEditorRows();
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
-        scroll.addView(omniEditorRows);
+        scroll.addView(sections);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -1018,6 +1093,13 @@ final class SettingsDialog {
             omniActions.putAll(SpeedyWatchSettings.defaultOmniButtonActions());
             omniAmounts.clear();
             omniAmounts.putAll(SpeedyWatchSettings.defaultOmniButtonAmounts());
+            omniXActions.clear();
+            omniXActions.putAll(SpeedyWatchSettings.defaultOmniXButtonActions());
+            omniXAmounts.clear();
+            for (OmniButtonGesture.Direction direction
+                    : OmniButtonGesture.Direction.configurableValues()) {
+                omniXAmounts.put(direction, Double.NaN);
+            }
             rebuildOmniButtonEditorRows();
         });
         root.addView(reset, matchWrap(dp(8), dp(8)));
@@ -1029,6 +1111,7 @@ final class SettingsDialog {
             omniActions.putAll(originalActions);
             omniAmounts.clear();
             omniAmounts.putAll(originalAmounts);
+            loadOmniButtonBindings();
             omniEditorDialog.dismiss();
         });
         actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
@@ -1052,6 +1135,7 @@ final class SettingsDialog {
             omniActions.putAll(originalActions);
             omniAmounts.clear();
             omniAmounts.putAll(originalAmounts);
+            loadOmniButtonBindings();
         });
         omniEditorDialog.setContentView(root);
         Window window = omniEditorDialog.getWindow();
@@ -1069,11 +1153,46 @@ final class SettingsDialog {
     }
 
     private void rebuildOmniButtonEditorRows() {
-        omniEditorRows.removeAllViews();
-        omniAmountInputs.clear();
+        buildOmniDirectionRows(
+                omniEditorRows,
+                omniActions,
+                omniAmounts,
+                omniAmountInputs,
+                false
+        );
+        buildOmniDirectionRows(
+                omniXEditorRows,
+                omniXActions,
+                omniXAmounts,
+                omniXAmountInputs,
+                true
+        );
+    }
+
+    private void applyOmniAccordionState() {
+        if (omniGeneralSectionButton == null || omniXSectionButton == null) {
+            return;
+        }
+        omniGeneralSectionButton.setText(
+                (omniGeneralExpanded ? "▾ " : "▸ ") + "YouTube & other sites");
+        omniEditorRows.setVisibility(omniGeneralExpanded ? View.VISIBLE : View.GONE);
+        omniXSectionButton.setText((omniXExpanded ? "▾ " : "▸ ") + "X");
+        omniXEditorRows.setVisibility(omniXExpanded ? View.VISIBLE : View.GONE);
+    }
+
+    private void buildOmniDirectionRows(
+            LinearLayout container,
+            EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            EnumMap<OmniButtonGesture.Direction, Double> amounts,
+            EnumMap<OmniButtonGesture.Direction, EditText> amountInputs,
+            boolean xSection
+    ) {
+        container.removeAllViews();
+        amountInputs.clear();
+        String scope = xSection ? " (X)" : "";
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
-            OmniButtonAction action = omniActions.get(direction);
+            OmniButtonAction action = actions.get(direction);
             LinearLayout group = verticalLayout();
 
             LinearLayout row = horizontalLayout();
@@ -1082,9 +1201,10 @@ final class SettingsDialog {
             row.addView(directionLabel, new LinearLayout.LayoutParams(dp(92), dp(44)));
             Button actionButton = button(action.label);
             actionButton.setContentDescription(
-                    direction.label + " swipe action: " + action.label
+                    direction.label + scope + " swipe action: " + action.label
             );
-            actionButton.setOnClickListener(ignored -> showOmniButtonActionPicker(direction));
+            actionButton.setOnClickListener(ignored ->
+                    showOmniButtonActionPicker(direction, xSection));
             row.addView(actionButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
             group.addView(row);
 
@@ -1102,47 +1222,54 @@ final class SettingsDialog {
                 input.setInputType(
                         InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
                 );
-                double amount = omniAmounts.getOrDefault(
+                double amount = amounts.getOrDefault(
                         direction,
                         OmniButtonAction.defaultAmount(action)
                 );
                 if (!action.acceptsAmount(amount)) {
                     amount = OmniButtonAction.defaultAmount(action);
-                    omniAmounts.put(direction, amount);
+                    amounts.put(direction, amount);
                 }
                 input.setText(formatSpeed(amount));
-                input.setContentDescription(direction.label + " " + amountLabel);
-                omniAmountInputs.put(direction, input);
+                input.setContentDescription(direction.label + scope + " " + amountLabel);
+                amountInputs.put(direction, input);
                 LinearLayout.LayoutParams amountParams =
                         new LinearLayout.LayoutParams(dp(100), dp(44));
                 amountParams.setMarginStart(dp(8));
                 amountRow.addView(input, amountParams);
                 group.addView(amountRow);
             }
-            omniEditorRows.addView(group, matchWrap(dp(8), 0));
+            container.addView(group, matchWrap(dp(8), 0));
         }
     }
 
-    private void showOmniButtonActionPicker(OmniButtonGesture.Direction direction) {
+    private void showOmniButtonActionPicker(
+            OmniButtonGesture.Direction direction,
+            boolean xSection
+    ) {
         captureValidOmniButtonAmounts();
-        OmniButtonAction[] actions = OmniButtonAction.values();
-        String[] labels = new String[actions.length];
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                xSection ? omniXActions : omniActions;
+        EnumMap<OmniButtonGesture.Direction, Double> amounts =
+                xSection ? omniXAmounts : omniAmounts;
+        OmniButtonAction[] options = OmniButtonAction.values();
+        String[] labels = new String[options.length];
         int selected = 0;
-        for (int index = 0; index < actions.length; index++) {
-            labels[index] = actions[index].label;
-            if (actions[index] == omniActions.get(direction)) {
+        for (int index = 0; index < options.length; index++) {
+            labels[index] = options[index].label;
+            if (options[index] == actions.get(direction)) {
                 selected = index;
             }
         }
         new AlertDialog.Builder(activity)
-                .setTitle(direction.label + " swipe")
+                .setTitle(direction.label + (xSection ? " swipe (X)" : " swipe"))
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
-                    OmniButtonAction action = actions[which];
-                    omniActions.put(direction, action);
-                    Double amount = omniAmounts.get(direction);
+                    OmniButtonAction action = options[which];
+                    actions.put(direction, action);
+                    Double amount = amounts.get(direction);
                     if (action.usesAmount()
                             && (amount == null || !action.acceptsAmount(amount))) {
-                        omniAmounts.put(direction, OmniButtonAction.defaultAmount(action));
+                        amounts.put(direction, OmniButtonAction.defaultAmount(action));
                     }
                     dialog.dismiss();
                     rebuildOmniButtonEditorRows();
@@ -1152,13 +1279,21 @@ final class SettingsDialog {
     }
 
     private void captureValidOmniButtonAmounts() {
-        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry
-                : omniAmountInputs.entrySet()) {
-            OmniButtonAction action = omniActions.get(entry.getKey());
+        captureValidOmniButtonAmounts(omniAmountInputs, omniActions, omniAmounts);
+        captureValidOmniButtonAmounts(omniXAmountInputs, omniXActions, omniXAmounts);
+    }
+
+    private void captureValidOmniButtonAmounts(
+            EnumMap<OmniButtonGesture.Direction, EditText> inputs,
+            EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            EnumMap<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry : inputs.entrySet()) {
+            OmniButtonAction action = actions.get(entry.getKey());
             try {
                 double amount = Double.parseDouble(entry.getValue().getText().toString().trim());
                 if (action.acceptsAmount(amount)) {
-                    omniAmounts.put(entry.getKey(), amount);
+                    amounts.put(entry.getKey(), amount);
                 }
             } catch (NumberFormatException ignored) {
                 // The value is validated when the user taps Done.
@@ -1167,17 +1302,28 @@ final class SettingsDialog {
     }
 
     private boolean readOmniButtonAmounts(boolean showErrors) {
+        boolean valid = readOmniButtonAmounts(showErrors, omniAmountInputs, omniActions, omniAmounts);
+        valid &= readOmniButtonAmounts(
+                showErrors, omniXAmountInputs, omniXActions, omniXAmounts);
+        return valid;
+    }
+
+    private boolean readOmniButtonAmounts(
+            boolean showErrors,
+            EnumMap<OmniButtonGesture.Direction, EditText> inputs,
+            EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            EnumMap<OmniButtonGesture.Direction, Double> amounts
+    ) {
         boolean valid = true;
-        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry
-                : omniAmountInputs.entrySet()) {
-            OmniButtonAction action = omniActions.get(entry.getKey());
+        for (Map.Entry<OmniButtonGesture.Direction, EditText> entry : inputs.entrySet()) {
+            OmniButtonAction action = actions.get(entry.getKey());
             EditText input = entry.getValue();
             try {
                 double amount = Double.parseDouble(input.getText().toString().trim());
                 if (!action.acceptsAmount(amount)) {
                     throw new NumberFormatException();
                 }
-                omniAmounts.put(entry.getKey(), amount);
+                amounts.put(entry.getKey(), amount);
                 input.setError(null);
             } catch (NumberFormatException error) {
                 valid = false;
@@ -1233,6 +1379,22 @@ final class SettingsDialog {
         );
     }
 
+    private void updateScrapedLinksBackupButton() {
+        scrapedLinksBackupButton.setText(
+                scrapedLinksBackupEnabled
+                        ? "Include X links in backups: On"
+                        : "Include X links in backups: Off"
+        );
+    }
+
+    private void updateAutoScrapeXLinksButton() {
+        autoScrapeXLinksButton.setText(
+                autoScrapeXLinksEnabled
+                        ? "Auto-scrape X links: On"
+                        : "Auto-scrape X links: Off"
+        );
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -1260,7 +1422,17 @@ final class SettingsDialog {
             ).show();
             return;
         }
+        if (!settings.setOmniXButtonBindings(omniXActions, omniXAmounts)) {
+            Toast.makeText(
+                    activity,
+                    "Finish the Omnibutton gesture amounts",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
         settings.setSavedThumbnailsEnabled(savedThumbnailsEnabled);
+        settings.setScrapedLinksBackupEnabled(scrapedLinksBackupEnabled);
+        settings.setAutoScrapeXLinksEnabled(autoScrapeXLinksEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,
