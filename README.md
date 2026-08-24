@@ -7,7 +7,7 @@
 <p align="center">
   <strong>Watch more in less time.</strong><br><br>
   <strong>A 60-minute video should not cost you 60 minutes.</strong><br>
-  SpeedyWatch helps you watch faster, search every spoken word, and turn long videos into notes, quizzes, downloads, and a watch plan built for the time you have.<br>
+  SpeedyWatch lets you browse regular HTTPS pages, control accessible videos wherever they are embedded, search spoken words or readable page text, and turn long sources into notes, quizzes, downloads, and a watch plan built for the time you have.<br>
   <small>Installable Android APK.</small>
 </p>
 
@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.38**, debug-signed |
+| Current public APK: **v0.40**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,13 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.38.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.40.
+
+### Browse the web with SpeedyWatch controls
+
+Open or share any public HTTPS page in SpeedyWatch. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Saved, Settings, and screen lock stay available on regular pages. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it.
+
+DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams without a seekable timeline, and players that reject browser controls may remain unavailable. SpeedyWatch reports that directly rather than controlling the wrong media.
 
 ### Watch at your speed
 
@@ -51,12 +57,12 @@ Reach the useful part sooner. Keep the pace that works for you.
 
 ### Control more from one thumb
 
-The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Configure all eight swipe directions independently for chapters, browser navigation, History, Watch Later, Search, Share, playback speed, timed forward or rewind, Play/Pause, Picture-in-Picture, Video Subs, Summary One, Summary Two, Quiz, Download, Saved, Settings, screen lock, and more. Speed and seek actions accept their own amounts. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
+The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Settings provides separate expandable **Web**, **YouTube**, and **X** gesture maps—never a combined “YouTube & other sites” profile—and switches maps automatically with the active page. Configure all eight directions independently for browser Back/Forward, Reload, Search, Share, playback speed, timed seeking, Play/Pause, Picture-in-Picture, Video Subs, summaries, Quiz, Download, Saved, Settings, screen lock, YouTube chapters, X link saving, and more. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
 
 
 ### Skip the dead time
 
-Spend less time on interruptions with best-effort YouTube ad skipping and optional SponsorBlock skips with **Undo**. Your chosen speed stays in place when supported sites reset their player.
+Spend less time on interruptions with best-effort YouTube ad skipping and optional SponsorBlock skips with **Undo**. Your chosen speed stays in place when regular pages, supported sites, or embedded frames reset their HTML5 player.
 
 ## Find the exact answer
 
@@ -140,7 +146,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.38 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.40 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -158,16 +164,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.38
-Version code: 38
+Version: 0.40
+Version code: 40
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,290,858 bytes
-SHA-256: fe6366f489a760003b1373f07c1c1518722d5d00e3ae507b59975d909d29f103
+APK size: 106,493,858 bytes
+SHA-256: 17f02dc746b9d767e85a5dbc9fcca1b82feebcac2e7124a911efa60a4ef92c66
 Signing: Android debug signing key
 ```
 
-This public v0.38 APK is debug-signed with APK Signature Scheme v2. Fullscreen playback now follows the phone's sensor orientation, so vertical videos remain viewable in portrait while landscape videos can still rotate naturally.
+This public v0.40 APK is debug-signed with APK Signature Scheme v2. It adds universal HTTPS browsing with a dedicated Web mode, separate Web/YouTube/X Omnibutton mappings, and accessible controls for HTML5 media embedded in regular pages.
 
 ## Legacy mobile source
 

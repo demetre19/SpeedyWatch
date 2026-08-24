@@ -99,6 +99,27 @@ public final class SpeedyWatchSettingsTest {
     }
 
     @Test
+    public void omniWebDefaults_areBrowserFirstAndSeparateFromYouTube() {
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> web =
+                SpeedyWatchSettings.defaultOmniWebButtonActions();
+        assertEquals(OmniButtonAction.SUMMARY_ONE, web.get(OmniButtonGesture.Direction.UP));
+        assertEquals(OmniButtonAction.SPEED_UP, web.get(OmniButtonGesture.Direction.UP_RIGHT));
+        assertEquals(OmniButtonAction.BROWSER_FORWARD, web.get(OmniButtonGesture.Direction.RIGHT));
+        assertEquals(OmniButtonAction.SHARE, web.get(OmniButtonGesture.Direction.DOWN_RIGHT));
+        assertEquals(OmniButtonAction.SAVED, web.get(OmniButtonGesture.Direction.DOWN));
+        assertEquals(OmniButtonAction.RELOAD, web.get(OmniButtonGesture.Direction.DOWN_LEFT));
+        assertEquals(OmniButtonAction.BROWSER_BACK, web.get(OmniButtonGesture.Direction.LEFT));
+        assertEquals(OmniButtonAction.SPEED_DOWN, web.get(OmniButtonGesture.Direction.UP_LEFT));
+        assertFalse(web.containsValue(OmniButtonAction.YOUTUBE_HISTORY));
+        assertFalse(web.containsValue(OmniButtonAction.WATCH_LATER));
+        assertFalse(web.containsValue(OmniButtonAction.NEXT_CHAPTER));
+        assertTrue(SpeedyWatchSettings.validOmniButtonBindings(
+                web,
+                SpeedyWatchSettings.defaultOmniWebButtonAmounts()
+        ));
+    }
+
+    @Test
     public void omniButtonActionIdsAndAmounts_areValidatedBeforePersistence() {
         for (OmniButtonAction action : OmniButtonAction.values()) {
             assertEquals(action, OmniButtonAction.fromId(action.id));

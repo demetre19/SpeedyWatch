@@ -66,6 +66,19 @@ final class AppBackup {
                 "omniButtonGestures",
                 encodeOmniButtonBindings(omniActions, omniAmounts)
         );
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniWebActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniWebAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniWebActions.put(direction, settings.getOmniWebButtonAction(direction));
+            omniWebAmounts.put(direction, settings.getOmniWebButtonAmount(direction));
+        }
+        preferences.put(
+                "omniButtonGesturesWeb",
+                encodeOmniButtonBindings(omniWebActions, omniWebAmounts)
+        );
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
@@ -221,6 +234,15 @@ final class AppBackup {
             omniActions.put(direction, settings.getOmniButtonAction(direction));
             omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
         }
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniWebActions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        EnumMap<OmniButtonGesture.Direction, Double> omniWebAmounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            omniWebActions.put(direction, settings.getOmniWebButtonAction(direction));
+            omniWebAmounts.put(direction, settings.getOmniWebButtonAmount(direction));
+        }
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
@@ -236,6 +258,13 @@ final class AppBackup {
                 throw new JSONException("Backup Omnibutton gestures are invalid");
             }
             decodeOmniButtonBindings(bindings, omniActions, omniAmounts);
+        }
+        if (preferences.has("omniButtonGesturesWeb")) {
+            Object rawWebBindings = preferences.opt("omniButtonGesturesWeb");
+            if (!(rawWebBindings instanceof JSONObject webBindings)) {
+                throw new JSONException("Backup Omnibutton Web gestures are invalid");
+            }
+            decodeOmniButtonBindings(webBindings, omniWebActions, omniWebAmounts);
         }
         if (preferences.has("omniButtonGesturesX")) {
             Object rawXBindings = preferences.opt("omniButtonGesturesX");
@@ -369,7 +398,10 @@ final class AppBackup {
                 "autoScrapeXLinks",
                 settings.isAutoScrapeXLinksEnabled()
         ));
-        if (root.has("omniButtonGesturesX")) {
+        if (preferences.has("omniButtonGesturesWeb")) {
+            settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts);
+        }
+        if (preferences.has("omniButtonGesturesX")) {
             settings.setOmniXButtonBindings(omniXActions, omniXAmounts);
         }
         if (root.has("scrapedLinks")) {

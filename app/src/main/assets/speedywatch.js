@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 20) {
+    if (existing && existing.version === 23) {
         return "reused";
     }
 
@@ -22,7 +22,8 @@
         adProcessing: false,
         pictureInPictureActive: false,
         pictureInPicturePlaybackRequested: false,
-        megaBrowserChoiceAt: 0
+        megaBrowserChoiceAt: 0,
+        lastFrameCaptionReportAt: 0
     };
     const documentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
     const documentVisibilityState =
@@ -58,6 +59,8 @@
         return mediaPause.call(this);
     };
 
+    const mediaActivity = new WeakMap();
+    const remoteFrames = new Map();
     const mediaElements = () => Array.from(document.querySelectorAll("video, audio"));
     const soundCloudPlaybackButton = () => {
         if (!/(^|\.)soundcloud\.com$/i.test(window.location.hostname)) {
@@ -70,21 +73,133 @@
             "button[title^='Play'], button[aria-label^='Play']"
         );
     };
-
     const soundCloudPlaying = () => {
         const button = soundCloudPlaybackButton();
         if (!button) {
             return false;
         }
-        const label = `${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""}`;
+        const label = `${button.getAttribute("title") || ""} ` +
+            `${button.getAttribute("aria-label") || ""}`;
         return button.classList.contains("playing") || /\bpause\b/i.test(label);
     };
-
-    const activePictureInPictureMedia = () => mediaElements().find((element) =>
-        !element.paused
-        && !element.ended
-        && element.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-    ) || null;
+    const noteMediaActivity = (media) => {
+        if (media instanceof HTMLMediaElement) {
+            mediaActivity.set(media, Date.now());
+        }
+    };
+    document.addEventListener("pointerdown", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLMediaElement) {
+            noteMediaActivity(target);
+            return;
+        }
+        const media = target && typeof target.closest === "function"
+            ? target.closest("video, audio") : null;
+        noteMediaActivity(media);
+    }, true);
+    document.addEventListener("play", (event) => noteMediaActivity(event.target), true);
+    const visibleMediaArea = (media) => {
+        try {
+            const bounds = media.getBoundingClientRect();
+            const width = Math.max(0, Math.min(bounds.right, window.innerWidth)
+                - Math.max(bounds.left, 0));
+            const height = Math.max(0, Math.min(bounds.bottom, window.innerHeight)
+                - Math.max(bounds.top, 0));
+            return Math.min(100000000, width * height);
+        } catch (_) {
+            return 0;
+        }
+    };
+    const mediaStatus = (media) => {
+        if (!media) {
+            return null;
+        }
+        const duration = Number.isFinite(media.duration)
+            ? Math.max(0, Math.min(604800, media.duration)) : null;
+        const currentTime = Number.isFinite(media.currentTime)
+            ? Math.max(0, Math.min(duration ?? 604800, media.currentTime)) : null;
+        return {
+            playing: !media.paused && !media.ended
+                && media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA,
+            paused: media.paused,
+            ended: media.ended,
+            ready: media.readyState >= HTMLMediaElement.HAVE_METADATA,
+            video: media instanceof HTMLVideoElement,
+            seekable: Boolean(media.seekable && media.seekable.length),
+            currentTime,
+            duration,
+            rate: Number.isFinite(media.playbackRate) ? media.playbackRate : 1,
+            lastActiveAt: mediaActivity.get(media) || 0,
+            visibleArea: visibleMediaArea(media)
+        };
+    };
+    const compareMediaStatus = (left, right) => {
+        const leftRank = [
+            left?.playing ? 1 : 0,
+            Number(left?.lastActiveAt) || 0,
+            Number(left?.visibleArea) || 0,
+            left?.ready ? 1 : 0
+        ];
+        const rightRank = [
+            right?.playing ? 1 : 0,
+            Number(right?.lastActiveAt) || 0,
+            Number(right?.visibleArea) || 0,
+            right?.ready ? 1 : 0
+        ];
+        for (let index = 0; index < leftRank.length; index++) {
+            if (leftRank[index] !== rightRank[index]) {
+                return leftRank[index] - rightRank[index];
+            }
+        }
+        return 0;
+    };
+    const selectedLocalMedia = (videoOnly = false) => mediaElements()
+        .filter((media) => !videoOnly || media instanceof HTMLVideoElement)
+        .reduce((selected, media) => !selected
+            || compareMediaStatus(mediaStatus(media), mediaStatus(selected)) > 0
+            ? media : selected, null);
+    const selectedMediaTarget = (videoOnly = false) => {
+        const localMedia = selectedLocalMedia(videoOnly);
+        let selected = localMedia
+            ? { media: localMedia, status: mediaStatus(localMedia), source: null }
+            : null;
+        if (window.top !== window) {
+            return selected;
+        }
+        const now = Date.now();
+        remoteFrames.forEach((record, source) => {
+            if (!record || now - record.receivedAt > 2000
+                    || (videoOnly && !record.status.video)) {
+                remoteFrames.delete(source);
+                return;
+            }
+            if (!selected || compareMediaStatus(record.status, selected.status) > 0) {
+                selected = { media: null, status: record.status, source };
+            }
+        });
+        return selected;
+    };
+    const postTargetCommand = (target, command, value) => {
+        if (!target?.source) {
+            return false;
+        }
+        try {
+            target.source.postMessage({
+                speedyWatch: 23,
+                type: "command",
+                command,
+                value
+            }, "*");
+            return true;
+        } catch (_) {
+            remoteFrames.delete(target.source);
+            return false;
+        }
+    };
+    const activePictureInPictureMedia = () => {
+        const target = selectedMediaTarget();
+        return target?.status?.playing ? target : null;
+    };
     const pictureInPictureLabel = () => {
         const host = window.location.hostname.toLowerCase();
         if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
@@ -681,6 +796,110 @@
             pageUrl: String(window.location.href).slice(0, 2000)
         });
     };
+
+    const captionEntries = (media) => {
+        if (!media || !media.textTracks) {
+            return [];
+        }
+        const entries = [];
+        let characters = 0;
+        for (const track of Array.from(media.textTracks).slice(0, 20)) {
+            let cues;
+            try {
+                cues = track.cues ? Array.from(track.cues) : [];
+            } catch (_) {
+                continue;
+            }
+            for (const cue of cues.slice(0, 1000 - entries.length)) {
+                const text = String(cue.text || "").replace(/<[^>]+>/g, " ")
+                    .replace(/\s+/g, " ").trim().slice(0, 2000);
+                if (!text) {
+                    continue;
+                }
+                characters += text.length;
+                if (characters > 40000) {
+                    return entries;
+                }
+                entries.push({
+                    start: Number.isFinite(cue.startTime)
+                        ? Math.max(0, Math.min(604800, cue.startTime)) : null,
+                    end: Number.isFinite(cue.endTime)
+                        ? Math.max(0, Math.min(604800, cue.endTime)) : null,
+                    text
+                });
+            }
+            if (entries.length > 0) {
+                break;
+            }
+        }
+        return entries;
+    };
+    const readablePageBlocks = () => {
+        const candidates = Array.from(document.querySelectorAll(
+            "article, main, [role='main']"
+        ));
+        const root = candidates.reduce((best, candidate) => {
+            const length = String(candidate.innerText || "").length;
+            const bestLength = best ? String(best.innerText || "").length : 0;
+            return length > bestLength ? candidate : best;
+        }, null) || document.body;
+        if (!root) {
+            return [];
+        }
+        const blocks = [];
+        const seen = new Set();
+        let characters = 0;
+        const noise = /^(?:accept|reject|manage cookies|sign in|log in|subscribe|menu|close)$/i;
+        const nodes = root.querySelectorAll("h1, h2, h3, p, blockquote, li, pre");
+        for (const node of nodes) {
+            if (blocks.length >= 400 || characters >= 40000
+                    || node.closest("nav, header, footer, aside, form, dialog, [aria-hidden='true']")) {
+                continue;
+            }
+            const style = window.getComputedStyle(node);
+            const bounds = node.getBoundingClientRect();
+            if (style.display === "none" || style.visibility === "hidden"
+                    || bounds.width <= 0 || bounds.height <= 0) {
+                continue;
+            }
+            const text = String(node.innerText || node.textContent || "")
+                .replace(/\s+/g, " ").trim().slice(0, 4000);
+            const key = text.toLowerCase();
+            if (!text || text.length < 2 || noise.test(text) || seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            characters += text.length;
+            if (characters > 40000) {
+                break;
+            }
+            blocks.push(text);
+        }
+        return blocks;
+    };
+    const collectPageContent = () => {
+        const target = selectedMediaTarget();
+        let captions = [];
+        if (target?.source) {
+            captions = remoteFrames.get(target.source)?.captions || [];
+        } else if (target?.media) {
+            captions = captionEntries(target.media);
+        }
+        const title = String(document.title || "").replace(/\s+/g, " ").trim().slice(0, 300);
+        const authorNode = document.querySelector(
+            "meta[name='author'], meta[property='article:author']"
+        );
+        const author = String(authorNode?.getAttribute("content") || "")
+            .replace(/\s+/g, " ").trim().slice(0, 300);
+        return JSON.stringify({
+            kind: captions.length > 0 ? "captions" : "page",
+            author,
+            title,
+            blocks: captions.length > 0
+                ? captions.map((entry) => entry.text) : readablePageBlocks(),
+            pageUrl: String(window.location.href).slice(0, 2000)
+        });
+    };
     // Facebook bakes player data (progressive renditions, DASH manifests) into
     // inline page payloads instead of fetching a manifest URL, so request
     // interception never sees a media request; dig those URLs out of the
@@ -754,10 +973,11 @@
     };
 
     const api = {
-        version: 22,
+        version: 23,
         megaFolderName,
         collectXLinks,
         collectXPageText,
+        collectPageContent,
         facebookMedia,
         setSpeed(value) {
             const parsed = Number(value);
@@ -766,6 +986,10 @@
             }
             state.speed = Math.min(4, Math.max(0.25, parsed));
             tick();
+            if (window.top === window) {
+                remoteFrames.forEach((_, source) =>
+                    postTargetCommand({ source }, "setSpeed", state.speed));
+            }
             return state.speed;
         },
         setAdaptiveSpeed(enabled, boost) {
@@ -917,22 +1141,30 @@
         },
         seekTo(value) {
             const parsed = Number(value);
-            const video = document.querySelector("video");
-            if (!video || !Number.isFinite(parsed)) {
+            const target = selectedMediaTarget();
+            if (!target || !target.status.seekable || !Number.isFinite(parsed)) {
                 return false;
             }
-            const maximum = Number.isFinite(video.duration) && video.duration >= 0
-                ? Math.min(604800, video.duration)
+            if (target.source) {
+                return postTargetCommand(target, "seekTo", parsed);
+            }
+            const maximum = Number.isFinite(target.media.duration) && target.media.duration >= 0
+                ? Math.min(604800, target.media.duration)
                 : 604800;
-            video.currentTime = Math.min(maximum, Math.max(0, parsed));
-            return true;
+            try {
+                target.media.currentTime = Math.min(maximum, Math.max(0, parsed));
+                return true;
+            } catch (_) {
+                return false;
+            }
         },
         currentTime() {
-            const video = document.querySelector("video");
-            return video && Number.isFinite(video.currentTime) ? video.currentTime : null;
+            const target = selectedMediaTarget();
+            return target?.status?.seekable && Number.isFinite(target.status.currentTime)
+                ? target.status.currentTime : null;
         },
         chapterContext() {
-            const video = document.querySelector("video");
+            const video = selectedLocalMedia(true);
             const currentTime = video && Number.isFinite(video.currentTime)
                 ? video.currentTime : null;
             const duration = video && Number.isFinite(video.duration)
@@ -945,11 +1177,17 @@
             };
         },
         togglePlayback() {
-            const media = mediaElements().find((element) => !element.ended);
+            const target = selectedMediaTarget();
             const soundCloudButton = soundCloudPlaybackButton();
-            if (!media && !soundCloudButton) {
+            if (!target && !soundCloudButton) {
                 return "unavailable";
             }
+            if (target?.source) {
+                const shouldPlay = Boolean(target.status.paused || target.status.ended);
+                return postTargetCommand(target, "togglePlayback", null)
+                    ? (shouldPlay ? "playing" : "paused") : "unavailable";
+            }
+            const media = target?.media || null;
             const shouldPlay = media ? media.paused : !soundCloudPlaying();
             if (media) {
                 if (shouldPlay) {
@@ -967,42 +1205,56 @@
                 ? "audio" : "unavailable";
         },
         pictureInPictureState() {
-            const media = activePictureInPictureMedia();
-            const videoElement = media instanceof HTMLVideoElement
-                ? media : document.querySelector("video");
-            const video = videoElement instanceof HTMLVideoElement;
+            const target = selectedMediaTarget();
             const soundCloudActive = soundCloudPlaying();
-            if (!media && !soundCloudActive && !video) {
+            if (!target && !soundCloudActive) {
                 return { playing: false, video: false, width: 1, height: 1 };
             }
-            const bounds = video ? videoElement.getBoundingClientRect() : null;
+            const media = target?.media || null;
+            const status = target?.status || {};
+            const video = Boolean(status.video);
+            const bounds = media && video ? media.getBoundingClientRect() : null;
             const boundedCoordinate = (value) =>
                 Number.isFinite(value) ? Math.max(-100000, Math.min(100000, value)) : 0;
             return {
-                playing: Boolean(media || soundCloudActive),
+                playing: Boolean(status.playing || soundCloudActive),
                 video,
-                width: video && Number.isFinite(videoElement.videoWidth)
-                    ? videoElement.videoWidth : 1,
-                height: video && Number.isFinite(videoElement.videoHeight)
-                    ? videoElement.videoHeight : 1,
-                left: bounds ? boundedCoordinate(bounds.left) : 0,
-                top: bounds ? boundedCoordinate(bounds.top) : 0,
-                right: bounds ? boundedCoordinate(bounds.right) : 0,
-                bottom: bounds ? boundedCoordinate(bounds.bottom) : 0,
+                width: media instanceof HTMLVideoElement && Number.isFinite(media.videoWidth)
+                    ? media.videoWidth : Math.max(1, Number(status.width) || 1),
+                height: media instanceof HTMLVideoElement && Number.isFinite(media.videoHeight)
+                    ? media.videoHeight : Math.max(1, Number(status.height) || 1),
+                left: bounds ? boundedCoordinate(bounds.left)
+                    : boundedCoordinate(status.left),
+                top: bounds ? boundedCoordinate(bounds.top)
+                    : boundedCoordinate(status.top),
+                right: bounds ? boundedCoordinate(bounds.right)
+                    : boundedCoordinate(status.right),
+                bottom: bounds ? boundedCoordinate(bounds.bottom)
+                    : boundedCoordinate(status.bottom),
                 viewportWidth: boundedCoordinate(window.innerWidth),
                 viewportHeight: boundedCoordinate(window.innerHeight),
-                label: pictureInPictureLabel()
+                label: typeof status.label === "string"
+                    ? status.label.slice(0, 40) : pictureInPictureLabel()
             };
         },
         setPictureInPictureActive(enabled) {
             state.pictureInPictureActive = Boolean(enabled);
             state.pictureInPicturePlaybackRequested = state.pictureInPictureActive;
+            const target = selectedMediaTarget();
+            if (target?.source) {
+                postTargetCommand(target, "setPictureInPictureActive",
+                    state.pictureInPictureActive);
+            }
             return state.pictureInPictureActive;
         },
         setPictureInPicturePlayback(playing) {
             const shouldPlay = Boolean(playing);
             state.pictureInPicturePlaybackRequested = shouldPlay;
-            const media = mediaElements().find((element) => !element.ended);
+            const target = selectedMediaTarget();
+            if (target?.source) {
+                return postTargetCommand(target, "setPictureInPicturePlayback", shouldPlay);
+            }
+            const media = target?.media || null;
             if (media && media.paused !== shouldPlay) {
                 return shouldPlay;
             }
@@ -1032,8 +1284,11 @@
             return shouldPlay && Boolean(button);
         },
         status() {
+            const target = selectedMediaTarget();
             return {
                 speed: state.speed,
+                hasMedia: Boolean(target),
+                mediaPlaying: Boolean(target?.status?.playing),
                 adSkipping: state.adSkipping,
                 adShowing: isAdShowing(),
                 adaptiveSpeed: state.adaptiveSpeed,
@@ -1045,20 +1300,165 @@
 
     window.__speedyWatchController = api;
 
+    const boundedFrameStatus = (value) => {
+        if (!value || typeof value !== "object") {
+            return null;
+        }
+        const boundedNumber = (number, minimum, maximum, fallback = 0) =>
+            Number.isFinite(Number(number))
+                ? Math.max(minimum, Math.min(maximum, Number(number))) : fallback;
+        return {
+            playing: value.playing === true,
+            paused: value.paused !== false,
+            ended: value.ended === true,
+            ready: value.ready === true,
+            video: value.video === true,
+            seekable: value.seekable === true,
+            currentTime: value.currentTime == null ? null
+                : boundedNumber(value.currentTime, 0, 604800),
+            duration: value.duration == null ? null
+                : boundedNumber(value.duration, 0, 604800),
+            rate: boundedNumber(value.rate, 0.25, 4, 1),
+            lastActiveAt: boundedNumber(value.lastActiveAt, 0, Date.now()),
+            visibleArea: boundedNumber(value.visibleArea, 0, 100000000),
+            width: boundedNumber(value.width, 1, 100000, 1),
+            height: boundedNumber(value.height, 1, 100000, 1),
+            left: boundedNumber(value.left, -100000, 100000),
+            top: boundedNumber(value.top, -100000, 100000),
+            right: boundedNumber(value.right, -100000, 100000),
+            bottom: boundedNumber(value.bottom, -100000, 100000),
+            label: typeof value.label === "string" ? value.label.slice(0, 40) : "Web video"
+        };
+    };
+    const boundedCaptionEntries = (value) => {
+        if (!Array.isArray(value)) {
+            return null;
+        }
+        const entries = [];
+        let characters = 0;
+        for (const entry of value.slice(0, 1000)) {
+            const text = String(entry?.text || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+            if (!text) {
+                continue;
+            }
+            characters += text.length;
+            if (characters > 40000) {
+                break;
+            }
+            entries.push({
+                start: Number.isFinite(Number(entry.start))
+                    ? Math.max(0, Math.min(604800, Number(entry.start))) : null,
+                end: Number.isFinite(Number(entry.end))
+                    ? Math.max(0, Math.min(604800, Number(entry.end))) : null,
+                text
+            });
+        }
+        return entries;
+    };
+    const reportFrameStatus = () => {
+        if (window.top === window) {
+            return;
+        }
+        const media = selectedLocalMedia();
+        if (!media) {
+            return;
+        }
+        const status = mediaStatus(media);
+        if (media instanceof HTMLVideoElement) {
+            const bounds = media.getBoundingClientRect();
+            status.width = Number.isFinite(media.videoWidth) ? media.videoWidth : 1;
+            status.height = Number.isFinite(media.videoHeight) ? media.videoHeight : 1;
+            status.left = bounds.left;
+            status.top = bounds.top;
+            status.right = bounds.right;
+            status.bottom = bounds.bottom;
+        }
+        status.label = pictureInPictureLabel();
+        const message = {
+            speedyWatch: 23,
+            type: "status",
+            status
+        };
+        if (Date.now() - state.lastFrameCaptionReportAt >= 2000) {
+            state.lastFrameCaptionReportAt = Date.now();
+            message.captions = captionEntries(media);
+        }
+        window.top.postMessage(message, "*");
+    };
+    window.addEventListener("message", (event) => {
+        const message = event.data;
+        if (!message || message.speedyWatch !== 23) {
+            return;
+        }
+        if (window.top === window && message.type === "status" && event.source) {
+            const status = boundedFrameStatus(message.status);
+            if (status) {
+                const previous = remoteFrames.get(event.source);
+                const captions = message.captions === undefined
+                    ? (previous?.captions || [])
+                    : (boundedCaptionEntries(message.captions) || []);
+                remoteFrames.set(event.source, {
+                    status,
+                    captions,
+                    receivedAt: Date.now()
+                });
+                if (Math.abs(status.rate - state.speed) > 0.005) {
+                    postTargetCommand({ source: event.source }, "setSpeed", state.speed);
+                }
+            }
+            return;
+        }
+        if (window.top !== window && event.source === window.top
+                && message.type === "command") {
+            switch (message.command) {
+                case "setSpeed":
+                    api.setSpeed(message.value);
+                    break;
+                case "seekTo":
+                    api.seekTo(message.value);
+                    break;
+                case "togglePlayback":
+                    api.togglePlayback();
+                    break;
+                case "setPictureInPictureActive":
+                    api.setPictureInPictureActive(message.value);
+                    break;
+                case "setPictureInPicturePlayback":
+                    api.setPictureInPicturePlayback(message.value);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }, false);
+
     document.addEventListener("playing", scheduleTick, true);
     document.addEventListener("loadeddata", scheduleTick, true);
     document.addEventListener("ratechange", scheduleTick, true);
     document.addEventListener("yt-navigate-finish", scheduleTick, true);
 
     const observer = new MutationObserver(scheduleTick);
-    observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["class"],
-        childList: true,
-        subtree: true
-    });
+    const startObserver = () => {
+        if (!document.documentElement) {
+            return false;
+        }
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"],
+            childList: true,
+            subtree: true
+        });
+        return true;
+    };
+    if (!startObserver()) {
+        document.addEventListener("readystatechange", startObserver, { once: true });
+    }
 
-    state.timer = window.setInterval(tick, 500);
+    state.timer = window.setInterval(() => {
+        tick();
+        reportFrameStatus();
+    }, 500);
     tick();
+    reportFrameStatus();
     return "installed";
 })();

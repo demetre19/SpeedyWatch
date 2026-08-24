@@ -287,15 +287,7 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
     }
 
     static boolean isSupportedSourceUrl(String value) {
-        String valid = SupportedSite.validatedHttpsUrl(value);
-        if (valid == null) {
-            return false;
-        }
-        // Video summaries keep yt-dlp-discoverable media URLs, while X text
-        // summaries come from any rendered x.com/twitter.com page, including
-        // article and non-status post views.
-        return SupportedSite.isSupportedDownloadUrl(valid)
-                || SupportedSite.forUrl(valid) == SupportedSite.X;
+        return SupportedSite.isShareablePageUrl(value);
     }
 
     private static String requireText(String value, String label) {

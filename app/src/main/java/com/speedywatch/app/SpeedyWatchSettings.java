@@ -50,6 +50,8 @@ final class SpeedyWatchSettings {
     private static final String OMNI_POSITION_Y = "omni_position_y";
     private static final String OMNI_ACTION_PREFIX = "omni_action_";
     private static final String OMNI_AMOUNT_PREFIX = "omni_amount_";
+    private static final String OMNI_WEB_ACTION_PREFIX = "omni_web_action_";
+    private static final String OMNI_WEB_AMOUNT_PREFIX = "omni_web_amount_";
     private static final String OMNI_X_ACTION_PREFIX = "omni_x_action_";
     private static final String OMNI_X_AMOUNT_PREFIX = "omni_x_amount_";
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
@@ -311,6 +313,104 @@ final class SpeedyWatchSettings {
         return true;
     }
 
+    /** Browser-first defaults used on regular Web pages and non-YouTube/X services. */
+    static EnumMap<OmniButtonGesture.Direction, OmniButtonAction> defaultOmniWebButtonActions() {
+        EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            switch (direction) {
+                case UP:
+                    actions.put(direction, OmniButtonAction.SUMMARY_ONE);
+                    break;
+                case UP_RIGHT:
+                    actions.put(direction, OmniButtonAction.SPEED_UP);
+                    break;
+                case RIGHT:
+                    actions.put(direction, OmniButtonAction.BROWSER_FORWARD);
+                    break;
+                case DOWN_RIGHT:
+                    actions.put(direction, OmniButtonAction.SHARE);
+                    break;
+                case DOWN:
+                    actions.put(direction, OmniButtonAction.SAVED);
+                    break;
+                case DOWN_LEFT:
+                    actions.put(direction, OmniButtonAction.RELOAD);
+                    break;
+                case LEFT:
+                    actions.put(direction, OmniButtonAction.BROWSER_BACK);
+                    break;
+                case UP_LEFT:
+                default:
+                    actions.put(direction, OmniButtonAction.SPEED_DOWN);
+                    break;
+            }
+        }
+        return actions;
+    }
+
+    static EnumMap<OmniButtonGesture.Direction, Double> defaultOmniWebButtonAmounts() {
+        EnumMap<OmniButtonGesture.Direction, Double> amounts =
+                new EnumMap<>(OmniButtonGesture.Direction.class);
+        Map<OmniButtonGesture.Direction, OmniButtonAction> actions =
+                defaultOmniWebButtonActions();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            amounts.put(direction, OmniButtonAction.defaultAmount(actions.get(direction)));
+        }
+        return amounts;
+    }
+
+    OmniButtonAction getOmniWebButtonAction(OmniButtonGesture.Direction direction) {
+        if (direction == null || direction == OmniButtonGesture.Direction.NONE) {
+            return OmniButtonAction.NONE;
+        }
+        OmniButtonAction fallback = defaultOmniWebButtonActions().get(direction);
+        OmniButtonAction saved = OmniButtonAction.fromId(
+                preferences.getString(omniWebActionKey(direction), fallback.id)
+        );
+        return saved == null ? fallback : saved;
+    }
+
+    double getOmniWebButtonAmount(OmniButtonGesture.Direction direction) {
+        OmniButtonAction action = getOmniWebButtonAction(direction);
+        if (!action.usesAmount()) {
+            return Double.NaN;
+        }
+        double fallback = OmniButtonAction.defaultAmount(action);
+        double saved = Double.longBitsToDouble(preferences.getLong(
+                omniWebAmountKey(direction),
+                Double.doubleToRawLongBits(fallback)
+        ));
+        return action.acceptsAmount(saved) ? saved : fallback;
+    }
+
+    boolean setOmniWebButtonBindings(
+            Map<OmniButtonGesture.Direction, OmniButtonAction> actions,
+            Map<OmniButtonGesture.Direction, Double> amounts
+    ) {
+        if (!validOmniButtonBindings(actions, amounts)) {
+            return false;
+        }
+        SharedPreferences.Editor editor = preferences.edit();
+        for (OmniButtonGesture.Direction direction
+                : OmniButtonGesture.Direction.configurableValues()) {
+            OmniButtonAction action = actions.get(direction);
+            editor.putString(omniWebActionKey(direction), action.id);
+            if (action.usesAmount()) {
+                editor.putLong(
+                        omniWebAmountKey(direction),
+                        Double.doubleToRawLongBits(amounts.get(direction))
+                );
+            } else {
+                editor.remove(omniWebAmountKey(direction));
+            }
+        }
+        editor.apply();
+        return true;
+    }
+
     /** Harvest-focused defaults used on X until the user remaps the X accordion. */
     static EnumMap<OmniButtonGesture.Direction, OmniButtonAction> defaultOmniXButtonActions() {
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
@@ -518,6 +618,14 @@ final class SpeedyWatchSettings {
 
     private static String omniAmountKey(OmniButtonGesture.Direction direction) {
         return OMNI_AMOUNT_PREFIX + direction.id;
+    }
+
+    private static String omniWebActionKey(OmniButtonGesture.Direction direction) {
+        return OMNI_WEB_ACTION_PREFIX + direction.id;
+    }
+
+    private static String omniWebAmountKey(OmniButtonGesture.Direction direction) {
+        return OMNI_WEB_AMOUNT_PREFIX + direction.id;
     }
 
     private static String omniXActionKey(OmniButtonGesture.Direction direction) {

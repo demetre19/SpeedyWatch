@@ -54,6 +54,18 @@ final class SettingsDialog {
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
     private static final long AUTO_SAVE_DELAY_MILLIS = 650L;
 
+    private enum OmniScope {
+        WEB("Web"),
+        YOUTUBE("YouTube"),
+        X("X");
+
+        final String label;
+
+        OmniScope(String label) {
+            this.label = label;
+        }
+    }
+
     private final MainActivity activity;
     private final SpeedyWatchSettings settings;
     private final OpenRouterClient client;
@@ -106,12 +118,21 @@ final class SettingsDialog {
     private final EnumMap<OmniButtonGesture.Direction, EditText> omniAmountInputs =
             new EnumMap<>(OmniButtonGesture.Direction.class);
     private Dialog omniEditorDialog;
+    private LinearLayout omniWebEditorRows;
     private LinearLayout omniEditorRows;
     private LinearLayout omniXEditorRows;
+    private Button omniWebSectionButton;
     private Button omniGeneralSectionButton;
     private Button omniXSectionButton;
-    private boolean omniGeneralExpanded = true;
+    private boolean omniWebExpanded = true;
+    private boolean omniGeneralExpanded = false;
     private boolean omniXExpanded = false;
+    private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniWebActions =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, Double> omniWebAmounts =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
+    private final EnumMap<OmniButtonGesture.Direction, EditText> omniWebAmountInputs =
+            new EnumMap<>(OmniButtonGesture.Direction.class);
     private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniXActions =
             new EnumMap<>(OmniButtonGesture.Direction.class);
     private final EnumMap<OmniButtonGesture.Direction, Double> omniXAmounts =
@@ -1018,12 +1039,16 @@ final class SettingsDialog {
     private void loadOmniButtonBindings() {
         omniActions.clear();
         omniAmounts.clear();
+        omniWebActions.clear();
+        omniWebAmounts.clear();
         omniXActions.clear();
         omniXAmounts.clear();
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
             omniActions.put(direction, settings.getOmniButtonAction(direction));
             omniAmounts.put(direction, settings.getOmniButtonAmount(direction));
+            omniWebActions.put(direction, settings.getOmniWebButtonAction(direction));
+            omniWebAmounts.put(direction, settings.getOmniWebButtonAmount(direction));
             omniXActions.put(direction, settings.getOmniXButtonAction(direction));
             omniXAmounts.put(direction, settings.getOmniXButtonAmount(direction));
         }
@@ -1054,9 +1079,20 @@ final class SettingsDialog {
         );
 
         LinearLayout sections = verticalLayout();
-        omniGeneralSectionButton = button("▾ YouTube & other sites");
+        omniWebSectionButton = button("▾ Web");
+        omniWebSectionButton.setContentDescription(
+                "Omnibutton actions used while browsing Web pages. Tap to collapse or expand"
+        );
+        omniWebSectionButton.setOnClickListener(ignored -> {
+            omniWebExpanded = !omniWebExpanded;
+            applyOmniAccordionState();
+        });
+        sections.addView(omniWebSectionButton, matchWrap(dp(8), dp(4)));
+        omniWebEditorRows = verticalLayout();
+        sections.addView(omniWebEditorRows, matchWrap(0, 0));
+        omniGeneralSectionButton = button("▸ YouTube");
         omniGeneralSectionButton.setContentDescription(
-                "Omnibutton actions for YouTube and other sites. Tap to collapse or expand"
+                "Omnibutton actions used while viewing YouTube. Tap to collapse or expand"
         );
         omniGeneralSectionButton.setOnClickListener(ignored -> {
             omniGeneralExpanded = !omniGeneralExpanded;
@@ -1089,6 +1125,10 @@ final class SettingsDialog {
 
         Button reset = button("Reset defaults");
         reset.setOnClickListener(ignored -> {
+            omniWebActions.clear();
+            omniWebActions.putAll(SpeedyWatchSettings.defaultOmniWebButtonActions());
+            omniWebAmounts.clear();
+            omniWebAmounts.putAll(SpeedyWatchSettings.defaultOmniWebButtonAmounts());
             omniActions.clear();
             omniActions.putAll(SpeedyWatchSettings.defaultOmniButtonActions());
             omniAmounts.clear();
@@ -1098,7 +1138,8 @@ final class SettingsDialog {
             omniXAmounts.clear();
             for (OmniButtonGesture.Direction direction
                     : OmniButtonGesture.Direction.configurableValues()) {
-                omniXAmounts.put(direction, Double.NaN);
+                OmniButtonAction action = omniXActions.get(direction);
+                omniXAmounts.put(direction, OmniButtonAction.defaultAmount(action));
             }
             rebuildOmniButtonEditorRows();
         });
@@ -1154,27 +1195,38 @@ final class SettingsDialog {
 
     private void rebuildOmniButtonEditorRows() {
         buildOmniDirectionRows(
+                omniWebEditorRows,
+                omniWebActions,
+                omniWebAmounts,
+                omniWebAmountInputs,
+                OmniScope.WEB
+        );
+        buildOmniDirectionRows(
                 omniEditorRows,
                 omniActions,
                 omniAmounts,
                 omniAmountInputs,
-                false
+                OmniScope.YOUTUBE
         );
         buildOmniDirectionRows(
                 omniXEditorRows,
                 omniXActions,
                 omniXAmounts,
                 omniXAmountInputs,
-                true
+                OmniScope.X
         );
     }
 
     private void applyOmniAccordionState() {
-        if (omniGeneralSectionButton == null || omniXSectionButton == null) {
+        if (omniWebSectionButton == null
+                || omniGeneralSectionButton == null
+                || omniXSectionButton == null) {
             return;
         }
+        omniWebSectionButton.setText((omniWebExpanded ? "▾ " : "▸ ") + "Web");
+        omniWebEditorRows.setVisibility(omniWebExpanded ? View.VISIBLE : View.GONE);
         omniGeneralSectionButton.setText(
-                (omniGeneralExpanded ? "▾ " : "▸ ") + "YouTube & other sites");
+                (omniGeneralExpanded ? "▾ " : "▸ ") + "YouTube");
         omniEditorRows.setVisibility(omniGeneralExpanded ? View.VISIBLE : View.GONE);
         omniXSectionButton.setText((omniXExpanded ? "▾ " : "▸ ") + "X");
         omniXEditorRows.setVisibility(omniXExpanded ? View.VISIBLE : View.GONE);
@@ -1185,11 +1237,11 @@ final class SettingsDialog {
             EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions,
             EnumMap<OmniButtonGesture.Direction, Double> amounts,
             EnumMap<OmniButtonGesture.Direction, EditText> amountInputs,
-            boolean xSection
+            OmniScope omniScope
     ) {
         container.removeAllViews();
         amountInputs.clear();
-        String scope = xSection ? " (X)" : "";
+        String scope = " (" + omniScope.label + ")";
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
             OmniButtonAction action = actions.get(direction);
@@ -1204,7 +1256,7 @@ final class SettingsDialog {
                     direction.label + scope + " swipe action: " + action.label
             );
             actionButton.setOnClickListener(ignored ->
-                    showOmniButtonActionPicker(direction, xSection));
+                    showOmniButtonActionPicker(direction, omniScope));
             row.addView(actionButton, new LinearLayout.LayoutParams(0, dp(44), 1f));
             group.addView(row);
 
@@ -1245,13 +1297,17 @@ final class SettingsDialog {
 
     private void showOmniButtonActionPicker(
             OmniButtonGesture.Direction direction,
-            boolean xSection
+            OmniScope omniScope
     ) {
         captureValidOmniButtonAmounts();
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> actions =
-                xSection ? omniXActions : omniActions;
+                omniScope == OmniScope.WEB
+                        ? omniWebActions
+                        : omniScope == OmniScope.X ? omniXActions : omniActions;
         EnumMap<OmniButtonGesture.Direction, Double> amounts =
-                xSection ? omniXAmounts : omniAmounts;
+                omniScope == OmniScope.WEB
+                        ? omniWebAmounts
+                        : omniScope == OmniScope.X ? omniXAmounts : omniAmounts;
         OmniButtonAction[] options = OmniButtonAction.values();
         String[] labels = new String[options.length];
         int selected = 0;
@@ -1262,7 +1318,7 @@ final class SettingsDialog {
             }
         }
         new AlertDialog.Builder(activity)
-                .setTitle(direction.label + (xSection ? " swipe (X)" : " swipe"))
+                .setTitle(direction.label + " swipe (" + omniScope.label + ")")
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
                     OmniButtonAction action = options[which];
                     actions.put(direction, action);
@@ -1279,6 +1335,8 @@ final class SettingsDialog {
     }
 
     private void captureValidOmniButtonAmounts() {
+        captureValidOmniButtonAmounts(
+                omniWebAmountInputs, omniWebActions, omniWebAmounts);
         captureValidOmniButtonAmounts(omniAmountInputs, omniActions, omniAmounts);
         captureValidOmniButtonAmounts(omniXAmountInputs, omniXActions, omniXAmounts);
     }
@@ -1302,7 +1360,10 @@ final class SettingsDialog {
     }
 
     private boolean readOmniButtonAmounts(boolean showErrors) {
-        boolean valid = readOmniButtonAmounts(showErrors, omniAmountInputs, omniActions, omniAmounts);
+        boolean valid = readOmniButtonAmounts(
+                showErrors, omniWebAmountInputs, omniWebActions, omniWebAmounts);
+        valid &= readOmniButtonAmounts(
+                showErrors, omniAmountInputs, omniActions, omniAmounts);
         valid &= readOmniButtonAmounts(
                 showErrors, omniXAmountInputs, omniXActions, omniXAmounts);
         return valid;
@@ -1341,20 +1402,10 @@ final class SettingsDialog {
         if (omniButtonSummary == null) {
             return;
         }
-        StringBuilder summary = new StringBuilder();
-        for (OmniButtonGesture.Direction direction
-                : OmniButtonGesture.Direction.configurableValues()) {
-            OmniButtonAction action = omniActions.get(direction);
-            if (summary.length() > 0) {
-                summary.append('\n');
-            }
-            summary.append(direction.label).append(": ");
-            summary.append(action.usesAmount()
-                    ? action.label(omniAmounts.get(direction))
-                    : action.label);
-        }
+        String summary = "Separate Web, YouTube, and X gesture maps";
         omniButtonSummary.setText(summary);
-        omniButtonSummary.setContentDescription("Configured Omnibutton gestures. " + summary);
+        omniButtonSummary.setContentDescription(
+                "Configured Omnibutton gestures. " + summary);
     }
 
     private void updateOmniButtonToggle() {
@@ -1414,6 +1465,14 @@ final class SettingsDialog {
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        if (!settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts)) {
+            Toast.makeText(
+                    activity,
+                    "Finish the Omnibutton gesture amounts",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
         if (!settings.setOmniButtonBindings(omniActions, omniAmounts)) {
             Toast.makeText(
                     activity,

@@ -11,6 +11,12 @@ import java.util.regex.Pattern;
 
 /** HTTPS media sites exposed by the native site switcher. */
 enum SupportedSite {
+    WEB(
+            R.drawable.ic_site_web,
+            "Web",
+            "https://www.google.com/",
+            "https://www.google.com/search?q="
+    ),
     YOUTUBE(
             R.drawable.ic_site_youtube,
             "YouTube",
@@ -67,6 +73,7 @@ enum SupportedSite {
             Pattern.CASE_INSENSITIVE
     );
     private static final SupportedSite[] BROWSABLE_SITES = {
+            WEB,
             YOUTUBE,
             BILIBILI,
             INSTAGRAM,
@@ -263,6 +270,15 @@ enum SupportedSite {
         return null;
     }
     static boolean isInAppNavigationUrl(String value) {
+        return validatedHttpsUrl(value) != null;
+    }
+
+    static boolean isShareablePageUrl(String value) {
+        String valid = validatedHttpsUrl(value);
+        return valid != null && forUrl(valid) != MEGA;
+    }
+
+    private static boolean isSupportedServiceNavigationUrl(String value) {
         String valid = validatedHttpsUrl(value);
         SupportedSite site = forUrl(valid);
         if (site == null) {
@@ -377,12 +393,13 @@ enum SupportedSite {
         return null;
     }
 
+    static String browsableUrlFromText(String value) {
+        return urlFromText(value);
+    }
+
     static String supportedUrlFromText(String value) {
         String valid = urlFromText(value);
-        if (!isInAppNavigationUrl(valid)) {
-            return null;
-        }
-        return forUrl(valid) != MEGA || isMegaPublicLink(valid) ? valid : null;
+        return isSupportedServiceNavigationUrl(valid) ? valid : null;
     }
 
     static String downloadUrlFromText(String value) {

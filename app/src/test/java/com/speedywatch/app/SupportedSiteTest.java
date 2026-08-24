@@ -9,39 +9,43 @@ import org.junit.Test;
 
 public final class SupportedSiteTest {
     @Test
-    public void inAppNavigation_acceptsOnlyFirstPartyHttpsPages() {
+    public void inAppNavigation_acceptsAnyValidatedPublicHttpsPage() {
         assertTrue(SupportedSite.isInAppNavigationUrl("https://www.bilibili.com/video/BV1PE411u7ox/"));
         assertTrue(SupportedSite.isInAppNavigationUrl("https://player.vimeo.com/video/980152407"));
-        assertTrue(SupportedSite.isInAppNavigationUrl("https://x.com/example/status/1234567890"));
-        assertTrue(SupportedSite.isInAppNavigationUrl("https://www.facebook.com/example/videos/1234567890"));
+        assertTrue(SupportedSite.isInAppNavigationUrl("https://example.com/article/embedded-video"));
         assertTrue(SupportedSite.isInAppNavigationUrl(
-                "https://soundcloud.com/example-artist/example-track"
+                "https://seotimemachines.com/productivity-tools/speed-reader/"
         ));
-        assertTrue(SupportedSite.isInAppNavigationUrl(
-                "https://www.bilibili.tv/en/video/4800271834815488"
-        ));
-        assertTrue(SupportedSite.isInAppNavigationUrl(
-                "https://mega.nz/folder/AbCdEf12#AbCdEfGhIjKlMnOpQrStUv"
-        ));
-        assertFalse(SupportedSite.isInAppNavigationUrl("https://mega.nz/"));
+        assertTrue(SupportedSite.isInAppNavigationUrl("https://cdninstagram.com/video.mp4"));
+        assertTrue(SupportedSite.isInAppNavigationUrl("https://googlevideo.com/videoplayback"));
+        assertTrue(SupportedSite.isInAppNavigationUrl("https://mega.nz/"));
 
         assertFalse(SupportedSite.isInAppNavigationUrl("http://vimeo.com/76979871"));
-        assertFalse(SupportedSite.isInAppNavigationUrl("https://cdninstagram.com/video.mp4"));
-        assertFalse(SupportedSite.isInAppNavigationUrl("https://googlevideo.com/videoplayback"));
-        assertFalse(SupportedSite.isInAppNavigationUrl(
-                "https://cf-media.sndcdn.com/audio.mp3"
-        ));
-        assertFalse(SupportedSite.isInAppNavigationUrl("https://example.com/video/123"));
-        assertFalse(SupportedSite.isInAppNavigationUrl(
-                "https://www.loom.com/share/40d92b478f4e4381a25d32da4709c68b"
-        ));
+        assertFalse(SupportedSite.isInAppNavigationUrl("https://127.0.0.1/video/123"));
+        assertFalse(SupportedSite.isInAppNavigationUrl("https://user:pass@example.com/video"));
         assertFalse(SupportedSite.isInAppNavigationUrl(
                 "https://mega.nz/folder/AbCdEf12"
         ));
-        assertFalse(SupportedSite.isInAppNavigationUrl(
+        assertTrue(SupportedSite.isInAppNavigationUrl(
                 "https://mega.nz.evil.example/folder/AbCdEf12#AbCdEfGhIjKlMnOpQrStUv"
         ));
-        assertFalse(SupportedSite.isInAppNavigationUrl("https://mega.nz/account"));
+    }
+
+    @Test
+    public void browsableTextExtraction_acceptsGenericHttpsWithoutExpandingDownloadScope() {
+        String page = "https://example.com/article/embedded-video";
+        assertEquals(page, SupportedSite.browsableUrlFromText("Read " + page + "."));
+        assertNull(SupportedSite.supportedUrlFromText(page));
+        assertFalse(SupportedSite.isSupportedDownloadUrl(page));
+    }
+
+    @Test
+    public void shareablePages_acceptGenericHttpsButRejectMegaSecrets() {
+        assertTrue(SupportedSite.isShareablePageUrl("https://example.com/article"));
+        assertFalse(SupportedSite.isShareablePageUrl(
+                "https://mega.nz/folder/AbCdEf12#AbCdEfGhIjKlMnOpQrStUv"
+        ));
+        assertFalse(SupportedSite.isShareablePageUrl("http://example.com/article"));
     }
 
     @Test
@@ -96,14 +100,16 @@ public final class SupportedSiteTest {
     }
 
     @Test
-    public void pickerContainsOnlyInAppServices() {
+    public void pickerPlacesWebAboveSpecializedServices() {
         SupportedSite[] sites = SupportedSite.browsableValues();
-        assertEquals(8, sites.length);
-        assertEquals(SupportedSite.YOUTUBE, sites[0]);
-        assertEquals(SupportedSite.BILIBILI, sites[1]);
-        assertEquals(SupportedSite.FACEBOOK, sites[5]);
-        assertEquals(SupportedSite.SOUNDCLOUD, sites[6]);
-        assertEquals(SupportedSite.MEGA, sites[7]);
+        assertEquals(9, sites.length);
+        assertEquals(SupportedSite.WEB, sites[0]);
+        assertEquals(SupportedSite.YOUTUBE, sites[1]);
+        assertEquals(SupportedSite.BILIBILI, sites[2]);
+        assertEquals(SupportedSite.FACEBOOK, sites[6]);
+        assertEquals(SupportedSite.SOUNDCLOUD, sites[7]);
+        assertEquals(SupportedSite.MEGA, sites[8]);
+        assertTrue(SupportedSite.WEB.supportsKeywordSearch());
         assertFalse(SupportedSite.MEGA.supportsKeywordSearch());
         assertNull(SupportedSite.MEGA.searchUrl("anything"));
     }

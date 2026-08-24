@@ -63,6 +63,9 @@ import android.widget.Toast;
 
 import android.webkit.WebResourceResponse;
 
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -112,6 +115,8 @@ public final class MainActivity extends Activity {
     private TextView statusText;
     private String controllerScript;
     private String chineseTranslatorScript;
+    private String frameControllerScript;
+    private boolean frameControllerEnabled;
     private double selectedSpeed = 1.0;
     private final Map<Double, Button> speedButtons = new LinkedHashMap<>();
     private final OpenRouterClient openRouterClient = new OpenRouterClient();
@@ -225,6 +230,7 @@ public final class MainActivity extends Activity {
         megaBookmarkStore = new MegaBookmarkStore(this);
         scrapedLinkStore = new ScrapedLinkStore(this);
         controllerScript = readAsset("speedywatch.js");
+        frameControllerScript = readAsset("speedywatch-frame.js");
         chineseTranslatorScript = readAsset("chinese_translate.js");
         appRoot = buildUi();
         setContentView(appRoot);
@@ -250,6 +256,7 @@ public final class MainActivity extends Activity {
         settings.setSupportMultipleWindows(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
+        installFrameController();
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -332,14 +339,14 @@ public final class MainActivity extends Activity {
             }
         });
 
-        String incomingVideoUrl = incomingVideoUrl(getIntent());
-        if (incomingVideoUrl != null) {
-            updateSelectedSiteForUrl(incomingVideoUrl);
+        String incomingPageUrl = incomingPageUrl(getIntent());
+        if (incomingPageUrl != null) {
+            updateSelectedSiteForUrl(incomingPageUrl);
         }
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(incomingVideoUrl == null ? HOME_URL : incomingVideoUrl);
-        } else if (incomingVideoUrl != null) {
-            webView.loadUrl(incomingVideoUrl);
+            webView.loadUrl(incomingPageUrl == null ? HOME_URL : incomingPageUrl);
+        } else if (incomingPageUrl != null) {
+            webView.loadUrl(incomingPageUrl);
         }
     }
 
@@ -347,12 +354,12 @@ public final class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        String videoUrl = incomingVideoUrl(intent);
-        if (videoUrl != null) {
-            loadSupportedUrl(videoUrl);
+        String pageUrl = incomingPageUrl(intent);
+        if (pageUrl != null) {
+            loadBrowsableUrl(pageUrl);
         } else if (Intent.ACTION_SEND.equals(intent.getAction())
                 || Intent.ACTION_VIEW.equals(intent.getAction())) {
-            Toast.makeText(this, "Share an HTTPS link from a supported site", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Share a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -410,29 +417,29 @@ public final class MainActivity extends Activity {
         );
     }
 
-    private String incomingVideoUrl(Intent intent) {
+    private String incomingPageUrl(Intent intent) {
         if (intent == null) {
             return null;
         }
         if (Intent.ACTION_VIEW.equals(intent.getAction())) {
             Uri data = intent.getData();
-            return SupportedSite.supportedUrlFromText(data == null ? null : data.toString());
+            return SupportedSite.browsableUrlFromText(data == null ? null : data.toString());
         }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) {
             return null;
         }
 
         CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-        String supported = SupportedSite.supportedUrlFromText(
+        String browsable = SupportedSite.browsableUrlFromText(
                 text == null ? null : text.toString()
         );
-        if (supported != null) {
-            return supported;
+        if (browsable != null) {
+            return browsable;
         }
         String html = intent.getStringExtra(Intent.EXTRA_HTML_TEXT);
-        supported = SupportedSite.supportedUrlFromText(html);
-        if (supported != null) {
-            return supported;
+        browsable = SupportedSite.browsableUrlFromText(html);
+        if (browsable != null) {
+            return browsable;
         }
         ClipData clipData = intent.getClipData();
         if (clipData == null) {
@@ -442,14 +449,14 @@ public final class MainActivity extends Activity {
         for (int index = 0; index < itemCount; index++) {
             ClipData.Item item = clipData.getItemAt(index);
             Uri uri = item.getUri();
-            supported = SupportedSite.supportedUrlFromText(
+            browsable = SupportedSite.browsableUrlFromText(
                     uri == null ? null : uri.toString()
             );
-            if (supported == null && item.getText() != null) {
-                supported = SupportedSite.supportedUrlFromText(item.getText().toString());
+            if (browsable == null && item.getText() != null) {
+                browsable = SupportedSite.browsableUrlFromText(item.getText().toString());
             }
-            if (supported != null) {
-                return supported;
+            if (browsable != null) {
+                return browsable;
             }
         }
         return null;
@@ -846,6 +853,23 @@ public final class MainActivity extends Activity {
     }
 
 
+    /**
+     * Installs the fixed controller in every frame. It exposes no Android bridge; frames only
+     * exchange bounded media status and commands with the top-page controller.
+     */
+    private void installFrameController() {
+        frameControllerEnabled =
+                WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT);
+        if (!frameControllerEnabled) {
+            return;
+        }
+        WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                frameControllerScript,
+                Collections.singleton("*")
+        );
+    }
+
     private void injectController() {
         webView.evaluateJavascript(controllerScript, ignored -> {
             applyControllerState();
@@ -1111,8 +1135,8 @@ public final class MainActivity extends Activity {
                 + "c.setAdaptiveSpeed(" + appSettings.isAdaptiveSpeedEnabled() + ", "
                 + String.format(Locale.US, "%.2f", appSettings.getAdaptiveSpeedBoost()) + "); "
                 + "c.setSponsorSkipping(" + appSettings.isSponsorBlockEnabled() + "); "
-                + "const media = document.querySelector('video, audio'); "
-                + "return media ? 'media:' + media.playbackRate.toFixed(2) : 'ready'; })();";
+                + "const status = c.status(); "
+                + "return status.hasMedia ? 'media:' + status.speed.toFixed(2) : 'ready'; })();";
         String liveResult = "\"media:" + String.format(Locale.US, "%.2f", selectedSpeed) + "\"";
         webView.evaluateJavascript(script, result -> {
             boolean ready = result != null && !result.equals("\"missing\"") && !result.equals("null");
@@ -1345,18 +1369,7 @@ public final class MainActivity extends Activity {
         if ("about".equals(uri.getScheme())) {
             return "about:blank".equals(uri.toString());
         }
-        if (!"https".equalsIgnoreCase(uri.getScheme())) {
-            return false;
-        }
-        if (SupportedSite.isInAppNavigationUrl(uri.toString())) {
-            return true;
-        }
-        String host = uri.getHost();
-        if (host == null) {
-            return false;
-        }
-        host = host.toLowerCase(Locale.US);
-        return host.equals("accounts.google.com") || host.equals("consent.google.com");
+        return SupportedSite.isInAppNavigationUrl(uri.toString());
     }
     private void showSitePicker() {
         SupportedSite[] sites = SupportedSite.browsableValues();
@@ -1397,7 +1410,8 @@ public final class MainActivity extends Activity {
                     updateSiteButton(siteButton);
                     statusText.setText(statusLabel());
                     dialog.dismiss();
-                    if (selectedSite == SupportedSite.MEGA) {
+                    if (selectedSite == SupportedSite.MEGA
+                            || selectedSite == SupportedSite.WEB) {
                         showSiteSearch();
                     } else {
                         webView.loadUrl(selectedSite.homeUrl);
@@ -1418,6 +1432,9 @@ public final class MainActivity extends Activity {
 
     private void updateSelectedSiteForUrl(String url) {
         SupportedSite site = SupportedSite.forUrl(url);
+        if (site == null && SupportedSite.isInAppNavigationUrl(url)) {
+            site = SupportedSite.WEB;
+        }
         if (site == null || site == selectedSite) {
             return;
         }
@@ -1428,14 +1445,14 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void loadSupportedUrl(String value) {
-        String supportedUrl = SupportedSite.supportedUrlFromText(value);
-        if (supportedUrl == null) {
-            Toast.makeText(this, "This HTTPS site is not supported", Toast.LENGTH_SHORT).show();
+    private void loadBrowsableUrl(String value) {
+        String browsableUrl = SupportedSite.browsableUrlFromText(value);
+        if (browsableUrl == null) {
+            Toast.makeText(this, "Enter a valid public HTTPS URL", Toast.LENGTH_SHORT).show();
             return;
         }
-        updateSelectedSiteForUrl(supportedUrl);
-        webView.loadUrl(supportedUrl);
+        updateSelectedSiteForUrl(browsableUrl);
+        webView.loadUrl(browsableUrl);
     }
 
     private void openExternalUrl(String value) {
@@ -1471,7 +1488,7 @@ public final class MainActivity extends Activity {
                 : EditorInfo.IME_ACTION_GO);
         input.setSelectAllOnFocus(true);
 
-        String clipboardUrl = clipboardSupportedUrl();
+        String clipboardUrl = clipboardBrowsableUrl();
         if (clipboardUrl != null) {
             input.setText(clipboardUrl);
             input.setSelection(input.length());
@@ -1485,21 +1502,23 @@ public final class MainActivity extends Activity {
         ));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle((supportsKeywordSearch ? "Search " : "Open ") + selectedSite.label)
+                .setTitle((supportsKeywordSearch ? "Search or open a page" : "Open ") + selectedSite.label)
                 .setMessage(supportsKeywordSearch
-                        ? "Enter a supported video URL or keywords."
+                        ? "Enter any public HTTPS page or search words."
                         : "Paste a complete MEGA folder or file link.")
                 .setView(container)
                 .setNegativeButton("Cancel", null)
-                .setPositiveButton(supportsKeywordSearch ? "Search" : "Open", null)
+                .setPositiveButton(supportsKeywordSearch ? "Go" : "Open", null)
                 .create();
         dialog.setOnShowListener(ignored -> dialog
                 .getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(button -> {
                     String value = input.getText().toString().trim();
-                    String enteredUrl = SupportedSite.supportedUrlFromText(value);
+                    String enteredUrl = selectedSite == SupportedSite.MEGA
+                            ? SupportedSite.supportedUrlFromText(value)
+                            : SupportedSite.browsableUrlFromText(value);
                     if (enteredUrl != null) {
-                        loadSupportedUrl(enteredUrl);
+                        loadBrowsableUrl(enteredUrl);
                         dialog.dismiss();
                         return;
                     }
@@ -1508,7 +1527,7 @@ public final class MainActivity extends Activity {
                         return;
                     }
                     if (value.isEmpty() || value.contains("://")) {
-                        input.setError("Enter a supported HTTPS URL or search words");
+                        input.setError("Enter a public HTTPS URL or search words");
                         return;
                     }
                     String destination = selectedSite.searchUrl(value);
@@ -1527,7 +1546,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showMegaBookmarks() {
-        String clipboardUrl = clipboardSupportedUrl();
+        String clipboardUrl = clipboardBrowsableUrl();
         if (SupportedSite.megaPlaybackIdentity(clipboardUrl) == null) {
             clipboardUrl = null;
         }
@@ -1570,7 +1589,7 @@ public final class MainActivity extends Activity {
         megaResumeHandler.removeCallbacks(megaResumeTick);
         pendingMegaResume = positionSeconds >= 0.25
                 ? new PendingMegaResume(valid, positionSeconds) : null;
-        loadSupportedUrl(valid);
+        loadBrowsableUrl(valid);
     }
 
     private void showDownload() {
@@ -1694,7 +1713,7 @@ public final class MainActivity extends Activity {
         return clipboardUrl(true);
     }
 
-    private String clipboardSupportedUrl() {
+    private String clipboardBrowsableUrl() {
         return clipboardUrl(false);
     }
 
@@ -1732,7 +1751,7 @@ public final class MainActivity extends Activity {
     private static String clipboardUrlFromText(String value, boolean downloadOnly) {
         return downloadOnly
                 ? SupportedSite.downloadUrlFromText(value)
-                : SupportedSite.supportedUrlFromText(value);
+                : SupportedSite.browsableUrlFromText(value);
     }
 
     private void showSavedSummaries() {
@@ -1758,11 +1777,7 @@ public final class MainActivity extends Activity {
                                     "This link is unavailable", Toast.LENGTH_LONG).show();
                             return;
                         }
-                        if (SupportedSite.isInAppNavigationUrl(valid)) {
-                            loadSupportedUrl(valid);
-                            return;
-                        }
-                        openExternallyIfNeeded(Uri.parse(valid));
+                        loadBrowsableUrl(valid);
                     }
                 }
         ).show();
@@ -1979,7 +1994,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public boolean isTextSource() {
-                return SupportedSite.forUrl(webView.getUrl()) == SupportedSite.X;
+                return activePageUsesTextSource();
             }
 
             @Override
@@ -1988,6 +2003,9 @@ public final class MainActivity extends Activity {
                 if (site == SupportedSite.X) {
                     return "X page text";
                 }
+                if (activePageUsesTextSource()) {
+                    return "Page text";
+                }
                 return (site == null ? "Video" : site.label) + " captions";
             }
         };
@@ -1995,6 +2013,22 @@ public final class MainActivity extends Activity {
 
     private boolean activePageIsX() {
         return SupportedSite.forUrl(webView.getUrl()) == SupportedSite.X;
+    }
+
+    private boolean activePageUsesTextSource() {
+        String pageUrl = webView.getUrl();
+        if (SupportedSite.forUrl(pageUrl) == SupportedSite.X) {
+            return true;
+        }
+        Uri uri = pageUrl == null ? null : Uri.parse(pageUrl);
+        String videoId = uri == null ? null : uri.getQueryParameter("v");
+        boolean youtubeWatch = uri != null
+                && uri.getHost() != null
+                && uri.getHost().toLowerCase(Locale.US).endsWith("youtube.com")
+                && "/watch".equals(uri.getPath())
+                && videoId != null
+                && videoId.matches("[A-Za-z0-9_-]{11}");
+        return !youtubeWatch && !SupportedSite.isSupportedDownloadUrl(pageUrl);
     }
 
     private void requestXPageTranscript(YouTubeSubsDialog.TranscriptCallback callback) {
@@ -2060,6 +2094,72 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void requestPageTranscript(YouTubeSubsDialog.TranscriptCallback callback) {
+        String pageUrl = SupportedSite.validatedHttpsUrl(webView.getUrl());
+        if (!SupportedSite.isShareablePageUrl(pageUrl)) {
+            callback.onError("Open a public HTTPS page first");
+            return;
+        }
+        long requestId = transcriptRequestCounter.incrementAndGet();
+        activeTranscriptRequestId = requestId;
+        activeTranscriptCallback = callback;
+        activeTranscriptDelivered = false;
+        activeTranscriptTitle = webView.getTitle() == null
+                ? "Web page" : webView.getTitle().trim();
+        activeTranscriptChannel = URI.create(pageUrl).getHost();
+        activeTranscriptPageUrl = pageUrl;
+        activeVideoId = "";
+        activeCaptionRequestUrl = "";
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.collectPageContent() : null";
+        webView.evaluateJavascript(script,
+                result -> handlePageContentResult(requestId, result));
+    }
+
+    private void handlePageContentResult(long requestId, String evaluationResult) {
+        if (requestId != activeTranscriptRequestId || activeTranscriptDelivered) {
+            return;
+        }
+        try {
+            Object outer = new JSONTokener(
+                    evaluationResult == null ? "null" : evaluationResult
+            ).nextValue();
+            if (!(outer instanceof String json)) {
+                throw new IOException("Controller was unavailable");
+            }
+            JSONObject metadata = new JSONObject(json);
+            JSONArray blocks = metadata.optJSONArray("blocks");
+            List<TranscriptEntry> entries = new ArrayList<>();
+            if (blocks != null) {
+                for (int index = 0; index < blocks.length() && entries.size() < 400; index++) {
+                    String block = blocks.optString(index, "").trim();
+                    if (!block.isEmpty()) {
+                        entries.add(TranscriptEntry.textEntry(block));
+                    }
+                }
+            }
+            if (entries.isEmpty()) {
+                throw new IOException("No readable page text or captions found");
+            }
+            String title = metadata.optString("title", "").trim();
+            String author = SavedSummaryStore.normalizeChannel(
+                    metadata.optString("author", "")
+            );
+            if (!title.isEmpty()) {
+                activeTranscriptTitle = title;
+            }
+            if (!author.isEmpty()) {
+                activeTranscriptChannel = author;
+            }
+            deliverTranscript(requestId, entries);
+        } catch (Exception error) {
+            deliverTranscriptError(
+                    requestId,
+                    "No readable page text or accessible captions were found"
+            );
+        }
+    }
+
 
     private void requestTranscript(
             String languageCode,
@@ -2083,7 +2183,7 @@ public final class MainActivity extends Activity {
                     && SupportedSite.isSupportedDownloadUrl(pageUrl)) {
                 requestGenericTranscript(pageUrl, languageCode, callback);
             } else {
-                callback.onError("Open a supported video first");
+                requestPageTranscript(callback);
             }
             return;
         }
@@ -2229,8 +2329,9 @@ public final class MainActivity extends Activity {
 
     private void requestCaptionOptions(YouTubeSubsDialog.CaptionOptionsCallback callback) {
         String pageUrl = webView.getUrl();
-        if (SupportedSite.forUrl(pageUrl) == SupportedSite.X) {
-            // X pages have no caption tracks; the language picker stays disabled.
+        if (activePageUsesTextSource()) {
+            // Generic pages and X pages use bounded readable text or accessible
+            // in-frame captions; there is no network caption-language picker.
             callback.onLoaded(new ArrayList<>());
             return;
         }
@@ -3469,19 +3570,27 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private boolean isXOmniButtonContext() {
+    private SupportedSite omniButtonContext() {
         String url = webView == null ? null : webView.getUrl();
-        return url != null && SupportedSite.forUrl(url) == SupportedSite.X;
+        SupportedSite site = SupportedSite.forUrl(url);
+        if (site == SupportedSite.YOUTUBE || site == SupportedSite.X) {
+            return site;
+        }
+        return SupportedSite.WEB;
     }
 
     private void performOmniButtonAction(OmniButtonGesture.Direction direction) {
-        boolean xContext = isXOmniButtonContext();
-        OmniButtonAction action = xContext
+        SupportedSite context = omniButtonContext();
+        OmniButtonAction action = context == SupportedSite.X
                 ? appSettings.getOmniXButtonAction(direction)
-                : appSettings.getOmniButtonAction(direction);
-        double amount = xContext
+                : context == SupportedSite.YOUTUBE
+                        ? appSettings.getOmniButtonAction(direction)
+                        : appSettings.getOmniWebButtonAction(direction);
+        double amount = context == SupportedSite.X
                 ? appSettings.getOmniXButtonAmount(direction)
-                : appSettings.getOmniButtonAmount(direction);
+                : context == SupportedSite.YOUTUBE
+                        ? appSettings.getOmniButtonAmount(direction)
+                        : appSettings.getOmniWebButtonAmount(direction);
         switch (action) {
             case NONE:
                 Toast.makeText(
@@ -3511,10 +3620,10 @@ public final class MainActivity extends Activity {
                 }
                 break;
             case YOUTUBE_HISTORY:
-                loadSupportedUrl(YOUTUBE_HISTORY_URL);
+                loadBrowsableUrl(YOUTUBE_HISTORY_URL);
                 break;
             case WATCH_LATER:
-                loadSupportedUrl(YOUTUBE_WATCH_LATER_URL);
+                loadBrowsableUrl(YOUTUBE_WATCH_LATER_URL);
                 break;
             case SEARCH:
                 showSiteSearch();
@@ -3601,21 +3710,26 @@ public final class MainActivity extends Activity {
         if (omniButton == null) {
             return;
         }
-        boolean xContext = isXOmniButtonContext();
+        SupportedSite context = omniButtonContext();
         StringBuilder description = new StringBuilder(
-                xContext ? "Omnibutton, X actions. " : "Omnibutton. ");
+                "Omnibutton, " + context.label + " actions. ");
         for (OmniButtonGesture.Direction direction
                 : OmniButtonGesture.Direction.configurableValues()) {
-            OmniButtonAction action = xContext
+            OmniButtonAction action = context == SupportedSite.X
                     ? appSettings.getOmniXButtonAction(direction)
-                    : appSettings.getOmniButtonAction(direction);
+                    : context == SupportedSite.YOUTUBE
+                            ? appSettings.getOmniButtonAction(direction)
+                            : appSettings.getOmniWebButtonAction(direction);
             description.append(direction.label).append(": ");
             if (!action.usesAmount()) {
                 description.append(action.label);
             } else {
-                description.append(action.label(xContext
+                double amount = context == SupportedSite.X
                         ? appSettings.getOmniXButtonAmount(direction)
-                        : appSettings.getOmniButtonAmount(direction)));
+                        : context == SupportedSite.YOUTUBE
+                                ? appSettings.getOmniButtonAmount(direction)
+                                : appSettings.getOmniWebButtonAmount(direction);
+                description.append(action.label(amount));
             }
             description.append(". ");
         }
@@ -3635,12 +3749,19 @@ public final class MainActivity extends Activity {
         webView.loadUrl(selectedSite.homeUrl);
     }
 
+    private String mediaUnavailableMessage(String action) {
+        if (!frameControllerEnabled) {
+            return action + " is unavailable for embedded players in this WebView";
+        }
+        return "No controllable video or audio found on this page";
+    }
+
     private void seekRelative(double seconds) {
         queryCurrentTime(currentTime -> {
             if (!Double.isFinite(currentTime)) {
                 Toast.makeText(
                         this,
-                        "Start a video before seeking",
+                        mediaUnavailableMessage("seeking"),
                         Toast.LENGTH_SHORT
                 ).show();
                 return;
@@ -3671,7 +3792,7 @@ public final class MainActivity extends Activity {
                 // The unavailable message below remains authoritative.
             }
             if ("unavailable".equals(state)) {
-                Toast.makeText(this, "Start media before using Play/Pause", Toast.LENGTH_SHORT)
+                Toast.makeText(this, mediaUnavailableMessage("Play/Pause"), Toast.LENGTH_SHORT)
                         .show();
             } else {
                 Toast.makeText(
@@ -3684,28 +3805,22 @@ public final class MainActivity extends Activity {
     }
 
     private void shareCurrentPage() {
-        String supportedUrl = SupportedSite.supportedUrlFromText(webView.getUrl());
-        SupportedSite site = SupportedSite.forUrl(supportedUrl);
-        if (supportedUrl == null || site == null) {
-            Toast.makeText(this, "Open a supported page before sharing", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (site == SupportedSite.MEGA) {
-            Toast.makeText(
-                    this,
-                    "MEGA shared-link keys stay private inside SpeedyWatch",
-                    Toast.LENGTH_LONG
-            ).show();
+        String pageUrl = SupportedSite.validatedHttpsUrl(webView.getUrl());
+        if (!SupportedSite.isShareablePageUrl(pageUrl)) {
+            String message = SupportedSite.forUrl(pageUrl) == SupportedSite.MEGA
+                    ? "MEGA shared-link keys stay private inside SpeedyWatch"
+                    : "Open a public HTTPS page before sharing";
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             return;
         }
         String title = webView.getTitle();
         if (title == null || title.trim().isEmpty()) {
-            title = site.label;
+            title = URI.create(pageUrl).getHost();
         }
         Intent share = new Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
                 .putExtra(Intent.EXTRA_SUBJECT, title)
-                .putExtra(Intent.EXTRA_TEXT, title + "\n\n" + supportedUrl);
+                .putExtra(Intent.EXTRA_TEXT, title + "\n\n" + pageUrl);
         try {
             startActivity(Intent.createChooser(share, "Share with"));
         } catch (RuntimeException error) {

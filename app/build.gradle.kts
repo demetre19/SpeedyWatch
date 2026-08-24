@@ -10,8 +10,8 @@ android {
         applicationId = "com.speedywatch.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 38
-        versionName = "0.38"
+        versionCode = 40
+        versionName = "0.40"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
@@ -40,6 +40,9 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.17.3")
     implementation("com.fasterxml.jackson.core:jackson-core:2.17.3")
     implementation("commons-io:commons-io:2.18.0")
+
+    // Official compatibility API used to install the fixed media controller in HTTPS embeds.
+    implementation("androidx.webkit:webkit:1.14.0")
 
     testImplementation("junit:junit:4.13.2")
 }
