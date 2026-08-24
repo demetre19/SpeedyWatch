@@ -3738,7 +3738,7 @@ public final class MainActivity extends Activity {
         fullscreenCallback = callback;
         fullscreenView.setBackgroundColor(Color.BLACK);
         appRoot.setVisibility(View.GONE);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
         addContentView(fullscreenView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT

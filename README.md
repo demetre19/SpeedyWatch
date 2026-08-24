@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.36**, debug-signed |
+| Current public APK: **v0.38**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -158,16 +158,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.36
-Version code: 36
+Version: 0.38
+Version code: 38
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,832,558 bytes
-SHA-256: ae856cd351c45a4ee6b546cb019913b7987c0a5480dc8b7e57bd1d296faf9543
+APK size: 106,290,858 bytes
+SHA-256: fe6366f489a760003b1373f07c1c1518722d5d00e3ae507b59975d909d29f103
 Signing: Android debug signing key
 ```
 
-This public v0.36 APK is debug-signed with APK Signature Scheme v2. It adds X post and article summarization: Video Subs and Quiz now read the text of the X page you are on - a focused post plus its self-thread, or a long-form X article - and run Summary One, Summary Two, follow-up chat, Copy/Save/Share, and Quiz over that text with timestamp-less entries, disabled video-only controls (Follow, WatchPath, caption language), and saved items filed under the author as creator without thumbnails. Facebook reel downloads gain a page-data fallback that reads media URLs embedded in the rendered document when request interception sees nothing.
+This public v0.38 APK is debug-signed with APK Signature Scheme v2. Fullscreen playback now follows the phone's sensor orientation, so vertical videos remain viewable in portrait while landscape videos can still rotate naturally.
 
 ## Legacy mobile source
 
