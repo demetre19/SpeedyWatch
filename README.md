@@ -122,12 +122,12 @@ Keep video or SoundCloud audio active in Android Picture-in-Picture with native 
 
 ### Open the links you already use
 
-Open YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and complete public MEGA links in one place on Android.
+Open any public HTTPS page in Web mode, or choose YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, or complete public MEGA links for their specialized handlers in one place on Android.
 
 Saved MEGA items return to the playback time where you stopped. Complete links stay encrypted and out of logs and backups; MEGA remains playback-only.
 
 <p align="center">
-  <img src="screenshots/supported-sites.png" width="360" alt="SpeedyWatch Android site picker for YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and MEGA">
+  <img src="screenshots/supported-sites.png" width="360" alt="SpeedyWatch Android site picker with Web, YouTube, Bilibili, Instagram, Vimeo, X, Facebook, SoundCloud, and MEGA">
 </p>
 
 
@@ -197,25 +197,25 @@ The API key is encrypted with Android Keystore AES-GCM. Settings masks the key b
 
 ## Using transcripts, WatchPath, summaries, and quizzes
 
-1. Open a captioned supported video in SpeedyWatch.
-2. Tap the **Video Subs** icon, choose an available caption language or manual/auto-generated track, and load the transcript.
-3. Switch between line and paragraph view, search or copy the transcript, optionally follow playback, or tap a timestamp to seek the video.
-4. On Android, choose **WatchPath**, enter what you need from the video, select a 5, 10, or 20 minute budget, and tap **Create WatchPath**.
+1. Open any public HTTPS page or a supported media page in SpeedyWatch. For a regular page, SpeedyWatch reads accessible HTML5 captions when available or bounded visible page text.
+2. Tap the **Video Subs** icon, choose an available caption language or manual/auto-generated track when offered, and load the transcript or page text.
+3. Switch between line and paragraph view, search or copy the transcript/text, optionally follow playback for timed captions, or tap a timestamp to seek video.
+4. On Android, choose **WatchPath** only for a loaded timed transcript, enter what you need from the video, select a 5, 10, or 20 minute budget, and tap **Create WatchPath**.
 5. Review the proposed segments or **What I skipped**, then tap **Start WatchPath**. Use Previous, Next, Undo, or Stop from the native strip above the speed controls.
 6. Choose **Summary One** or **Summary Two** to use its independently saved prompt.
    If you close the modal and choose the same summary again, SpeedyWatch reuses its private cached result when the generation context is unchanged.
    On Android, summary generation and dismissal leave playback untouched; tap a transcript timestamp only when you explicitly want to seek.
 7. After a summary succeeds, use **Continue with a question** beneath it to ask follow-up questions.
-8. Tap **Save summary** to add the original summary and any completed follow-up `You`/`AI` turns to the local bookmark library, or **Share summary** to send the original summary with its video URL.
-9. Tap the **Quiz** icon from the main toolbar to create a pre-watch question guide. **Save quiz** and **Share quiz** become available after the quiz succeeds.
-10. Use the bookmark icon beside Settings to search saved summaries and quizzes by content or creator, filter through the auto-populated creator dropdown, browse dated results newest or oldest, reopen their original videos, or share a saved item.
+8. Tap **Save summary** to add the original summary and any completed follow-up `You`/`AI` turns to the local bookmark library, or **Share summary** to send the original summary with its source URL.
+9. Tap the **Quiz** icon from the main toolbar to create a question guide from the loaded transcript or readable page text. **Save quiz** and **Share quiz** become available after the quiz succeeds.
+10. Use the bookmark icon beside Settings to search saved summaries and quizzes by content or creator, filter through the auto-populated creator dropdown, browse dated results newest or oldest, reopen their original sources, or share a saved item.
 
-Transcript availability depends on the captions exposed by the selected service for that video.
+Caption and readable-text availability depends on what the page exposes. Generic text sources do not provide timestamp seeking, Follow playback, WatchPath, or caption-language selection.
 
 ## Privacy and network use
 
 - SpeedyWatch does not add analytics or advertising SDKs.
-- Android loads supported service pages and available captions over HTTPS, restricts main-frame navigation to explicit first-party hosts, and treats approved media CDN hosts as resource-only.
+- Android loads any validated public HTTPS page and available captions over HTTPS, while service-specific downloads, cookies, and network caption requests remain restricted to their explicit service allowlists. Approved media CDN hosts remain resource-only and cannot become browsable destinations from intercepted requests.
 - Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
 - Your OpenRouter API key remains in Android Keystore-encrypted app storage.
@@ -223,7 +223,7 @@ Transcript availability depends on the captions exposed by the selected service 
 - Saved summaries, saved quizzes, their source URLs, completed follow-up turns included through **Save summary**, and optional thumbnails remain in app-private local storage until you delete them. Only while **Save YouTube thumbnails** is enabled, SpeedyWatch displays or regenerates those previews and fetches bounded YouTube thumbnail data directly from `i.ytimg.com` without cookies. Disabling the setting hides the feature without deleting stored thumbnail bytes. Unsaved and in-progress follow-up chat remains transient.
 - Exported backup files contain settings plus saved summaries, quizzes, any completed follow-up turns included in those saved summaries, and their thumbnails, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
 - Automatically cached summary and WatchPath results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
-- Unsupported main-frame links open through the platform's external app handler; approved media CDN hosts cannot become browsable destinations.
+- Invalid or unsupported schemes, malformed URLs, private/local destinations, and bare or malformed MEGA shared links are rejected. Valid generic HTTPS pages stay in SpeedyWatch; approved media CDN hosts cannot become browsable destinations.
 
 ## Build from source
 
