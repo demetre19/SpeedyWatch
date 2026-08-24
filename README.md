@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.36.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.38.
 
 ### Watch at your speed
 
@@ -140,7 +140,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.36 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.38 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
