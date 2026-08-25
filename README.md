@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.42**, debug-signed |
+| Current public APK: **v0.43**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.42.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.43.
 
 ### Browse the web with SpeedyWatch controls
 
@@ -100,6 +100,7 @@ Leave with answers you can find again.
 
 Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
 The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
+Cleaning up is fast too: **long-press any link** to multi-select, use **Same domain** or the **Domain list** (every domain with counts) to grab a whole site's links at once, and delete them all with one confirmation.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -147,7 +148,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.42 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.43 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -165,16 +166,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.42
-Version code: 42
+Version: 0.43
+Version code: 43
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 107,070,997 bytes
-SHA-256: 93925f0f46bb5a584abc893df776119487809a9b1745b6cfd45b8d8b242a5c71
+APK size: 106,528,961 bytes
+SHA-256: feef2fcaa270658d1ce5cf97349c44347ac1019fe97649832eeb459715d9d0bc
 Signing: Android debug signing key
 ```
 
-This public v0.42 APK is debug-signed with APK Signature Scheme v2. It adds a toolbar **Links** action that saves the links currently visible on any page, icon-based Saved detail controls, and a browser-style find bar that highlights and jumps between matches inside saved summaries.
+This public v0.43 APK is debug-signed with APK Signature Scheme v2. It adds bulk link cleanup: long-press any saved link to multi-select, select a whole domain in one tap from the domain list with counts, and delete them all at once.
 
 ## Legacy mobile source
 
