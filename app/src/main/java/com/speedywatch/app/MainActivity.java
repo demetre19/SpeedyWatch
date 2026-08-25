@@ -519,6 +519,11 @@ public final class MainActivity extends Activity {
                 ignored -> showDownload()
         ));
         navigation.addView(makeIconButton(
+                R.drawable.ic_links,
+                "Save visible page links",
+                ignored -> saveLinksManually()
+        ));
+        navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
                 "Saved summaries and quizzes",
                 ignored -> showSavedSummaries()

@@ -10,14 +10,19 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
+import android.text.style.BackgroundColorSpan;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.text.Layout;
+import android.text.Spannable;
+import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.method.LinkMovementMethod;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -444,47 +449,6 @@ final class SavedSummariesDialog {
         sourceUrl.setOnClickListener(ignored -> openVideo(entry, detail));
         content.addView(sourceUrl);
 
-        LinearLayout actions = horizontalLayout();
-        Button openVideo = detailActionButton("Open");
-        openVideo.setBackground(panelBackground(ACTIVE, ACTIVE));
-        openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
-        actions.addView(openVideo, detailActionParams(false));
-
-        Button share = detailActionButton("Share");
-        share.setOnClickListener(ignored -> TextShare.showChooser(
-                activity,
-                entry.videoTitle,
-                entry.summaryLabel,
-                entry.summaryText,
-                entry.sourceUrl
-        ));
-        actions.addView(share, detailActionParams(true));
-
-        if (supportsThumbnail) {
-            Button thumbnailAction = detailActionButton(
-                    detailBitmap == null ? "Add image" : "Refresh image"
-            );
-            thumbnailAction.setContentDescription(
-                    detailBitmap == null
-                            ? "Add video thumbnail"
-                            : "Refresh video thumbnail"
-            );
-            thumbnailAction.setOnClickListener(ignored ->
-                    regenerateThumbnail(entry, detail, thumbnailPreview, thumbnailAction));
-            actions.addView(thumbnailAction, detailActionParams(true));
-        }
-
-        Button delete = detailActionButton("Delete");
-        delete.setTextColor(ACTIVE);
-        delete.setOnClickListener(ignored -> confirmDelete(entry, detail));
-        actions.addView(delete, detailActionParams(true));
-        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        actionsParams.setMargins(0, dp(10), 0, dp(8));
-        content.addView(actions, actionsParams);
-
         TextView summary = text("", 14, Color.WHITE);
         summary.setTextIsSelectable(true);
         summary.setMovementMethod(LinkMovementMethod.getInstance());
@@ -497,6 +461,110 @@ final class SavedSummariesDialog {
         ));
         ScrollView summaryScroll = new ScrollView(activity);
         summaryScroll.addView(summary);
+
+        LinearLayout actions = horizontalLayout();
+        ImageButton findToggle = detailIconButton(R.drawable.ic_search, "Search in summary");
+
+        ImageButton openVideo = detailIconButton(
+                R.drawable.ic_open_external, "Open original video");
+        openVideo.setBackground(panelBackground(ACTIVE, ACTIVE));
+        openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
+        actions.addView(openVideo, detailActionParams(true));
+
+        ImageButton share = detailIconButton(R.drawable.ic_share, "Share summary");
+        share.setOnClickListener(ignored -> TextShare.showChooser(
+                activity,
+                entry.videoTitle,
+                entry.summaryLabel,
+                entry.summaryText,
+                entry.sourceUrl
+        ));
+        actions.addView(share, detailActionParams(true));
+
+        if (supportsThumbnail) {
+            ImageButton thumbnailAction = detailIconButton(
+                    R.drawable.ic_refresh,
+                    detailBitmap == null
+                            ? "Add video thumbnail"
+                            : "Refresh video thumbnail"
+            );
+            thumbnailAction.setOnClickListener(ignored ->
+                    regenerateThumbnail(entry, detail, thumbnailPreview, thumbnailAction));
+            actions.addView(thumbnailAction, detailActionParams(true));
+        }
+
+        ImageButton delete = detailIconButton(R.drawable.ic_delete, "Delete saved item");
+        delete.setOnClickListener(ignored -> confirmDelete(entry, detail));
+        actions.addView(delete, detailActionParams(true));
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionsParams.setMargins(0, dp(10), 0, dp(8));
+        content.addView(actions, actionsParams);
+
+        LinearLayout findBar = horizontalLayout();
+        findBar.setGravity(Gravity.CENTER_VERTICAL);
+        findBar.setVisibility(View.GONE);
+        EditText findInput = new EditText(activity);
+        findInput.setSingleLine(true);
+        findInput.setHint("Find in summary");
+        findInput.setTextSize(13);
+        findInput.setTextColor(Color.WHITE);
+        findInput.setHintTextColor(MUTED);
+        findInput.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+        findInput.setPadding(dp(10), dp(8), dp(10), dp(8));
+        LinearLayout.LayoutParams findInputParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        findBar.addView(findInput, findInputParams);
+        TextView findCount = text("", 12, MUTED);
+        findCount.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams findCountParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(44)
+        );
+        findCountParams.setMarginStart(dp(8));
+        findBar.addView(findCount, findCountParams);
+        SummaryFinder finder = new SummaryFinder(summary, summaryScroll, findCount);
+        findInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                finder.update(s.toString());
+            }
+        });
+        ImageButton findPrev = detailIconButton(R.drawable.ic_arrow_up, "Previous match");
+        findPrev.setOnClickListener(ignored -> finder.go(-1));
+        findBar.addView(findPrev, findArrowParams());
+        ImageButton findNext = detailIconButton(R.drawable.ic_arrow_down, "Next match");
+        findNext.setOnClickListener(ignored -> finder.go(1));
+        findBar.addView(findNext, findArrowParams());
+        ImageButton findClose = detailIconButton(R.drawable.ic_close, "Close search");
+        findClose.setOnClickListener(ignored -> {
+            finder.clear();
+            findInput.setText("");
+            hideKeyboard(findInput);
+            findBar.setVisibility(View.GONE);
+        });
+        findBar.addView(findClose, findArrowParams());
+        LinearLayout.LayoutParams findBarParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        findBarParams.setMargins(0, dp(8), 0, 0);
+        content.addView(findBar, findBarParams);
+        findToggle.setOnClickListener(ignored -> toggleFindBar(findBar, findInput));
+
         content.addView(summaryScroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -611,12 +679,12 @@ final class SavedSummariesDialog {
         content.addView(urlView);
 
         LinearLayout actions = horizontalLayout();
-        Button open = detailActionButton("Open");
+        ImageButton open = detailIconButton(R.drawable.ic_open_external, "Open link");
         open.setBackground(panelBackground(ACTIVE, ACTIVE));
         open.setOnClickListener(ignored -> host.openLink(link.url));
         actions.addView(open, detailActionParams(false));
 
-        Button copy = detailActionButton("Copy");
+        ImageButton copy = detailIconButton(R.drawable.ic_copy, "Copy link");
         copy.setOnClickListener(ignored -> {
             android.content.ClipboardManager clipboard =
                     (android.content.ClipboardManager)
@@ -627,7 +695,7 @@ final class SavedSummariesDialog {
         });
         actions.addView(copy, detailActionParams(true));
 
-        Button share = detailActionButton("Share");
+        ImageButton share = detailIconButton(R.drawable.ic_share, "Share link");
         share.setOnClickListener(ignored -> TextShare.showChooser(
                 activity,
                 link.displayText.isEmpty() ? "Link" : link.displayText,
@@ -637,18 +705,15 @@ final class SavedSummariesDialog {
         ));
         actions.addView(share, detailActionParams(true));
 
-        Button previewAction = detailActionButton(
-                linkBitmap == null ? "Add preview" : "Refresh preview"
-        );
-        previewAction.setContentDescription(
+        ImageButton previewAction = detailIconButton(
+                R.drawable.ic_refresh,
                 linkBitmap == null ? "Add link preview" : "Refresh link preview"
         );
         previewAction.setOnClickListener(ignored ->
                 regenerateLinkPreview(link, detail, preview, previewAction));
         actions.addView(previewAction, detailActionParams(true));
 
-        Button delete = detailActionButton("Delete");
-        delete.setTextColor(ACTIVE);
+        ImageButton delete = detailIconButton(R.drawable.ic_delete, "Delete link");
         delete.setOnClickListener(ignored -> confirmDeleteLink(link, detail));
         actions.addView(delete, detailActionParams(true));
         LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
@@ -691,10 +756,9 @@ final class SavedSummariesDialog {
             ScrapedLinkStore.Entry entry,
             Dialog detail,
             ImageView preview,
-            Button action
+            ImageButton action
     ) {
         action.setEnabled(false);
-        action.setText("Loading...");
         executor.execute(() -> {
             try {
                 byte[] image = OpenGraphPreview.fetch(entry.url);
@@ -711,7 +775,6 @@ final class SavedSummariesDialog {
                     }
                     preview.setImageBitmap(bitmap);
                     preview.setVisibility(View.VISIBLE);
-                    action.setText("Refresh preview");
                     action.setContentDescription("Refresh link preview");
                     action.setEnabled(true);
                     refresh();
@@ -722,7 +785,6 @@ final class SavedSummariesDialog {
                     if (!detail.isShowing()) {
                         return;
                     }
-                    action.setText("Add preview");
                     action.setContentDescription("Add link preview");
                     action.setEnabled(true);
                     Toast.makeText(
@@ -739,10 +801,9 @@ final class SavedSummariesDialog {
             SavedSummaryStore.Entry entry,
             Dialog detail,
             ImageView preview,
-            Button action
+            ImageButton action
     ) {
         action.setEnabled(false);
-        action.setText("Loading...");
         executor.execute(() -> {
             try {
                 byte[] thumbnail = SavedThumbnail.fetch(entry.sourceUrl);
@@ -759,7 +820,6 @@ final class SavedSummariesDialog {
                     }
                     preview.setImageBitmap(bitmap);
                     preview.setVisibility(View.VISIBLE);
-                    action.setText("Refresh image");
                     action.setContentDescription("Refresh video thumbnail");
                     action.setEnabled(true);
                     refresh();
@@ -770,9 +830,6 @@ final class SavedSummariesDialog {
                     if (!detail.isShowing()) {
                         return;
                     }
-                    action.setText(decodeThumbnail(entry.thumbnail) == null
-                            ? "Add image"
-                            : "Refresh image");
                     action.setEnabled(true);
                     Toast.makeText(
                             activity,
@@ -867,15 +924,6 @@ final class SavedSummariesDialog {
         button.setBackground(panelBackground(BUTTON, BUTTON));
         return button;
     }
-    private Button detailActionButton(String value) {
-        Button action = button(value);
-        action.setTextSize(12);
-        action.setSingleLine(true);
-        action.setEllipsize(TextUtils.TruncateAt.END);
-        action.setPadding(dp(2), 0, dp(2), 0);
-        return action;
-    }
-
     private LinearLayout.LayoutParams detailActionParams(boolean hasLeadingGap) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1f);
         if (hasLeadingGap) {
@@ -883,7 +931,143 @@ final class SavedSummariesDialog {
         }
         return params;
     }
+    private ImageButton detailIconButton(int icon, String description) {
+        ImageButton action = new ImageButton(activity);
+        action.setImageResource(icon);
+        action.setContentDescription(description);
+        action.setScaleType(ImageButton.ScaleType.CENTER_INSIDE);
+        action.setPadding(dp(10), dp(10), dp(10), dp(10));
+        action.setBackground(panelBackground(BUTTON, BUTTON));
+        return action;
+    }
 
+    private LinearLayout.LayoutParams findArrowParams() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(44), dp(44));
+        params.setMarginStart(dp(4));
+        return params;
+    }
+
+    private void toggleFindBar(LinearLayout findBar, EditText findInput) {
+        boolean showing = findBar.getVisibility() == View.VISIBLE;
+        findBar.setVisibility(showing ? View.GONE : View.VISIBLE);
+        InputMethodManager keyboard = (InputMethodManager)
+                activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+        if (!showing) {
+            findInput.requestFocus();
+            keyboard.showSoftInput(findInput, InputMethodManager.SHOW_IMPLICIT);
+        } else {
+            keyboard.hideSoftInputFromWindow(findInput.getWindowToken(), 0);
+        }
+    }
+
+    private void hideKeyboard(EditText input) {
+        InputMethodManager keyboard = (InputMethodManager)
+                activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+        keyboard.hideSoftInputFromWindow(input.getWindowToken(), 0);
+    }
+
+    /**
+     * Browser-style find over the rendered summary: highlights every case-insensitive
+     * match, reports "current of total", and jumps between matches with wrap-around.
+     */
+    private final class SummaryFinder {
+        private static final int MATCH_COLOR = Color.rgb(255, 213, 0);
+        private static final int CURRENT_COLOR = Color.rgb(255, 112, 0);
+
+        private final TextView summaryView;
+        private final ScrollView scroller;
+        private final TextView countView;
+        private final List<int[]> ranges = new ArrayList<>();
+        private final List<BackgroundColorSpan> spans = new ArrayList<>();
+        private int index = -1;
+
+        SummaryFinder(TextView summaryView, ScrollView scroller, TextView countView) {
+            this.summaryView = summaryView;
+            this.scroller = scroller;
+            this.countView = countView;
+        }
+
+        void update(String query) {
+            Spannable content = (Spannable) summaryView.getText();
+            clearHighlights(content);
+            ranges.clear();
+            index = -1;
+            if (query.isEmpty()) {
+                countView.setText("");
+                return;
+            }
+            String haystack = content.toString().toLowerCase(Locale.US);
+            String needle = query.toLowerCase(Locale.US);
+            int at = haystack.indexOf(needle);
+            while (at >= 0) {
+                ranges.add(new int[]{at, at + needle.length()});
+                at = haystack.indexOf(needle, at + needle.length());
+            }
+            if (ranges.isEmpty()) {
+                countView.setText("0 of 0");
+                return;
+            }
+            for (int[] range : ranges) {
+                applySpan(content, range, MATCH_COLOR);
+            }
+            jump(0);
+        }
+
+        void go(int delta) {
+            if (ranges.isEmpty()) {
+                return;
+            }
+            jump(Math.floorMod(index + delta, ranges.size()));
+        }
+
+        void clear() {
+            clearHighlights((Spannable) summaryView.getText());
+            ranges.clear();
+            index = -1;
+            countView.setText("");
+        }
+
+        private void jump(int target) {
+            index = target;
+            countView.setText((index + 1) + " of " + ranges.size());
+            Spannable content = (Spannable) summaryView.getText();
+            for (int position = 0; position < ranges.size(); position++) {
+                content.removeSpan(spans.get(position));
+                BackgroundColorSpan span = new BackgroundColorSpan(
+                        position == index ? CURRENT_COLOR : MATCH_COLOR
+                );
+                spans.set(position, span);
+                content.setSpan(
+                        span,
+                        ranges.get(position)[0],
+                        ranges.get(position)[1],
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
+            summaryView.post(() -> {
+                Layout layout = summaryView.getLayout();
+                if (layout == null) {
+                    return;
+                }
+                int line = layout.getLineForOffset(ranges.get(index)[0]);
+                int y = Math.max(0, layout.getLineTop(line) - dp(12));
+                scroller.smoothScrollTo(0, y);
+            });
+        }
+
+        private void applySpan(Spannable content, int[] range, int color) {
+            BackgroundColorSpan span = new BackgroundColorSpan(color);
+            spans.add(span);
+            content.setSpan(span, range[0], range[1], Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        private void clearHighlights(Spannable content) {
+            for (BackgroundColorSpan span : spans) {
+                content.removeSpan(span);
+            }
+            spans.clear();
+        }
+    }
 
     private TextView text(String value, int size, int color) {
         TextView text = new TextView(activity);
