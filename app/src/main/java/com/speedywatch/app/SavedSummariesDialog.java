@@ -449,6 +449,14 @@ final class SavedSummariesDialog {
         sourceUrl.setOnClickListener(ignored -> openVideo(entry, detail));
         content.addView(sourceUrl);
 
+        List<View> topChrome = new ArrayList<>();
+        topChrome.add(header);
+        if (supportsThumbnail) {
+            topChrome.add(thumbnailPreview);
+        }
+        topChrome.add(sourceLabel);
+        topChrome.add(sourceUrl);
+
         TextView summary = text("", 14, Color.WHITE);
         summary.setTextIsSelectable(true);
         summary.setMovementMethod(LinkMovementMethod.getInstance());
@@ -547,14 +555,11 @@ final class SavedSummariesDialog {
         ImageButton findPrev = detailIconButton(R.drawable.ic_arrow_up, "Previous match");
         findPrev.setOnClickListener(ignored -> finder.go(-1));
         findBar.addView(findPrev, findArrowParams());
-        ImageButton findNext = detailIconButton(R.drawable.ic_arrow_down, "Next match");
-        findNext.setOnClickListener(ignored -> finder.go(1));
-        findBar.addView(findNext, findArrowParams());
         ImageButton findClose = detailIconButton(R.drawable.ic_close, "Close search");
         findClose.setOnClickListener(ignored -> {
             finder.clear();
             findInput.setText("");
-            toggleFindBar(findBar, findInput, thumbnailPreview);
+            toggleFindBar(findBar, findInput, topChrome);
         });
         findBar.addView(findClose, findArrowParams());
         LinearLayout.LayoutParams findBarParams = new LinearLayout.LayoutParams(
@@ -563,7 +568,8 @@ final class SavedSummariesDialog {
         );
         findBarParams.setMargins(0, dp(8), 0, 0);
         content.addView(findBar, findBarParams);
-        findToggle.setOnClickListener(ignored -> toggleFindBar(findBar, findInput, thumbnailPreview));
+        findToggle.setOnClickListener(ignored ->
+                toggleFindBar(findBar, findInput, topChrome));
 
         content.addView(summaryScroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -962,21 +968,30 @@ final class SavedSummariesDialog {
     private void toggleFindBar(
             LinearLayout findBar,
             EditText findInput,
-            ImageView thumbnailPreview
+            List<View> topChrome
     ) {
         boolean showing = findBar.getVisibility() == View.VISIBLE;
         findBar.setVisibility(showing ? View.GONE : View.VISIBLE);
-        // The keyboard plus the thumbnail crowd out the summary text, so the
-        // thumbnail hides while search is open and returns when it closes.
-        thumbnailPreview.setVisibility(
-                !showing || thumbnailPreview.getDrawable() == null
-                        ? View.GONE
-                        : View.VISIBLE
-        );
+        // Searching needs maximum room: the keyboard plus the title, URL, and
+        // thumbnail crowd out the summary text, so the top chrome hides while
+        // search is open and returns when it closes.
+        for (View view : topChrome) {
+            view.setVisibility(showing ? View.VISIBLE : View.GONE);
+        }
+        if (!showing) {
+            for (View view : topChrome) {
+                if (view instanceof ImageView
+                        && ((ImageView) view).getDrawable() == null) {
+                    view.setVisibility(View.GONE);
+                }
+            }
+            findInput.requestFocus();
+        } else {
+            findInput.clearFocus();
+        }
         InputMethodManager keyboard = (InputMethodManager)
                 activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
         if (!showing) {
-            findInput.requestFocus();
             keyboard.showSoftInput(findInput, InputMethodManager.SHOW_IMPLICIT);
         } else {
             keyboard.hideSoftInputFromWindow(findInput.getWindowToken(), 0);
