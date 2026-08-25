@@ -39,6 +39,8 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -73,6 +75,12 @@ final class SavedSummariesDialog {
     private String selectedCreator;
     private boolean sortDescending = true;
     private int typeFilter = TYPE_ALL;
+    private boolean selecting;
+    private final HashSet<Long> selectedLinkIds = new HashSet<>();
+    private String selectionDomain = "";
+    private LinearLayout sortingRow;
+    private LinearLayout selectionBar;
+    private TextView selectionCount;
 
     private static final int TYPE_ALL = 0;
     private static final int TYPE_VIDEOS = 1;
@@ -173,15 +181,56 @@ final class SavedSummariesDialog {
             updateSortControls();
             adapter.filter(search.getText().toString());
         });
-        LinearLayout.LayoutParams directionParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        directionParams.setMarginStart(dp(8));
-        sorting.addView(sortDirectionButton, directionParams);
+        sortingRow = sorting;
         LinearLayout.LayoutParams sortingParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         sortingParams.setMargins(0, 0, 0, dp(8));
         content.addView(sorting, sortingParams);
+
+        selectionBar = verticalLayout();
+        selectionBar.setVisibility(View.GONE);
+        LinearLayout selectionActions = horizontalLayout();
+        selectionCount = text("0 selected", 13, Color.WHITE);
+        selectionActions.addView(selectionCount, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        Button deleteSelected = button("Delete");
+        deleteSelected.setTextColor(ACTIVE);
+        deleteSelected.setOnClickListener(ignored -> confirmDeleteSelected());
+        LinearLayout.LayoutParams deleteSelectedParams =
+                new LinearLayout.LayoutParams(0, dp(44), 1f);
+        deleteSelectedParams.setMarginStart(dp(8));
+        selectionActions.addView(deleteSelected, deleteSelectedParams);
+        Button cancelSelection = button("Cancel");
+        cancelSelection.setOnClickListener(ignored -> exitSelection());
+        selectionActions.addView(cancelSelection, deleteSelectedParams);
+        selectionBar.addView(selectionActions);
+        LinearLayout selectionHelpers = horizontalLayout();
+        Button sameDomain = button("Same domain");
+        sameDomain.setOnClickListener(ignored -> selectSameDomain());
+        selectionHelpers.addView(sameDomain, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        Button domainList = button("Domain list");
+        domainList.setOnClickListener(ignored -> showDomainPicker());
+        LinearLayout.LayoutParams domainListParams =
+                new LinearLayout.LayoutParams(0, dp(44), 1f);
+        domainListParams.setMarginStart(dp(8));
+        selectionHelpers.addView(domainList, domainListParams);
+        Button allLinks = button("All links");
+        allLinks.setOnClickListener(ignored -> selectAllLinks());
+        selectionHelpers.addView(allLinks, domainListParams);
+        LinearLayout.LayoutParams selectionBarParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        selectionBarParams.setMargins(0, 0, 0, dp(8));
+        content.addView(selectionBar, selectionBarParams);
+        LinearLayout.LayoutParams directionParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        directionParams.setMarginStart(dp(8));
+        sorting.addView(sortDirectionButton, directionParams);
 
         FrameLayout body = new FrameLayout(activity);
         ListView list = new ListView(activity);
@@ -191,11 +240,28 @@ final class SavedSummariesDialog {
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) -> {
             SavedItem item = adapter.getItem(position);
+            if (selecting) {
+                if (item.isLink) {
+                    toggleSelection(item);
+                }
+                return;
+            }
             if (item.isLink) {
                 showLinkDetail(item);
             } else {
                 showDetail(item.saved);
             }
+        });
+        list.setOnItemLongClickListener((parent, view, position, id) -> {
+            SavedItem item = adapter.getItem(position);
+            if (!item.isLink) {
+                return false;
+            }
+            if (!selecting) {
+                enterSelection();
+            }
+            toggleSelection(item);
+            return true;
         });
         body.addView(list, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -247,6 +313,139 @@ final class SavedSummariesDialog {
             status.setText("Saved items could not be loaded");
             Toast.makeText(activity, "Saved items could not be loaded", Toast.LENGTH_LONG).show();
         }
+    }
+
+    /** Long-press a link row to start selecting; summaries stay view-only. */
+    private void enterSelection() {
+        selecting = true;
+        selectedLinkIds.clear();
+        selectionDomain = "";
+        sortingRow.setVisibility(View.GONE);
+        selectionBar.setVisibility(View.VISIBLE);
+        updateSelectionUi();
+    }
+
+    private void exitSelection() {
+        selecting = false;
+        selectedLinkIds.clear();
+        selectionDomain = "";
+        selectionBar.setVisibility(View.GONE);
+        sortingRow.setVisibility(View.VISIBLE);
+        adapter.notifyDataSetChanged();
+    }
+
+    private void toggleSelection(SavedItem item) {
+        if (!selectedLinkIds.remove(item.link.id)) {
+            selectedLinkIds.add(item.link.id);
+            selectionDomain = ScrapedLinkStore.hostOf(item.link.url);
+        }
+        updateSelectionUi();
+    }
+
+    private void updateSelectionUi() {
+        selectionCount.setText(selectedLinkIds.size() + " selected");
+        adapter.notifyDataSetChanged();
+    }
+
+    private List<Long> selectedIdList() {
+        return new ArrayList<>(selectedLinkIds);
+    }
+
+    /** Selects every saved link sharing the last-touched link's domain. */
+    private void selectSameDomain() {
+        if (selectionDomain.isEmpty()) {
+            Toast.makeText(
+                    activity,
+                    "Select a link first to choose its domain",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+        int before = selectedLinkIds.size();
+        selectLinksOfDomain(selectionDomain);
+        int added = selectedLinkIds.size() - before;
+        Toast.makeText(
+                activity,
+                added > 0
+                        ? "Selected " + added + " more from " + selectionDomain
+                        : "All " + selectionDomain + " links already selected",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private void selectAllLinks() {
+        for (SavedItem item : adapter.linkItems()) {
+            selectedLinkIds.add(item.link.id);
+        }
+        updateSelectionUi();
+    }
+
+    private void selectLinksOfDomain(String domain) {
+        for (SavedItem item : adapter.linkItems()) {
+            if (domain.equals(ScrapedLinkStore.hostOf(item.link.url))) {
+                selectedLinkIds.add(item.link.id);
+            }
+        }
+        updateSelectionUi();
+    }
+
+    private void confirmDeleteSelected() {
+        if (selectedLinkIds.isEmpty()) {
+            Toast.makeText(activity, "No links selected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int count = selectedLinkIds.size();
+        List<Long> ids = selectedIdList();
+        new AlertDialog.Builder(activity)
+                .setTitle("Delete " + count + " link" + (count == 1 ? "?" : "s?"))
+                .setMessage("This removes the selected links from this device.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete", (confirmation, which) -> executor.execute(() -> {
+                    int removed = scrapedLinkStore.deleteIds(ids);
+                    activity.runOnUiThread(() -> {
+                        exitSelection();
+                        refresh();
+                        Toast.makeText(
+                                activity,
+                                removed + " link" + (removed == 1 ? "" : "s") + " deleted",
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    });
+                }))
+                .show();
+    }
+
+    /** Lists every saved-link domain with counts; tapping selects its links. */
+    private void showDomainPicker() {
+        LinkedHashMap<String, Integer> domains = scrapedLinkStore.domainCounts();
+        if (domains.isEmpty()) {
+            Toast.makeText(activity, "No saved links yet", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        CharSequence[] labels = new CharSequence[domains.size()];
+        List<String> hosts = new ArrayList<>(domains.keySet());
+        for (int index = 0; index < hosts.size(); index++) {
+            labels[index] = hosts.get(index) + " (" + domains.get(hosts.get(index)) + ")";
+        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Select a domain")
+                .setItems(labels, (picker, which) -> {
+                    String domain = hosts.get(which);
+                    if (!selecting) {
+                        enterSelection();
+                    }
+                    selectionDomain = domain;
+                    selectLinksOfDomain(domain);
+                    Toast.makeText(
+                            activity,
+                            domains.get(domain) + " link"
+                                    + (domains.get(domain) == 1 ? "" : "s")
+                                    + " selected from " + domain,
+                            Toast.LENGTH_SHORT
+                    ).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void updateStatus() {
@@ -1213,6 +1412,16 @@ final class SavedSummariesDialog {
             return all.size();
         }
 
+        List<SavedItem> linkItems() {
+            List<SavedItem> links = new ArrayList<>();
+            for (SavedItem item : all) {
+                if (item.isLink) {
+                    links.add(item);
+                }
+            }
+            return links;
+        }
+
         List<SavedListOrder.CreatorCount> creatorCounts() {
             java.util.TreeMap<String, Integer> known = new java.util.TreeMap<>(
                     String.CASE_INSENSITIVE_ORDER
@@ -1360,7 +1569,11 @@ final class SavedSummariesDialog {
                 metadata.setText(listMetadata(rowItem.saved));
                 excerpt.setText(preview(rowItem.saved.summaryText));
             }
-            row.setBackgroundColor(BACKGROUND);
+            row.setBackgroundColor(
+                    selecting && rowItem.isLink
+                            && selectedLinkIds.contains(rowItem.link.id)
+                            ? Color.rgb(72, 32, 32)
+                            : BACKGROUND);
             return row;
         }
 

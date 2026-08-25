@@ -9,9 +9,13 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -260,6 +264,79 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
 
     synchronized void delete(long id) {
         getWritableDatabase().delete(TABLE, "id = ?", new String[]{Long.toString(id)});
+    }
+
+    /** Deletes every row whose id is listed; returns the number of rows removed. */
+    synchronized int deleteIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        int removed = 0;
+        SQLiteDatabase database = getWritableDatabase();
+        database.beginTransaction();
+        try {
+            for (Long id : ids) {
+                if (id != null && id > 0) {
+                    removed += database.delete(
+                            TABLE, "id = ?", new String[]{Long.toString(id)});
+                }
+            }
+            database.setTransactionSuccessful();
+        } finally {
+            database.endTransaction();
+        }
+        return removed;
+    }
+
+    /** Lowercase host without a leading {@code www.}; empty when unusable. */
+    static String hostOf(String httpsUrl) {
+        if (httpsUrl == null) {
+            return "";
+        }
+        try {
+            String host = URI.create(httpsUrl).getHost();
+            if (host == null) {
+                return "";
+            }
+            host = host.toLowerCase(Locale.ROOT);
+            return host.startsWith("www.") ? host.substring(4) : host;
+        } catch (RuntimeException error) {
+            return "";
+        }
+    }
+
+    /** Distinct link domains with counts, most-linked first then alphabetical. */
+    synchronized LinkedHashMap<String, Integer> domainCounts() {
+        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
+        for (Entry entry : list()) {
+            String host = hostOf(entry.url);
+            if (host.isEmpty()) {
+                continue;
+            }
+            counts.merge(host, 1, Integer::sum);
+        }
+        LinkedHashMap<String, Integer> sorted = new LinkedHashMap<>();
+        counts.entrySet().stream()
+                .sorted(Comparator
+                        .comparing((Map.Entry<String, Integer> item) -> -item.getValue())
+                        .thenComparing(Map.Entry::getKey))
+                .forEach(item -> sorted.put(item.getKey(), item.getValue()));
+        return sorted;
+    }
+
+    /** Deletes every saved link from one domain; returns the rows removed. */
+    synchronized int deleteDomain(String host) {
+        String normalized = host == null ? "" : host.toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) {
+            return 0;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (Entry entry : list()) {
+            if (normalized.equals(hostOf(entry.url))) {
+                ids.add(entry.id);
+            }
+        }
+        return deleteIds(ids);
     }
 
     synchronized void clear() {
