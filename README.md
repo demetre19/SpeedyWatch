@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.41**, debug-signed |
+| Current public APK: **v0.42**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,11 +40,11 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.41.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.42.
 
 ### Browse the web with SpeedyWatch controls
 
-Open or share any public HTTPS page in SpeedyWatch. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Saved, Settings, and screen lock stay available on regular pages. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it.
+Open or share any public HTTPS page in SpeedyWatch. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it.
 
 DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams without a seekable timeline, and players that reject browser controls may remain unavailable. SpeedyWatch reports that directly rather than controlling the wrong media.
 
@@ -99,7 +99,7 @@ Leave with answers you can find again.
 ### Keep and share what matters
 
 Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
-The **Links** Omnibutton action saves every visible HTTPS link from the page you are on—X threads, articles, or any public site—into this same searchable library. Link details can include a compact preview image fetched without cookies; **Add preview** and **Refresh preview** keep it current, and previews ride along in backups when saved links are included.
+The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -147,7 +147,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.41 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.42 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -165,16 +165,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.41
-Version code: 41
+Version: 0.42
+Version code: 42
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,502,954 bytes
-SHA-256: cdfeb32b0391e55f4a38ded63668355033a6678a6020c5b8f0fd724ee69c0afd
+APK size: 107,070,997 bytes
+SHA-256: 93925f0f46bb5a584abc893df776119487809a9b1745b6cfd45b8d8b242a5c71
 Signing: Android debug signing key
 ```
 
-This public v0.41 APK is debug-signed with APK Signature Scheme v2. It adds universal link saving from any public HTTPS page with optional Open Graph link previews in the Saved library.
+This public v0.42 APK is debug-signed with APK Signature Scheme v2. It adds a toolbar **Links** action that saves the links currently visible on any page, icon-based Saved detail controls, and a browser-style find bar that highlights and jumps between matches inside saved summaries.
 
 ## Legacy mobile source
 
