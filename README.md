@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.40**, debug-signed |
+| Current public APK: **v0.41**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,7 +40,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.40.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.41.
 
 ### Browse the web with SpeedyWatch controls
 
@@ -57,7 +57,7 @@ DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams witho
 
 ### Control more from one thumb
 
-The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Settings provides separate expandable **Web**, **YouTube**, and **X** gesture maps—never a combined “YouTube & other sites” profile—and switches maps automatically with the active page. Configure all eight directions independently for browser Back/Forward, Reload, Search, Share, playback speed, timed seeking, Play/Pause, Picture-in-Picture, Video Subs, summaries, Quiz, Download, Saved, Settings, screen lock, YouTube chapters, X link saving, and more. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
+The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Settings provides separate expandable **Web**, **YouTube**, and **X** gesture maps—never a combined “YouTube & other sites” profile—and switches maps automatically with the active page. Configure all eight directions independently for browser Back/Forward, Reload, Search, Share, playback speed, timed seeking, Play/Pause, Picture-in-Picture, Video Subs, summaries, Quiz, Download, Saved, Settings, screen lock, YouTube chapters, link saving, and more. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
 
 
 ### Skip the dead time
@@ -99,6 +99,7 @@ Leave with answers you can find again.
 ### Keep and share what matters
 
 Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
+The **Links** Omnibutton action saves every visible HTTPS link from the page you are on—X threads, articles, or any public site—into this same searchable library. Link details can include a compact preview image fetched without cookies; **Add preview** and **Refresh preview** keep it current, and previews ride along in backups when saved links are included.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -146,7 +147,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.40 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.41 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -164,16 +165,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.40
-Version code: 40
+Version: 0.41
+Version code: 41
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,493,858 bytes
-SHA-256: 17f02dc746b9d767e85a5dbc9fcca1b82feebcac2e7124a911efa60a4ef92c66
+APK size: 106,502,954 bytes
+SHA-256: cdfeb32b0391e55f4a38ded63668355033a6678a6020c5b8f0fd724ee69c0afd
 Signing: Android debug signing key
 ```
 
-This public v0.40 APK is debug-signed with APK Signature Scheme v2. It adds universal HTTPS browsing with a dedicated Web mode, separate Web/YouTube/X Omnibutton mappings, and accessible controls for HTML5 media embedded in regular pages.
+This public v0.41 APK is debug-signed with APK Signature Scheme v2. It adds universal link saving from any public HTTPS page with optional Open Graph link previews in the Saved library.
 
 ## Legacy mobile source
 
