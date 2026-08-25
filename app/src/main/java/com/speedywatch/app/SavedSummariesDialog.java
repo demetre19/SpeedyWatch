@@ -463,13 +463,14 @@ final class SavedSummariesDialog {
         summaryScroll.addView(summary);
 
         LinearLayout actions = horizontalLayout();
-        ImageButton findToggle = detailIconButton(R.drawable.ic_search, "Search in summary");
-
         ImageButton openVideo = detailIconButton(
                 R.drawable.ic_open_external, "Open original video");
         openVideo.setBackground(panelBackground(ACTIVE, ACTIVE));
         openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
-        actions.addView(openVideo, detailActionParams(true));
+        actions.addView(openVideo, detailActionParams(false));
+
+        ImageButton findToggle = detailIconButton(R.drawable.ic_search, "Search in summary");
+        actions.addView(findToggle, detailActionParams(true));
 
         ImageButton share = detailIconButton(R.drawable.ic_share, "Share summary");
         share.setOnClickListener(ignored -> TextShare.showChooser(
@@ -638,6 +639,7 @@ final class SavedSummariesDialog {
                 1f
         ));
         ImageButton close = new ImageButton(activity);
+        close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close link");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
@@ -762,6 +764,11 @@ final class SavedSummariesDialog {
         executor.execute(() -> {
             try {
                 byte[] image = OpenGraphPreview.fetch(entry.url);
+                if (image == null) {
+                    // YouTube watch links serve no cookie-free og:image; use the
+                    // canonical video thumbnail instead.
+                    image = SavedThumbnail.fetch(entry.url);
+                }
                 if (image == null || !scrapedLinkStore.updatePreview(entry.id, image)) {
                     throw new IllegalStateException("Link preview is unavailable");
                 }

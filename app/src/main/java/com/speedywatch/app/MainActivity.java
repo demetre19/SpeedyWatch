@@ -994,6 +994,10 @@ public final class MainActivity extends Activity {
                 }
                 try {
                     byte[] preview = OpenGraphPreview.fetch(entry.url);
+                    if (preview == null) {
+                        // YouTube watch links serve no cookie-free og:image.
+                        preview = SavedThumbnail.fetch(entry.url);
+                    }
                     if (preview != null) {
                         scrapedLinkStore.updatePreview(entry.id, preview);
                     }
