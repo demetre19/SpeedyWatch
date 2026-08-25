@@ -925,6 +925,7 @@ public final class MainActivity extends Activity {
             return;
         }
         long requestId = xLinkRequestCounter.incrementAndGet();
+        Toast.makeText(this, "Looking for links on this page...", Toast.LENGTH_SHORT).show();
         String script = "window.__speedyWatchController "
                 + "? window.__speedyWatchController.collectPageLinks() : null";
         webView.evaluateJavascript(script, result -> {

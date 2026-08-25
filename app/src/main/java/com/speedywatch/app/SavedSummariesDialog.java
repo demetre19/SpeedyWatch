@@ -554,8 +554,7 @@ final class SavedSummariesDialog {
         findClose.setOnClickListener(ignored -> {
             finder.clear();
             findInput.setText("");
-            hideKeyboard(findInput);
-            findBar.setVisibility(View.GONE);
+            toggleFindBar(findBar, findInput, thumbnailPreview);
         });
         findBar.addView(findClose, findArrowParams());
         LinearLayout.LayoutParams findBarParams = new LinearLayout.LayoutParams(
@@ -564,7 +563,7 @@ final class SavedSummariesDialog {
         );
         findBarParams.setMargins(0, dp(8), 0, 0);
         content.addView(findBar, findBarParams);
-        findToggle.setOnClickListener(ignored -> toggleFindBar(findBar, findInput));
+        findToggle.setOnClickListener(ignored -> toggleFindBar(findBar, findInput, thumbnailPreview));
 
         content.addView(summaryScroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -954,9 +953,26 @@ final class SavedSummariesDialog {
         return params;
     }
 
-    private void toggleFindBar(LinearLayout findBar, EditText findInput) {
+    private void hideKeyboard(EditText input) {
+        InputMethodManager keyboard = (InputMethodManager)
+                activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+        keyboard.hideSoftInputFromWindow(input.getWindowToken(), 0);
+    }
+
+    private void toggleFindBar(
+            LinearLayout findBar,
+            EditText findInput,
+            ImageView thumbnailPreview
+    ) {
         boolean showing = findBar.getVisibility() == View.VISIBLE;
         findBar.setVisibility(showing ? View.GONE : View.VISIBLE);
+        // The keyboard plus the thumbnail crowd out the summary text, so the
+        // thumbnail hides while search is open and returns when it closes.
+        thumbnailPreview.setVisibility(
+                !showing || thumbnailPreview.getDrawable() == null
+                        ? View.GONE
+                        : View.VISIBLE
+        );
         InputMethodManager keyboard = (InputMethodManager)
                 activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
         if (!showing) {
@@ -965,12 +981,6 @@ final class SavedSummariesDialog {
         } else {
             keyboard.hideSoftInputFromWindow(findInput.getWindowToken(), 0);
         }
-    }
-
-    private void hideKeyboard(EditText input) {
-        InputMethodManager keyboard = (InputMethodManager)
-                activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
-        keyboard.hideSoftInputFromWindow(input.getWindowToken(), 0);
     }
 
     /**
