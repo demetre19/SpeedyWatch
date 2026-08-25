@@ -71,8 +71,7 @@ final class SavedSummariesDialog {
 
     private static final int TYPE_ALL = 0;
     private static final int TYPE_VIDEOS = 1;
-    private static final int TYPE_X_LINKS = 2;
-
+    private static final int TYPE_LINKS = 2;
     SavedSummariesDialog(
             Activity activity,
             SavedSummaryStore store,
@@ -198,7 +197,7 @@ final class SavedSummariesDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        TextView empty = text("Saved summaries, quizzes, and X links appear here.", 14, MUTED);
+        TextView empty = text("Saved summaries, quizzes, and links appear here.", 14, MUTED);
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(dp(28), dp(28), dp(28), dp(28));
         body.addView(empty, new FrameLayout.LayoutParams(
@@ -263,8 +262,7 @@ final class SavedSummariesDialog {
         );
         String typeLabel = typeFilter == TYPE_VIDEOS
                 ? "Videos"
-                : (typeFilter == TYPE_X_LINKS ? "X links" : "All");
-        typeFilterButton.setText(typeLabel + " ▾");
+                : (typeFilter == TYPE_LINKS ? "Links" : "All");
         typeFilterButton.setContentDescription(
                 "Filter saved items by type. Current selection: " + typeLabel
         );
@@ -275,7 +273,7 @@ final class SavedSummariesDialog {
     }
 
     private void showTypePicker() {
-        CharSequence[] options = {"All", "Videos (summaries and quizzes)", "X links"};
+        CharSequence[] options = {"All", "Videos (summaries and quizzes)", "Links"};
         new AlertDialog.Builder(activity)
                 .setTitle("Filter by type")
                 .setSingleChoiceItems(
@@ -517,7 +515,7 @@ final class SavedSummariesDialog {
         }
     }
 
-    /** One row in the unified Saved list: either a saved summary/quiz or an X link. */
+    /** One row in the unified Saved list: either a saved summary/quiz or a link. */
     private static final class SavedItem {
         final SavedSummaryStore.Entry saved;
         final ScrapedLinkStore.Entry link;
@@ -565,15 +563,14 @@ final class SavedSummariesDialog {
         headerText.addView(title);
         String poster = link.posterName.isEmpty() ? "" : " | " + link.posterName;
         headerText.addView(text(
-                "X link" + poster + " | " + formatDate(link.datedAt()), 12, MUTED));
+                "Link" + poster + " | " + formatDate(link.datedAt()), 12, MUTED));
         header.addView(headerText, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
         ImageButton close = new ImageButton(activity);
-        close.setImageResource(R.drawable.ic_close);
-        close.setContentDescription("Close X link");
+        close.setContentDescription("Close link");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
         close.setBackground(panelBackground(PANEL, BUTTON));
         close.setOnClickListener(ignored -> detail.dismiss());
@@ -581,6 +578,21 @@ final class SavedSummariesDialog {
         closeParams.setMarginStart(dp(8));
         header.addView(close, closeParams);
         content.addView(header);
+
+        ImageView preview = new ImageView(activity);
+        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        preview.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+        preview.setClipToOutline(true);
+        preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        Bitmap linkBitmap = decodePreview(link.preview);
+        if (linkBitmap != null) {
+            preview.setImageBitmap(linkBitmap);
+            LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(150)
+            );
+            previewParams.setMargins(0, dp(12), 0, 0);
+            content.addView(preview, previewParams);
+        }
 
         TextView sourceLabel = text("Link URL", 12, MUTED);
         LinearLayout.LayoutParams sourceLabelParams = new LinearLayout.LayoutParams(
@@ -610,7 +622,7 @@ final class SavedSummariesDialog {
                     (android.content.ClipboardManager)
                             activity.getSystemService(Activity.CLIPBOARD_SERVICE);
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                    "X link", link.url));
+                    "Link", link.url));
             Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
         });
         actions.addView(copy, detailActionParams(true));
@@ -618,12 +630,22 @@ final class SavedSummariesDialog {
         Button share = detailActionButton("Share");
         share.setOnClickListener(ignored -> TextShare.showChooser(
                 activity,
-                link.displayText.isEmpty() ? "X link" : link.displayText,
-                "X link",
+                link.displayText.isEmpty() ? "Link" : link.displayText,
+                "Link",
                 link.url,
                 link.url
         ));
         actions.addView(share, detailActionParams(true));
+
+        Button previewAction = detailActionButton(
+                linkBitmap == null ? "Add preview" : "Refresh preview"
+        );
+        previewAction.setContentDescription(
+                linkBitmap == null ? "Add link preview" : "Refresh link preview"
+        );
+        previewAction.setOnClickListener(ignored ->
+                regenerateLinkPreview(link, detail, preview, previewAction));
+        actions.addView(previewAction, detailActionParams(true));
 
         Button delete = detailActionButton("Delete");
         delete.setTextColor(ACTIVE);
@@ -653,16 +675,64 @@ final class SavedSummariesDialog {
 
     private void confirmDeleteLink(ScrapedLinkStore.Entry link, Dialog detail) {
         new AlertDialog.Builder(activity)
-                .setTitle("Delete X link?")
-                .setMessage("This removes the scraped link from this device.")
+                .setTitle("Delete link?")
+                .setMessage("This removes the saved link from this device.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Delete", (confirmation, which) -> {
                     scrapedLinkStore.delete(link.id);
                     detail.dismiss();
                     refresh();
-                    Toast.makeText(activity, "X link deleted", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(activity, "Link deleted", Toast.LENGTH_SHORT).show();
                 })
                 .show();
+    }
+
+    private void regenerateLinkPreview(
+            ScrapedLinkStore.Entry entry,
+            Dialog detail,
+            ImageView preview,
+            Button action
+    ) {
+        action.setEnabled(false);
+        action.setText("Loading...");
+        executor.execute(() -> {
+            try {
+                byte[] image = OpenGraphPreview.fetch(entry.url);
+                if (image == null || !scrapedLinkStore.updatePreview(entry.id, image)) {
+                    throw new IllegalStateException("Link preview is unavailable");
+                }
+                Bitmap bitmap = BitmapFactory.decodeByteArray(image, 0, image.length);
+                if (bitmap == null) {
+                    throw new IllegalStateException("Link preview is unavailable");
+                }
+                activity.runOnUiThread(() -> {
+                    if (!detail.isShowing()) {
+                        return;
+                    }
+                    preview.setImageBitmap(bitmap);
+                    preview.setVisibility(View.VISIBLE);
+                    action.setText("Refresh preview");
+                    action.setContentDescription("Refresh link preview");
+                    action.setEnabled(true);
+                    refresh();
+                    Toast.makeText(activity, "Link preview updated", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception error) {
+                activity.runOnUiThread(() -> {
+                    if (!detail.isShowing()) {
+                        return;
+                    }
+                    action.setText("Add preview");
+                    action.setContentDescription("Add link preview");
+                    action.setEnabled(true);
+                    Toast.makeText(
+                            activity,
+                            "Link preview could not be updated",
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            }
+        });
     }
 
     private void regenerateThumbnail(
@@ -712,6 +782,11 @@ final class SavedSummariesDialog {
                 });
             }
         });
+    }
+    private Bitmap decodePreview(byte[] preview) {
+        return preview == null
+                ? null
+                : BitmapFactory.decodeByteArray(preview, 0, preview.length);
     }
 
     private Bitmap decodeThumbnail(byte[] thumbnail) {
@@ -895,7 +970,7 @@ final class SavedSummariesDialog {
             if (typeFilter == TYPE_VIDEOS) {
                 return !item.isLink;
             }
-            if (typeFilter == TYPE_X_LINKS) {
+            if (typeFilter == TYPE_LINKS) {
                 return item.isLink;
             }
             return true;
@@ -971,7 +1046,6 @@ final class SavedSummariesDialog {
         public long getItemId(int position) {
             return getItem(position).sortId();
         }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             LinearLayout row;
@@ -1046,7 +1120,8 @@ final class SavedSummariesDialog {
                 dividerLabel.setText(groupLabel(rowItem));
             }
             Bitmap bitmap = rowItem.isLink
-                    ? null : decodeThumbnail(rowItem.saved.thumbnail);
+                    ? decodePreview(rowItem.link.preview)
+                    : decodeThumbnail(rowItem.saved.thumbnail);
             LinearLayout.LayoutParams copyParams =
                     (LinearLayout.LayoutParams) copy.getLayoutParams();
             if (bitmap == null) {
@@ -1099,7 +1174,7 @@ final class SavedSummariesDialog {
 
         private String listLinkMetadata(ScrapedLinkStore.Entry link) {
             String poster = link.posterName.isEmpty() ? "" : " | " + link.posterName;
-            return "X link" + poster + " | " + formatTime(link.datedAt());
+            return "Link" + poster + " | " + formatTime(link.datedAt());
         }
     }
 

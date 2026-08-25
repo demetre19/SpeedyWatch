@@ -424,7 +424,7 @@ final class SettingsDialog {
         content.addView(scrapedLinksBackupButton, matchWrap(0, 0));
         content.addView(
                 text(
-                        "Includes scraped X-thread links in JSON backups. Off by default because chats can be private.",
+                        "Includes saved page links and their optional previews in JSON backups. Off by default because X threads and chats can be private.",
                         12,
                         MUTED
                 ),
@@ -441,7 +441,7 @@ final class SettingsDialog {
         content.addView(autoScrapeXLinksButton, matchWrap(0, 0));
         content.addView(
                 text(
-                        "While you browse X, automatically saves links from whatever is on your screen into Saved. Off means links are saved only when you run Save X links from the Omnibutton.",
+                        "While you browse X, automatically saves links from whatever is on your screen into Saved. Off means links are saved only when you run Links from the Omnibutton.",
                         12,
                         MUTED
                 ),
@@ -1433,8 +1433,8 @@ final class SettingsDialog {
     private void updateScrapedLinksBackupButton() {
         scrapedLinksBackupButton.setText(
                 scrapedLinksBackupEnabled
-                        ? "Include X links in backups: On"
-                        : "Include X links in backups: Off"
+                        ? "Include saved links in backups: On"
+                        : "Include saved links in backups: Off"
         );
     }
 

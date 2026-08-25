@@ -38,7 +38,7 @@ enum OmniButtonAction {
     SAVED("saved", "Saved", AmountType.NONE, Double.NaN),
     SETTINGS("settings", "Settings", AmountType.NONE, Double.NaN),
     LOCK_SCREEN("lock_screen", "Lock screen", AmountType.NONE, Double.NaN),
-    SAVE_X_LINKS("save_x_links", "Save X links", AmountType.NONE, Double.NaN);
+    SAVE_LINKS("save_links", "Links", AmountType.NONE, Double.NaN);
 
     enum AmountType {
         NONE,
@@ -88,6 +88,9 @@ enum OmniButtonAction {
     static OmniButtonAction fromId(String id) {
         if (id == null) {
             return null;
+        }
+        if ("save_x_links".equals(id)) {
+            return SAVE_LINKS;
         }
         for (OmniButtonAction action : values()) {
             if (action.id.equals(id)) {

@@ -911,15 +911,17 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void saveXLinksManually() {
+    private void saveLinksManually() {
         String sourceUrl = webView.getUrl();
-        if (sourceUrl == null || SupportedSite.forUrl(sourceUrl) != SupportedSite.X) {
-            Toast.makeText(this, "Open an X thread or chat first", Toast.LENGTH_SHORT).show();
+        if (sourceUrl == null
+                || SupportedSite.validatedHttpsUrl(sourceUrl) == null
+                || SupportedSite.forUrl(sourceUrl) == SupportedSite.MEGA) {
+            Toast.makeText(this, "This page cannot save links", Toast.LENGTH_SHORT).show();
             return;
         }
         long requestId = xLinkRequestCounter.incrementAndGet();
         String script = "window.__speedyWatchController "
-                + "? window.__speedyWatchController.collectXLinks() : null";
+                + "? window.__speedyWatchController.collectPageLinks() : null";
         webView.evaluateJavascript(script, result -> {
             if (requestId != xLinkRequestCounter.get()
                     || sourceUrl == null
@@ -945,6 +947,7 @@ public final class MainActivity extends Activity {
         ioExecutor.execute(() -> {
             long now = System.currentTimeMillis();
             int added = 0;
+            List<Long> newIds = new ArrayList<>();
             List<String> newUrls = new ArrayList<>();
             Map<Long, String> shortLinks = new LinkedHashMap<>();
             for (ScrapedLinkCandidate candidate : candidates) {
@@ -959,6 +962,7 @@ public final class MainActivity extends Activity {
                 );
                 if (id > 0) {
                     added++;
+                    newIds.add(id);
                     newUrls.add(candidate.url);
                     if (ScrapedLinkStore.isShortLink(candidate.url)) {
                         shortLinks.put(id, candidate.url);
@@ -977,6 +981,21 @@ public final class MainActivity extends Activity {
                 }
                 expanded++;
             }
+            int previewLimit = Math.min(20, newIds.size());
+            for (int index = 0; index < previewLimit; index++) {
+                ScrapedLinkStore.Entry entry = scrapedLinkStore.get(newIds.get(index));
+                if (entry == null || entry.preview != null) {
+                    continue;
+                }
+                try {
+                    byte[] preview = OpenGraphPreview.fetch(entry.url);
+                    if (preview != null) {
+                        scrapedLinkStore.updatePreview(entry.id, preview);
+                    }
+                } catch (IOException ignored) {
+                    // Link saving remains successful when an optional preview is unavailable.
+                }
+            }
             final int savedCount = added;
             final List<String> copiedUrls = new ArrayList<>(newUrls);
             runOnUiThread(() -> {
@@ -989,7 +1008,7 @@ public final class MainActivity extends Activity {
                 if (savedCount == 0) {
                     Toast.makeText(
                             MainActivity.this,
-                            "No new X links on this page",
+                            "No new links on this page",
                             Toast.LENGTH_SHORT
                     ).show();
                     return;
@@ -997,7 +1016,7 @@ public final class MainActivity extends Activity {
                 ClipboardManager clipboard =
                         (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 clipboard.setPrimaryClip(ClipData.newPlainText(
-                        "X links", String.join("\n", copiedUrls)));
+                        "Links", String.join("\n", copiedUrls)));
                 Toast.makeText(
                         MainActivity.this,
                         "Saved " + savedCount
@@ -3698,8 +3717,8 @@ public final class MainActivity extends Activity {
             case LOCK_SCREEN:
                 setScreenLocked(true);
                 break;
-            case SAVE_X_LINKS:
-                saveXLinksManually();
+            case SAVE_LINKS:
+                saveLinksManually();
                 break;
             default:
                 break;

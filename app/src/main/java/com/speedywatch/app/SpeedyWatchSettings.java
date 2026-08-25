@@ -419,7 +419,7 @@ final class SpeedyWatchSettings {
                 : OmniButtonGesture.Direction.configurableValues()) {
             switch (direction) {
                 case UP:
-                    actions.put(direction, OmniButtonAction.SAVE_X_LINKS);
+                    actions.put(direction, OmniButtonAction.SAVE_LINKS);
                     break;
                 case UP_RIGHT:
                     actions.put(direction, OmniButtonAction.DOWNLOAD);

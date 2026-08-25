@@ -120,6 +120,12 @@ final class AppBackup {
                 if (link.postedAt != null) {
                     item.put("postedAt", link.postedAt);
                 }
+                if (link.preview != null) {
+                    item.put(
+                            "preview",
+                            Base64.getEncoder().encodeToString(link.preview)
+                    );
+                }
                 scrapedLinks.put(item);
             }
         }
@@ -322,10 +328,12 @@ final class AppBackup {
                     throw new JSONException("Backup X link is invalid");
                 }
                 String url = boundedString(link, "url", 4_000, false);
-                String key = ScrapedLinkStore.canonicalUrlKey(
-                        SupportedSite.validatedHttpsUrl(url));
-                if (key == null || key.isEmpty()) {
-                    throw new JSONException("Backup X link is invalid");
+                String validUrl = SupportedSite.validatedHttpsUrl(url);
+                String key = ScrapedLinkStore.canonicalUrlKey(validUrl);
+                if (validUrl == null
+                        || SupportedSite.forUrl(validUrl) == SupportedSite.MEGA
+                        || key == null || key.isEmpty()) {
+                    throw new JSONException("Backup link is invalid");
                 }
                 long firstSeenAt = link.optLong("firstSeenAt", -1);
                 long lastSeenAt = link.optLong("lastSeenAt", -1);
@@ -334,13 +342,16 @@ final class AppBackup {
                     long value = link.optLong("postedAt", -1);
                     postedAt = value > 0 ? value : null;
                 }
+                byte[] preview = link.has("preview")
+                        ? decodePreview(link)
+                        : null;
                 if (firstSeenAt <= 0 || lastSeenAt <= 0) {
-                    throw new JSONException("Backup X link is invalid");
+                    throw new JSONException("Backup link is invalid");
                 }
                 scrapedLinkRestores.add(new ScrapedLinkStore.Entry(
                         0,
                         key,
-                        url,
+                        validUrl,
                         link.has("displayText")
                                 ? boundedString(link, "displayText", 500, true) : "",
                         link.has("posterName")
@@ -349,7 +360,8 @@ final class AppBackup {
                                 ? boundedString(link, "sourceUrl", 2_000, true) : "",
                         postedAt,
                         firstSeenAt,
-                        lastSeenAt
+                        lastSeenAt,
+                        preview
                 ));
             }
         }
@@ -492,6 +504,23 @@ final class AppBackup {
             return thumbnail;
         } catch (IllegalArgumentException error) {
             throw new JSONException("Backup thumbnail is invalid");
+        }
+    }
+    private static byte[] decodePreview(JSONObject item) throws JSONException {
+        String encoded = boundedString(
+                item,
+                "preview",
+                ((SavedThumbnail.MAX_BYTES + 2) / 3) * 4,
+                false
+        );
+        try {
+            byte[] preview = Base64.getDecoder().decode(encoded);
+            if (preview.length == 0 || preview.length > SavedThumbnail.MAX_BYTES) {
+                throw new JSONException("Backup link preview is invalid");
+            }
+            return preview;
+        } catch (IllegalArgumentException error) {
+            throw new JSONException("Backup link preview is invalid");
         }
     }
 

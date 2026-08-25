@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 23) {
+    if (existing && existing.version === 25) {
         return "reused";
     }
 
@@ -692,6 +692,49 @@
             pageUrl: String(window.location.href).slice(0, 2000)
         });
     };
+    const collectPageLinks = () => {
+        if (onXSite()) {
+            return collectXLinks();
+        }
+        const anchors = document.querySelectorAll("a[href]");
+        const seen = {};
+        const links = [];
+        for (const anchor of anchors) {
+            if (links.length >= 500) {
+                break;
+            }
+            const rawHref = anchor.getAttribute("href") || "";
+            if (!rawHref || rawHref.startsWith("#")) {
+                continue;
+            }
+            let absoluteHref;
+            try {
+                absoluteHref = new URL(rawHref, window.location.href).href;
+            } catch (error) {
+                continue;
+            }
+            if (!/^https:\/\//i.test(absoluteHref) || seen[absoluteHref]) {
+                continue;
+            }
+            const bounds = anchor.getBoundingClientRect();
+            if (bounds.bottom <= 0 || bounds.top >= window.innerHeight
+                    || bounds.right <= 0 || bounds.left >= window.innerWidth) {
+                continue;
+            }
+            seen[absoluteHref] = true;
+            links.push({
+                url: absoluteHref.slice(0, 2000),
+                text: (anchor.textContent || "").replace(/\s+/g, " ").trim().slice(0, 500),
+                hint: "",
+                poster: "",
+                at: ""
+            });
+        }
+        return JSON.stringify({
+            links,
+            pageUrl: String(window.location.href).slice(0, 2000)
+        });
+    };
     // X posts and articles expose their content as rendered DOM text rather than
     // captions, so summarizing reads the visible self-thread or article body.
     const collectXPageText = () => {
@@ -973,9 +1016,10 @@
     };
 
     const api = {
-        version: 23,
+        version: 25,
         megaFolderName,
         collectXLinks,
+        collectPageLinks,
         collectXPageText,
         collectPageContent,
         facebookMedia,

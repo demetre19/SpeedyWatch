@@ -56,32 +56,61 @@ final class SavedThumbnail {
         if (thumbnailUrl == null) {
             return null;
         }
-        HttpURLConnection connection = (HttpURLConnection) new URL(thumbnailUrl).openConnection();
-        try {
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(10_000);
-            connection.setReadTimeout(15_000);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestProperty("Accept", "image/jpeg");
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                return null;
-            }
-            String contentType = connection.getContentType();
-            if (contentType == null || !contentType.toLowerCase(java.util.Locale.US).startsWith("image/")) {
-                return null;
-            }
-            int contentLength = connection.getContentLength();
-            if (contentLength > MAX_DOWNLOAD_BYTES) {
-                return null;
-            }
-            byte[] downloaded;
-            try (InputStream input = connection.getInputStream()) {
-                downloaded = readBounded(input);
-            }
-            return resize(downloaded);
-        } finally {
-            connection.disconnect();
+        return fetchImageUrl(thumbnailUrl);
+    }
+
+    /**
+     * Fetches and bounds an HTTPS image without sending WebView cookies. Redirects are
+     * followed only across validated public HTTPS URLs.
+     */
+    static byte[] fetchImageUrl(String imageUrl) throws IOException {
+        String current = SupportedSite.validatedHttpsUrl(imageUrl);
+        if (current == null || SupportedSite.forUrl(current) == SupportedSite.MEGA) {
+            return null;
         }
+        for (int redirect = 0; redirect <= 3; redirect++) {
+            HttpURLConnection connection = (HttpURLConnection) new URL(current).openConnection();
+            try {
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10_000);
+                connection.setReadTimeout(15_000);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("Accept", "image/*");
+                int responseCode = connection.getResponseCode();
+                if (responseCode >= 300 && responseCode < 400) {
+                    String location = connection.getHeaderField("Location");
+                    if (location == null) {
+                        return null;
+                    }
+                    URI resolved = URI.create(current).resolve(location);
+                    current = SupportedSite.validatedHttpsUrl(resolved.toString());
+                    if (current == null || SupportedSite.forUrl(current) == SupportedSite.MEGA) {
+                        return null;
+                    }
+                    continue;
+                }
+                if (responseCode != HttpURLConnection.HTTP_OK) {
+                    return null;
+                }
+                String contentType = connection.getContentType();
+                if (contentType == null
+                        || !contentType.toLowerCase(java.util.Locale.US).startsWith("image/")) {
+                    return null;
+                }
+                int contentLength = connection.getContentLength();
+                if (contentLength > MAX_DOWNLOAD_BYTES) {
+                    return null;
+                }
+                byte[] downloaded;
+                try (InputStream input = connection.getInputStream()) {
+                    downloaded = readBounded(input);
+                }
+                return resize(downloaded);
+            } finally {
+                connection.disconnect();
+            }
+        }
+        return null;
     }
 
     private static byte[] readBounded(InputStream input) throws IOException {
@@ -117,6 +146,7 @@ final class SavedThumbnail {
         if (source == null) {
             return null;
         }
+
         Bitmap target = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.RGB_565);
         try {
             Canvas canvas = new Canvas(target);

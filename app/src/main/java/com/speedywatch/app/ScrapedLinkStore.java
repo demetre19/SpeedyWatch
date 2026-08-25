@@ -15,9 +15,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * App-private store of links harvested from X threads and group chats. De-duplication is
- * enforced at the database level: every row is keyed by a canonical {@code url_key} and
- * re-encounters only refresh {@code last_seen_at} metadata instead of creating duplicates.
+ * App-private store of links harvested from visible pages. De-duplication is enforced at the
+ * database level: every row is keyed by a canonical {@code url_key} and re-encounters only
+ * refresh {@code last_seen_at} metadata instead of creating duplicates.
  */
 final class ScrapedLinkStore extends SQLiteOpenHelper {
 
@@ -29,7 +29,7 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
     static final long INVALID = -1;
 
     private static final String DATABASE_NAME = "scraped_links.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
     private static final String TABLE = "scraped_links";
 
     /** Query parameters that never change a link's identity. */
@@ -48,6 +48,7 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
         final Long postedAt;
         final long firstSeenAt;
         final long lastSeenAt;
+        final byte[] preview;
 
         Entry(
                 long id,
@@ -60,6 +61,22 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
                 long firstSeenAt,
                 long lastSeenAt
         ) {
+            this(id, urlKey, url, displayText, posterName, sourceUrl, postedAt,
+                    firstSeenAt, lastSeenAt, null);
+        }
+
+        Entry(
+                long id,
+                String urlKey,
+                String url,
+                String displayText,
+                String posterName,
+                String sourceUrl,
+                Long postedAt,
+                long firstSeenAt,
+                long lastSeenAt,
+                byte[] preview
+        ) {
             this.id = id;
             this.urlKey = urlKey;
             this.url = url;
@@ -69,6 +86,7 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
             this.postedAt = postedAt;
             this.firstSeenAt = firstSeenAt;
             this.lastSeenAt = lastSeenAt;
+            this.preview = preview == null ? null : preview.clone();
         }
 
         /** Display date used for grouping: the page-reported date, else first-seen. */
@@ -93,7 +111,8 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
                         + "source_url TEXT NOT NULL DEFAULT '',"
                         + "posted_at INTEGER,"
                         + "first_seen_at INTEGER NOT NULL,"
-                        + "last_seen_at INTEGER NOT NULL)"
+                        + "last_seen_at INTEGER NOT NULL,"
+                        + "preview BLOB)"
         );
         database.execSQL(
                 "CREATE INDEX scraped_links_dated_at ON " + TABLE + " ("
@@ -103,7 +122,9 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase database, int oldVersion, int newVersion) {
-        // Version 1; nothing to upgrade yet.
+        if (oldVersion < 2) {
+            database.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN preview BLOB");
+        }
     }
 
     /**
@@ -123,7 +144,7 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
             long seenAt
     ) {
         String resolved = resolveRealUrl(rawUrl, urlHint);
-        if (resolved == null) {
+        if (resolved == null || SupportedSite.forUrl(resolved) == SupportedSite.MEGA) {
             return INVALID;
         }
         String key = canonicalUrlKey(resolved);
@@ -159,7 +180,10 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
      */
     synchronized void updateExpandedUrl(long id, String expandedUrl) {
         String valid = SupportedSite.validatedHttpsUrl(expandedUrl);
-        String key = valid == null ? null : canonicalUrlKey(valid);
+        if (valid == null || SupportedSite.forUrl(valid) == SupportedSite.MEGA) {
+            return;
+        }
+        String key = canonicalUrlKey(valid);
         if (key == null || key.isEmpty()) {
             return;
         }
@@ -186,7 +210,7 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
                 TABLE,
                 new String[]{
                         "id", "url_key", "url", "display_text", "poster_name",
-                        "source_url", "posted_at", "first_seen_at", "last_seen_at"
+                        "source_url", "posted_at", "first_seen_at", "last_seen_at", "preview"
                 },
                 null,
                 null,
@@ -205,11 +229,33 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
                         cursor.getString(5),
                         cursor.isNull(6) ? null : postedAt,
                         cursor.getLong(7),
-                        cursor.getLong(8)
+                        cursor.getLong(8),
+                        cursor.getBlob(9)
                 ));
             }
         }
         return entries;
+    }
+
+    synchronized Entry get(long id) {
+        for (Entry entry : list()) {
+            if (entry.id == id) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    synchronized boolean updatePreview(long id, byte[] preview) {
+        if (id <= 0 || preview == null
+                || preview.length == 0 || preview.length > SavedThumbnail.MAX_BYTES) {
+            return false;
+        }
+        ContentValues values = new ContentValues();
+        values.put("preview", preview);
+        return getWritableDatabase().update(
+                TABLE, values, "id = ?", new String[]{Long.toString(id)}
+        ) == 1;
     }
 
     synchronized void delete(long id) {
@@ -239,6 +285,11 @@ final class ScrapedLinkStore extends SQLiteOpenHelper {
                 values.put("posted_at", entry.postedAt);
                 values.put("first_seen_at", entry.firstSeenAt);
                 values.put("last_seen_at", entry.lastSeenAt);
+                if (entry.preview != null
+                        && entry.preview.length > 0
+                        && entry.preview.length <= SavedThumbnail.MAX_BYTES) {
+                    values.put("preview", entry.preview);
+                }
                 database.insertWithOnConflict(
                         TABLE, null, values, SQLiteDatabase.CONFLICT_IGNORE
                 );
