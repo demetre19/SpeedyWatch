@@ -10,6 +10,24 @@ final class SpeedyWatchTests: XCTestCase {
         XCTAssertTrue(YouTubeURLPolicy.isTrustedCaption(try XCTUnwrap(URL(string: "https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ"))))
         XCTAssertFalse(YouTubeURLPolicy.isTrustedCaption(try XCTUnwrap(URL(string: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"))))
     }
+    func testXURLPolicyAllowsOnlyHTTPSFirstPartyHosts() throws {
+        XCTAssertTrue(XURLPolicy.isAllowedNavigation(try XCTUnwrap(URL(string: "https://x.com/home"))))
+        XCTAssertTrue(XURLPolicy.isAllowedNavigation(try XCTUnwrap(URL(string: "https://mobile.twitter.com/home"))))
+        XCTAssertFalse(XURLPolicy.isAllowedNavigation(try XCTUnwrap(URL(string: "http://x.com/home"))))
+        XCTAssertFalse(XURLPolicy.isAllowedNavigation(try XCTUnwrap(URL(string: "https://x.com.example.org/home"))))
+        XCTAssertFalse(XURLPolicy.isAllowedNavigation(try XCTUnwrap(URL(string: "https://example.org/"))))
+    }
+
+    func testXAdFilterRulesAreNarrowAndObserveDynamicSponsoredPosts() throws {
+        let data = try XCTUnwrap(XAdFilter.contentRuleListJSON.data(using: .utf8))
+        let rules = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+        XCTAssertEqual(rules.count, 1)
+        XCTAssertEqual((rules[0]["action"] as? [String: Any])?["type"] as? String, "block")
+        XCTAssertTrue(XAdFilter.contentRuleListJSON.contains("ads-api\\\\.twitter\\\\.com"))
+        XCTAssertTrue(XAdFilter.injectedScript.contains("placementTracking"))
+        XCTAssertTrue(XAdFilter.injectedScript.contains("MutationObserver"))
+    }
+
 
     func testVideoIDRequiresWatchURLAndElevenSafeCharacters() throws {
         XCTAssertEqual(

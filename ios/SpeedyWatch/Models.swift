@@ -229,6 +229,29 @@ enum AIRequestData {
 
 }
 
+enum XURLPolicy {
+    static func isAllowedNavigation(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
+            return url.scheme?.lowercased() == "about"
+        }
+        return isXHost(host)
+    }
+
+    static func isSupportedSource(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
+            return false
+        }
+        return isXHost(host)
+    }
+
+    private static func isXHost(_ host: String) -> Bool {
+        host == "x.com"
+            || host.hasSuffix(".x.com")
+            || host == "twitter.com"
+            || host.hasSuffix(".twitter.com")
+    }
+}
+
 enum YouTubeURLPolicy {
     static func isAllowedNavigation(_ url: URL) -> Bool {
         if url.scheme == "about" { return true }

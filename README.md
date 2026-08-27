@@ -177,13 +177,15 @@ Signing: Android debug signing key
 
 This public v0.43 APK is debug-signed with APK Signature Scheme v2. It adds bulk link cleanup: long-press any saved link to multi-select, select a whole domain in one tap from the domain list with counts, and delete them all at once.
 
-## Legacy mobile source
+## iOS source
 
-The [`ios/` folder](https://github.com/demetre19/SpeedyWatch/tree/main/ios) contains an old, unmaintained client retained only for historical reference. It is not the current version, receives no updates or support, and is not offered as a download.
+The [`ios/` folder](https://github.com/demetre19/SpeedyWatch/tree/main/ios)
+contains the SwiftUI iPhone development client. It retains the YouTube
+workflow and supports in-app X.com browsing with best-effort sponsored-post
+filtering. See [`ios/README.md`](ios/README.md) for build instructions and
+filtering limitations.
 
-**Android is the main and only maintained version of SpeedyWatch.**
-
-If you need a newer version of the legacy client, message the repository owner. It may be possible to provide one, but availability is not guaranteed.
+Android remains the only publicly downloadable SpeedyWatch release.
 
 ## OpenRouter setup
 

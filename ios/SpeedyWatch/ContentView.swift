@@ -13,11 +13,18 @@ private enum ActiveSheet: String, Identifiable {
     var id: String { rawValue }
 }
 
+private enum BrowserDestination: Equatable {
+    case youtube, x
+}
+
+
 struct ContentView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var summaries: SavedSummaryStore
     @EnvironmentObject private var webController: YouTubeWebController
 
+    @StateObject private var xController = XWebController()
+    @State private var destination: BrowserDestination = .youtube
     @State private var activeSheet: ActiveSheet?
     @State private var speed = 1.0
     @State private var customSpeed = "1"
@@ -31,16 +38,25 @@ struct ContentView: View {
             navigationBar
             ZStack(alignment: .top) {
                 YouTubeWebView(controller: webController)
-                if webController.isLoading {
+                    .opacity(destination == .youtube ? 1 : 0)
+                    .allowsHitTesting(destination == .youtube)
+                    .accessibilityHidden(destination != .youtube)
+                XWebView(controller: xController)
+                    .opacity(destination == .x ? 1 : 0)
+                    .allowsHitTesting(destination == .x)
+                    .accessibilityHidden(destination != .x)
+                if activeIsLoading {
                     ProgressView()
                         .controlSize(.small)
                         .padding(8)
                         .background(.black.opacity(0.75), in: Capsule())
                         .padding(.top, 8)
-                        .accessibilityLabel("Loading YouTube")
+                        .accessibilityLabel("Loading \(destination == .youtube ? "YouTube" : "X")")
                 }
             }
-            playbackControls
+            if destination == .youtube {
+                playbackControls
+            }
         }
         .background(Color.speedyBackground)
         .onAppear {
@@ -73,6 +89,7 @@ struct ContentView: View {
                     .environmentObject(webController)
             case .saved:
                 SavedSummariesView { url in
+                    destination = .youtube
                     webController.load(url)
                     activeSheet = nil
                 }
@@ -83,24 +100,27 @@ struct ContentView: View {
             }
         }
         .alert("SpeedyWatch", isPresented: Binding(
-            get: { webController.errorMessage != nil },
-            set: { if !$0 { webController.dismissError() } }
+            get: { activeErrorMessage != nil },
+            set: { if !$0 { dismissActiveError() } }
         )) {
-            Button("OK", role: .cancel) { webController.dismissError() }
+            Button("OK", role: .cancel) { dismissActiveError() }
         } message: {
-            Text(webController.errorMessage ?? "")
+            Text(activeErrorMessage ?? "")
         }
     }
 
     private var navigationBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
-                toolbarButton("house.fill", label: "YouTube home", action: webController.loadHome)
-                toolbarButton("chevron.backward", label: "Back", action: webController.goBack)
-                toolbarButton("chevron.forward", label: "Forward", action: webController.goForward)
-                toolbarButton("arrow.clockwise", label: "Reload", action: webController.reload)
-                toolbarButton("captions.bubble", label: "YouTube subtitles") { activeSheet = .transcript }
-                toolbarButton("questionmark.bubble", label: "Create video quiz") { activeSheet = .quiz }
+                toolbarButton("house.fill", label: "YouTube home") { showYouTube() }
+                toolbarButton("at", label: "X home") { showX() }
+                toolbarButton("chevron.backward", label: "Back", action: goBack)
+                toolbarButton("chevron.forward", label: "Forward", action: goForward)
+                toolbarButton("arrow.clockwise", label: "Reload", action: reload)
+                if destination == .youtube {
+                    toolbarButton("captions.bubble", label: "YouTube subtitles") { activeSheet = .transcript }
+                    toolbarButton("questionmark.bubble", label: "Create video quiz") { activeSheet = .quiz }
+                }
                 toolbarButton("bookmark", label: "Saved summaries and quizzes") { activeSheet = .saved }
                 toolbarButton("gearshape", label: "Settings") { activeSheet = .settings }
             }
@@ -108,6 +128,57 @@ struct ContentView: View {
         }
         .frame(height: 48)
         .background(Color.speedyBackground)
+    }
+
+
+    private var activeIsLoading: Bool {
+        destination == .youtube ? webController.isLoading : xController.isLoading
+    }
+
+    private var activeErrorMessage: String? {
+        destination == .youtube ? webController.errorMessage : xController.errorMessage
+    }
+
+    private func dismissActiveError() {
+        if destination == .youtube {
+            webController.dismissError()
+        } else {
+            xController.dismissError()
+        }
+    }
+
+    private func showYouTube() {
+        destination = .youtube
+        webController.loadHome()
+    }
+
+    private func showX() {
+        destination = .x
+        xController.loadHome()
+    }
+
+    private func goBack() {
+        if destination == .youtube {
+            webController.goBack()
+        } else {
+            xController.goBack()
+        }
+    }
+
+    private func goForward() {
+        if destination == .youtube {
+            webController.goForward()
+        } else {
+            xController.goForward()
+        }
+    }
+
+    private func reload() {
+        if destination == .youtube {
+            webController.reload()
+        } else {
+            xController.reload()
+        }
     }
 
     private var playbackControls: some View {

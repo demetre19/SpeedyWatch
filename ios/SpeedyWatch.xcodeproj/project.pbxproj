@@ -16,6 +16,7 @@
 		A10000000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Assets.xcassets */; };
 		A10000000000000000000009 /* speedywatch.js in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* speedywatch.js */; };
 		A1000000000000000000000A /* Backup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* Backup.swift */; };
+		A1000000000000000000000B /* XWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* XWebView.swift */; };
 		B10000000000000000000001 /* SpeedyWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* SpeedyWatchTests.swift */; };
 		C10000000000000000000001 /* SpeedyWatchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* SpeedyWatchUITests.swift */; };
 		D10000000000000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* ShareViewController.swift */; };
@@ -40,6 +41,7 @@
 		A2000000000000000000000B /* SpeedyWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpeedyWatch.entitlements; sourceTree = "<group>"; };
 		A2000000000000000000000C /* Backup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backup.swift; sourceTree = "<group>"; };
 		D20000000000000000000001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		A2000000000000000000000D /* XWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XWebView.swift; sourceTree = "<group>"; };
 		D20000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D20000000000000000000003 /* SpeedyWatchShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpeedyWatchShare.entitlements; sourceTree = "<group>"; };
 		D20000000000000000000004 /* SpeedyWatchShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SpeedyWatchShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -134,6 +136,7 @@
 				A20000000000000000000006 /* ContentView.swift */,
 				A20000000000000000000007 /* FeatureViews.swift */,
 				A2000000000000000000000C /* Backup.swift */,
+				A2000000000000000000000D /* XWebView.swift */,
 				A20000000000000000000008 /* Assets.xcassets */,
 				A2000000000000000000000B /* SpeedyWatch.entitlements */,
 			);
@@ -297,6 +300,7 @@
 				A10000000000000000000006 /* ContentView.swift in Sources */,
 				A10000000000000000000007 /* FeatureViews.swift in Sources */,
 				A1000000000000000000000A /* Backup.swift in Sources */,
+				A1000000000000000000000B /* XWebView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
