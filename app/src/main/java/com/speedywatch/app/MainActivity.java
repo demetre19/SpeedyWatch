@@ -342,6 +342,9 @@ public final class MainActivity extends Activity {
         String incomingPageUrl = incomingPageUrl(getIntent());
         if (incomingPageUrl != null) {
             updateSelectedSiteForUrl(incomingPageUrl);
+        } else if (getIntent() != null
+                && Intent.ACTION_VIEW.equals(getIntent().getAction())) {
+            Toast.makeText(this, "Open a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
             webView.loadUrl(incomingPageUrl == null ? HOME_URL : incomingPageUrl);
@@ -357,9 +360,10 @@ public final class MainActivity extends Activity {
         String pageUrl = incomingPageUrl(intent);
         if (pageUrl != null) {
             loadBrowsableUrl(pageUrl);
-        } else if (Intent.ACTION_SEND.equals(intent.getAction())
-                || Intent.ACTION_VIEW.equals(intent.getAction())) {
+        } else if (Intent.ACTION_SEND.equals(intent.getAction())) {
             Toast.makeText(this, "Share a valid public HTTPS link", Toast.LENGTH_SHORT).show();
+        } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            Toast.makeText(this, "Open a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -423,7 +427,11 @@ public final class MainActivity extends Activity {
         }
         if (Intent.ACTION_VIEW.equals(intent.getAction())) {
             Uri data = intent.getData();
-            return SupportedSite.browsableUrlFromText(data == null ? null : data.toString());
+            String raw = data == null ? null : data.toString();
+            if (raw != null && raw.toLowerCase(Locale.ROOT).startsWith("http://")) {
+                raw = "https://" + raw.substring(7);
+            }
+            return SupportedSite.browsableUrlFromText(raw);
         }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) {
             return null;

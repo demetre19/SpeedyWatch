@@ -17,7 +17,7 @@
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.43**, debug-signed |
+| Current public APK: **v0.44**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,11 +40,11 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.43.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.44.
 
 ### Browse the web with SpeedyWatch controls
 
-Open or share any public HTTPS page in SpeedyWatch. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it.
+Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
 
 DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams without a seekable timeline, and players that reject browser controls may remain unavailable. SpeedyWatch reports that directly rather than controlling the wrong media.
 
@@ -148,7 +148,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.43 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.44 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -166,16 +166,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.43
-Version code: 43
+Version: 0.44
+Version code: 44
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,528,961 bytes
-SHA-256: feef2fcaa270658d1ce5cf97349c44347ac1019fe97649832eeb459715d9d0bc
+APK size: 106,529,181 bytes
+SHA-256: d97c1f391fce8a42d5da19ca78c6fd3105354a03357299a8d9962cfe4811e008
 Signing: Android debug signing key
 ```
 
-This public v0.43 APK is debug-signed with APK Signature Scheme v2. It adds bulk link cleanup: long-press any saved link to multi-select, select a whole domain in one tap from the domain list with counts, and delete them all at once.
+This public v0.44 APK is debug-signed with APK Signature Scheme v2. It adds default browser support: set SpeedyWatch as your default browser in Android Settings, and links from other apps open directly in SpeedyWatch's WebView with http links automatically upgraded to https before validation.
 
 ## Legacy mobile source
 
