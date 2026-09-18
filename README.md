@@ -11,6 +11,31 @@
   <small>Installable Android APK.</small>
 </p>
 
+## What is SpeedyWatch?
+
+SpeedyWatch is an Android application designed to maximize the utility of web-based media and textual content. Its core philosophy is that a 60-minute video should not cost you 60 minutes. The system achieves this by integrating enhanced playback controls, LLM-driven content processing (summaries, quizzes, and guided navigation), and a robust media acquisition pipeline.
+
+The application functions as a specialized browser that injects a custom control layer into standard HTTPS pages and embedded frames, allowing users to manipulate HTML5 video and audio elements regardless of the host platform's native UI limitations.
+
+### Core Pillars
+
+**1. Enhanced Playback & Control**
+
+SpeedyWatch provides granular control over media playback speed, ranging from 0.25x to 4x in precise 0.1x increments. It features an Omnibutton—a draggable floating interface that maps gestures to specific actions like seeking, speed adjustment, and system functions. It also integrates SponsorBlock to automatically skip non-content segments in supported videos.
+
+**2. LLM Content Processing**
+
+Leveraging the OpenRouter API, SpeedyWatch transforms transcripts and video sources into actionable structured data:
+
+- **Summarization & Chat:** Generates structured summaries and supports follow-up questions.
+- **WatchPath:** An AI-guided navigation system that builds a focused playback route based on a user-defined goal and time budget.
+- **Video Quizzes:** Generates assessment questions from video content to verify comprehension.
+
+**3. Media Acquisition & Persistence**
+
+The app includes a background download engine powered by yt-dlp and FFmpeg, supporting MP3 and MP4 formats. It also maintains a local library of saved summaries, quizzes, and scraped links, supporting full-text search and versioned JSON backups.
+
+
 ## Download SpeedyWatch
 
 | Android |
