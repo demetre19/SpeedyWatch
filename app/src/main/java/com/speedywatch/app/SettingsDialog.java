@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.concurrent.ExecutorService;
 
 final class SettingsDialog {
@@ -111,6 +112,15 @@ final class SettingsDialog {
     private boolean omniButtonEnabled;
     private Button omniButtonConfigureButton;
     private TextView omniButtonSummary;
+    private int omniButtonColor;
+    private int omniIconColor;
+    private float omniOpacity;
+    private Button omniOpacityButton;
+    private LinearLayout omniButtonSwatches;
+    private LinearLayout omniIconSwatches;
+    private EditText omniButtonHexInput;
+    private EditText omniIconHexInput;
+    private boolean omniAppearanceUpdating;
     private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
             new EnumMap<>(OmniButtonGesture.Direction.class);
     private final EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -366,6 +376,38 @@ final class SettingsDialog {
         content.addView(omniButtonConfigureButton, matchWrap(0, 0));
         omniButtonSummary = text("", 12, MUTED);
         content.addView(omniButtonSummary, matchWrap(dp(8), 0));
+        omniButtonColor = settings.getOmniButtonColor();
+        omniIconColor = settings.getOmniIconColor();
+        omniOpacity = settings.getOmniButtonOpacity();
+        content.addView(label("Button color"), matchWrap(0, dp(6)));
+        omniButtonSwatches = horizontalLayout();
+        content.addView(omniButtonSwatches, matchWrap(0, dp(6)));
+        omniButtonHexInput = hexColorInput("Button color hex (e.g. #303030)");
+        bindHexInput(omniButtonHexInput, color -> {
+            omniButtonColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        content.addView(omniButtonHexInput, matchWrap(0, dp(8)));
+        content.addView(label("Icon color"), matchWrap(0, dp(6)));
+        omniIconSwatches = horizontalLayout();
+        content.addView(omniIconSwatches, matchWrap(0, dp(6)));
+        omniIconHexInput = hexColorInput("Icon color hex (e.g. #FFFFFF)");
+        bindHexInput(omniIconHexInput, color -> {
+            omniIconColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        content.addView(omniIconHexInput, matchWrap(0, dp(8)));
+        omniOpacityButton = button("");
+        omniOpacityButton.setOnClickListener(ignored -> {
+            omniOpacity = nextOmniOpacity(omniOpacity);
+            updateOmniOpacityButton();
+            saveImmediateSettings();
+        });
+        updateOmniOpacityButton();
+        content.addView(omniOpacityButton, matchWrap(0, dp(8)));
+        refreshOmniAppearanceUi();
         content.addView(
                 text(
                         "Swipe in any of eight directions. Hold for 350 ms before dragging; triple-tap still locks the screen.",
@@ -1465,6 +1507,7 @@ final class SettingsDialog {
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        settings.setOmniButtonAppearance(omniButtonColor, omniIconColor, omniOpacity);
         if (!settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts)) {
             Toast.makeText(
                     activity,
@@ -1502,6 +1545,132 @@ final class SettingsDialog {
         onSettingsSaved.run();
         showAutoSaved();
     }
+
+    private static final int[] OMNI_COLOR_PRESETS = {
+            0xFF303030, 0xFF000000, 0xFFFFFFFF, 0xFFFF0033, 0xFF1565C0, 0xFF2E7D32
+    };
+
+    private EditText hexColorInput(String hint) {
+        EditText input = new EditText(activity);
+        input.setHint(hint);
+        input.setHintTextColor(MUTED);
+        input.setTextColor(Color.WHITE);
+        input.setTextSize(14);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setPadding(dp(12), 0, dp(12), 0);
+        input.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        input.setMinHeight(dp(44));
+        return input;
+    }
+
+    private void refreshOmniAppearanceUi() {
+        omniAppearanceUpdating = true;
+        try {
+            omniButtonHexInput.setText(formatHexColor(omniButtonColor));
+            omniButtonHexInput.setError(null);
+            omniIconHexInput.setText(formatHexColor(omniIconColor));
+            omniIconHexInput.setError(null);
+        } finally {
+            omniAppearanceUpdating = false;
+        }
+        populateSwatches(omniButtonSwatches, omniButtonColor, color -> {
+            omniButtonColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        populateSwatches(omniIconSwatches, omniIconColor, color -> {
+            omniIconColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+    }
+
+    private void populateSwatches(LinearLayout row, int selected, IntConsumer onPick) {
+        row.removeAllViews();
+        for (int color : OMNI_COLOR_PRESETS) {
+            View swatch = new View(activity);
+            GradientDrawable shape = new GradientDrawable();
+            shape.setShape(GradientDrawable.OVAL);
+            shape.setColor(color);
+            shape.setStroke(dp(2), color == selected ? ACTIVE : Color.rgb(90, 90, 90));
+            swatch.setBackground(shape);
+            swatch.setContentDescription("Color " + formatHexColor(color));
+            swatch.setOnClickListener(ignored -> onPick.accept(color));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(36), dp(36));
+            params.setMarginEnd(dp(8));
+            row.addView(swatch, params);
+        }
+    }
+
+    private void bindHexInput(EditText input, IntConsumer onColor) {
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (omniAppearanceUpdating) {
+                    return;
+                }
+                Integer color = parseHexColor(editable.toString());
+                if (color == null) {
+                    input.setError("Use #RRGGBB or #AARRGGBB");
+                    return;
+                }
+                input.setError(null);
+                onColor.accept(color);
+            }
+        });
+    }
+
+    private static Integer parseHexColor(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (!trimmed.startsWith("#")) {
+            trimmed = "#" + trimmed;
+        }
+        if (trimmed.length() != 7 && trimmed.length() != 9) {
+            return null;
+        }
+        try {
+            return Color.parseColor(trimmed);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
+    }
+
+    private static String formatHexColor(int color) {
+        return String.format(Locale.US, "#%06X", color & 0xFFFFFF);
+    }
+
+    private float nextOmniOpacity(float current) {
+        int percent = Math.round(current * 100f);
+        if (percent < 40) {
+            return 0.5f;
+        }
+        if (percent < 65) {
+            return 0.75f;
+        }
+        if (percent < 90) {
+            return 1.0f;
+        }
+        return 0.25f;
+    }
+
+    private void updateOmniOpacityButton() {
+        omniOpacityButton.setText(
+                "Opacity: " + Math.round(omniOpacity * 100f) + "%"
+        );
+    }
+
 
     private void attachEditableAutoSave(EditText input) {
         input.addTextChangedListener(new SimpleTextWatcher() {
