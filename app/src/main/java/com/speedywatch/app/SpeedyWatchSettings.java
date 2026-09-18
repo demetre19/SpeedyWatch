@@ -54,6 +54,9 @@ final class SpeedyWatchSettings {
     private static final String OMNI_WEB_AMOUNT_PREFIX = "omni_web_amount_";
     private static final String OMNI_X_ACTION_PREFIX = "omni_x_action_";
     private static final String OMNI_X_AMOUNT_PREFIX = "omni_x_amount_";
+    private static final String OMNI_BUTTON_COLOR = "omni_button_color";
+    private static final String OMNI_ICON_COLOR = "omni_icon_color";
+    private static final String OMNI_OPACITY = "omni_opacity";
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
@@ -321,6 +324,31 @@ final class SpeedyWatchSettings {
 
     void setYouTubeShortsAsVideosEnabled(boolean enabled) {
         preferences.edit().putBoolean(YOUTUBE_SHORTS_AS_VIDEOS, enabled).apply();
+    int getOmniButtonColor() {
+        return preferences.getInt(OMNI_BUTTON_COLOR, 0xFF303030);
+    }
+
+    int getOmniIconColor() {
+        return preferences.getInt(OMNI_ICON_COLOR, 0xFFFFFFFF);
+    }
+
+    float getOmniButtonOpacity() {
+        return boundedOmniOpacity(preferences.getFloat(OMNI_OPACITY, 0.5f));
+    }
+
+    void setOmniButtonAppearance(int buttonColor, int iconColor, float opacity) {
+        preferences.edit()
+                .putInt(OMNI_BUTTON_COLOR, buttonColor)
+                .putInt(OMNI_ICON_COLOR, iconColor)
+                .putFloat(OMNI_OPACITY, boundedOmniOpacity(opacity))
+                .apply();
+    }
+
+    static float boundedOmniOpacity(float value) {
+        if (Float.isNaN(value)) {
+            return 0.5f;
+        }
+        return Math.max(0.2f, Math.min(1.0f, value));
     }
 
     OmniButtonAction getOmniButtonAction(OmniButtonGesture.Direction direction) {

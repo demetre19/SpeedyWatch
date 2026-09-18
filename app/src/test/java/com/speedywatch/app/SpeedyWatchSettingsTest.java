@@ -147,4 +147,12 @@ public final class SpeedyWatchSettingsTest {
         assertFalse(SpeedyWatchSettings.isStartPage(null));
     }
 
+    @Test
+    public void boundedOmniOpacity_clampsToVisibleRange() {
+        assertEquals(0.5f, SpeedyWatchSettings.boundedOmniOpacity(Float.NaN), 0.001f);
+        assertEquals(0.2f, SpeedyWatchSettings.boundedOmniOpacity(0.05f), 0.001f);
+        assertEquals(1.0f, SpeedyWatchSettings.boundedOmniOpacity(1.5f), 0.001f);
+        assertEquals(0.5f, SpeedyWatchSettings.boundedOmniOpacity(0.5f), 0.001f);
+    }
+
 }

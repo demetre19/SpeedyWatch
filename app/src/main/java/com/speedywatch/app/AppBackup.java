@@ -54,7 +54,10 @@ final class AppBackup {
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
                 .put("interactionCategoryEnabled", settings.skipsInteractionSegments())
                 .put("startPage", settings.getStartPage())
-                .put("shortsAsVideos", settings.isYouTubeShortsAsVideosEnabled());
+                .put("shortsAsVideos", settings.isYouTubeShortsAsVideosEnabled())
+                .put("omniButtonColor", settings.getOmniButtonColor())
+                .put("omniIconColor", settings.getOmniIconColor())
+                .put("omniOpacity", (double) settings.getOmniButtonOpacity());
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -420,6 +423,11 @@ final class AppBackup {
                 "shortsAsVideos",
                 settings.isYouTubeShortsAsVideosEnabled()
         ));
+        settings.setOmniButtonAppearance(
+                preferences.optInt("omniButtonColor", settings.getOmniButtonColor()),
+                preferences.optInt("omniIconColor", settings.getOmniIconColor()),
+                (float) preferences.optDouble("omniOpacity", settings.getOmniButtonOpacity())
+        );
         if (preferences.has("omniButtonGesturesWeb")) {
             settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts);
         }

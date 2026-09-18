@@ -3225,6 +3225,7 @@ public final class MainActivity extends Activity {
         pictureInPictureButton.setVisibility(shouldShowPictureInPictureButton()
                 ? View.VISIBLE : View.GONE);
         omniButton.setVisibility(!screenLocked && omniEnabled ? View.VISIBLE : View.GONE);
+        applyOmniButtonAppearance();
         updateOmniButtonContentDescription();
         positionFloatingControls();
         screenLockShield.bringToFront();
@@ -3241,6 +3242,16 @@ public final class MainActivity extends Activity {
                 && SpeedyWatchSettings.PIP_CONTROL_BUTTON.equals(
                         appSettings.getPictureInPictureControl()
                 );
+    }
+
+    private void applyOmniButtonAppearance() {
+        if (omniButton == null) {
+            return;
+        }
+        int buttonColor = appSettings.getOmniButtonColor();
+        setButtonBackground(omniButton, buttonColor, buttonColor, 0);
+        omniButton.setColorFilter(appSettings.getOmniIconColor());
+        omniButton.setAlpha(appSettings.getOmniButtonOpacity());
     }
 
     private void positionFloatingControls() {
