@@ -17,6 +17,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -217,6 +218,8 @@ public final class MainActivity extends Activity {
     private ImageButton siteButton;
     private volatile String activeMainFrameUrl = "";
     private volatile CapturedMediaRequest capturedMediaRequest;
+    private String loadingPageUrl;
+    private boolean pageLoadFailed;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -314,9 +317,18 @@ public final class MainActivity extends Activity {
                 }
             }
 
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                loadingPageUrl = url;
+                pageLoadFailed = false;
+            }
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (!pageLoadFailed || !url.equals(loadingPageUrl)) {
+                    appSettings.setLastErrorUrl("");
+                }
+                loadingPageUrl = null;
                 rememberMainFrameUrl(url);
                 injectController();
             }
@@ -326,6 +338,17 @@ public final class MainActivity extends Activity {
                 injectController();
             }
 
+            @Override
+            public void onReceivedHttpError(
+                    WebView view,
+                    WebResourceRequest request,
+                    WebResourceResponse errorResponse
+            ) {
+                if (request.isForMainFrame()) {
+                    pageLoadFailed = true;
+                    appSettings.setLastErrorUrl(request.getUrl().toString());
+                }
+            }
 
             @Override
             public void onReceivedError(
@@ -334,11 +357,12 @@ public final class MainActivity extends Activity {
                     WebResourceError error
             ) {
                 if (request.isForMainFrame()) {
+                    pageLoadFailed = true;
+                    appSettings.setLastErrorUrl(request.getUrl().toString());
                     Toast.makeText(MainActivity.this, "This site could not be loaded", Toast.LENGTH_SHORT).show();
                 }
             }
         });
-
         String incomingPageUrl = incomingPageUrl(getIntent());
         if (incomingPageUrl != null) {
             updateSelectedSiteForUrl(incomingPageUrl);
@@ -346,8 +370,13 @@ public final class MainActivity extends Activity {
                 && Intent.ACTION_VIEW.equals(getIntent().getAction())) {
             Toast.makeText(this, "Open a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
-        if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(incomingPageUrl == null ? HOME_URL : incomingPageUrl);
+        String startUrl = startPageUrl();
+        if (savedInstanceState == null || startUrl != null
+                || webView.restoreState(savedInstanceState) == null
+                || lastErrorUrlMatchesCurrent()) {
+            webView.loadUrl(incomingPageUrl == null
+                    ? (startUrl == null ? HOME_URL : startUrl)
+                    : incomingPageUrl);
         } else if (incomingPageUrl != null) {
             webView.loadUrl(incomingPageUrl);
         }
@@ -360,6 +389,8 @@ public final class MainActivity extends Activity {
         String pageUrl = incomingPageUrl(intent);
         if (pageUrl != null) {
             loadBrowsableUrl(pageUrl);
+        } else if (Intent.ACTION_MAIN.equals(intent.getAction()) && startPageUrl() != null) {
+            loadBrowsableUrl(startPageUrl());
         } else if (Intent.ACTION_SEND.equals(intent.getAction())) {
             Toast.makeText(this, "Share a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
@@ -1462,6 +1493,7 @@ public final class MainActivity extends Activity {
         if (button == null) {
             return;
         }
+
         button.setImageResource(selectedSite.iconResource);
         button.setContentDescription("Current site: " + selectedSite.label + ". Choose site");
         setButtonBackground(button, ACTIVE, ACTIVE, 0);
@@ -1491,6 +1523,27 @@ public final class MainActivity extends Activity {
         updateSelectedSiteForUrl(browsableUrl);
         webView.loadUrl(browsableUrl);
     }
+
+    private String startPageUrl() {
+        switch (appSettings.getStartPage()) {
+            case SpeedyWatchSettings.START_PAGE_YOUTUBE:
+                return SupportedSite.YOUTUBE.homeUrl;
+            case SpeedyWatchSettings.START_PAGE_X:
+                return SupportedSite.X.homeUrl;
+            default:
+                return null;
+        }
+    }
+
+    private boolean lastErrorUrlMatchesCurrent() {
+        String failed = appSettings.getLastErrorUrl();
+        if (failed.isEmpty()) {
+            return false;
+        }
+        String current = webView.getUrl();
+        return current != null && failed.equals(current);
+    }
+
 
     private void openExternalUrl(String value) {
         String httpsUrl = SupportedSite.validatedHttpsUrl(value);

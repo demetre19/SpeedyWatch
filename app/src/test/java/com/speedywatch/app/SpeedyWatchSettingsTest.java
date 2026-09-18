@@ -137,4 +137,14 @@ public final class SpeedyWatchSettingsTest {
         assertFalse(SpeedyWatchSettings.validOmniButtonBindings(actions, amounts));
     }
 
+    @Test
+    public void startPage_acceptsOnlyResumeYouTubeOrX() {
+        assertTrue(SpeedyWatchSettings.isStartPage(SpeedyWatchSettings.START_PAGE_RESUME));
+        assertTrue(SpeedyWatchSettings.isStartPage(SpeedyWatchSettings.START_PAGE_YOUTUBE));
+        assertTrue(SpeedyWatchSettings.isStartPage(SpeedyWatchSettings.START_PAGE_X));
+        assertFalse(SpeedyWatchSettings.isStartPage("web"));
+        assertFalse(SpeedyWatchSettings.isStartPage(""));
+        assertFalse(SpeedyWatchSettings.isStartPage(null));
+    }
+
 }

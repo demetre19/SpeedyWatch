@@ -103,6 +103,8 @@ final class SettingsDialog {
     private boolean scrapedLinksBackupEnabled;
     private Button autoScrapeXLinksButton;
     private boolean autoScrapeXLinksEnabled;
+    private Button startPageButton;
+    private String startPage;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button pictureInPictureControlButton;
@@ -246,8 +248,28 @@ final class SettingsDialog {
         root.addView(header);
 
         LinearLayout content = verticalLayout();
+        content.addView(text("Startup", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        startPage = settings.getStartPage();
+        startPageButton = button("");
+        startPageButton.setOnClickListener(ignored -> {
+            startPage = nextStartPage(startPage);
+            updateStartPageButton();
+            saveImmediateSettings();
+        });
+        updateStartPageButton();
+        content.addView(startPageButton, matchWrap(0, dp(8)));
+        content.addView(
+                text(
+                        "Choose where SpeedyWatch opens. Resume last page keeps your place; a site always starts fresh. Pages that failed to load never reopen.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+
         content.addView(text("Playback", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
         playbackProfile = settings.getPlaybackProfile();
+
         playbackProfileButton = button("");
         playbackProfileButton.setOnClickListener(ignored -> {
             playbackProfile = nextPlaybackProfile(playbackProfile);
@@ -1446,6 +1468,31 @@ final class SettingsDialog {
         );
     }
 
+    private String nextStartPage(String current) {
+        if (SpeedyWatchSettings.START_PAGE_YOUTUBE.equals(current)) {
+            return SpeedyWatchSettings.START_PAGE_X;
+        }
+        if (SpeedyWatchSettings.START_PAGE_X.equals(current)) {
+            return SpeedyWatchSettings.START_PAGE_RESUME;
+        }
+        return SpeedyWatchSettings.START_PAGE_YOUTUBE;
+    }
+
+    private String startPageLabel(String value) {
+        if (SpeedyWatchSettings.START_PAGE_YOUTUBE.equals(value)) {
+            return "YouTube";
+        }
+        if (SpeedyWatchSettings.START_PAGE_X.equals(value)) {
+            return "X";
+        }
+        return "Resume last page";
+    }
+
+    private void updateStartPageButton() {
+        startPageButton.setText("Start page: " + startPageLabel(startPage));
+    }
+
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -1465,6 +1512,7 @@ final class SettingsDialog {
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        settings.setStartPage(startPage);
         if (!settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts)) {
             Toast.makeText(
                     activity,
