@@ -55,6 +55,7 @@ final class AppBackup {
                 .put("interactionCategoryEnabled", settings.skipsInteractionSegments())
                 .put("startPage", settings.getStartPage())
                 .put("shortsAsVideos", settings.isYouTubeShortsAsVideosEnabled())
+                .put("hideShorts", settings.isYouTubeHideShortsEnabled())
                 .put("omniButtonColor", settings.getOmniButtonColor())
                 .put("omniIconColor", settings.getOmniIconColor())
                 .put("omniOpacity", (double) settings.getOmniButtonOpacity());
@@ -428,6 +429,10 @@ final class AppBackup {
                 preferences.optInt("omniIconColor", settings.getOmniIconColor()),
                 (float) preferences.optDouble("omniOpacity", settings.getOmniButtonOpacity())
         );
+        settings.setYouTubeHideShortsEnabled(preferences.optBoolean(
+                "hideShorts",
+                settings.isYouTubeHideShortsEnabled()
+        ));
         if (preferences.has("omniButtonGesturesWeb")) {
             settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts);
         }

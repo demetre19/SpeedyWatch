@@ -135,6 +135,7 @@ public final class MainActivity extends Activity {
     private LinearLayout speedControls;
     private View speedControlsContent;
     private View collapsedSpeedControlsRow;
+    private ImageButton collapsedSpeedRestoreButton;
     private View navigationControls;
     private LinearLayout watchPathControls;
     private TextView watchPathStatus;
@@ -296,7 +297,7 @@ public final class MainActivity extends Activity {
                 if (!request.isForMainFrame()) {
                     return false;
                 }
-                if (appSettings.isYouTubeShortsAsVideosEnabled()) {
+                if (appSettings.shouldRedirectShorts()) {
                     String watchUrl = YouTubeUrls.shortsVideoUrl(request.getUrl().toString());
                     if (watchUrl != null) {
                         view.loadUrl(watchUrl);
@@ -312,7 +313,7 @@ public final class MainActivity extends Activity {
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
-                if (appSettings.isYouTubeShortsAsVideosEnabled()) {
+                if (appSettings.shouldRedirectShorts()) {
                     String watchUrl = YouTubeUrls.shortsVideoUrl(url);
                     if (watchUrl != null) {
                         view.post(() -> view.loadUrl(watchUrl));
@@ -682,11 +683,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout collapsedRow = horizontalRow();
         collapsedRow.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        collapsedRow.addView(makeIconButton(
+        collapsedSpeedRestoreButton = makeIconButton(
                 R.drawable.ic_expand,
                 "Restore speed controls",
                 ignored -> applySpeedControlsCollapsed(false, true)
-        ));
+        );
+        collapsedRow.addView(collapsedSpeedRestoreButton);
         collapsedSpeedControlsRow = collapsedRow;
         speedControls.addView(collapsedRow);
 
@@ -1212,6 +1214,7 @@ public final class MainActivity extends Activity {
         String script = "(() => { const c = window.__speedyWatchController; "
                 + "if (!c) return 'missing'; "
                 + "c.setShortsAsVideos(" + appSettings.isYouTubeShortsAsVideosEnabled() + "); "
+                + "if (c.setHideShorts) c.setHideShorts(" + appSettings.isYouTubeHideShortsEnabled() + "); "
                 + "c.setSpeed(" + String.format(Locale.US, "%.2f", selectedSpeed) + "); "
                 + "c.setAdSkipping(true); "
                 + "c.setAdaptiveSpeed(" + appSettings.isAdaptiveSpeedEnabled() + ", "
@@ -3245,13 +3248,19 @@ public final class MainActivity extends Activity {
     }
 
     private void applyOmniButtonAppearance() {
-        if (omniButton == null) {
-            return;
-        }
         int buttonColor = appSettings.getOmniButtonColor();
-        setButtonBackground(omniButton, buttonColor, buttonColor, 0);
-        omniButton.setColorFilter(appSettings.getOmniIconColor());
-        omniButton.setAlpha(appSettings.getOmniButtonOpacity());
+        int iconColor = appSettings.getOmniIconColor();
+        float opacity = appSettings.getOmniButtonOpacity();
+        if (omniButton != null) {
+            setButtonBackground(omniButton, buttonColor, buttonColor, 0);
+            omniButton.setColorFilter(iconColor);
+            omniButton.setAlpha(opacity);
+        }
+        if (collapsedSpeedRestoreButton != null) {
+            setButtonBackground(collapsedSpeedRestoreButton, buttonColor, buttonColor, 0);
+            collapsedSpeedRestoreButton.setColorFilter(iconColor);
+            collapsedSpeedRestoreButton.setAlpha(opacity);
+        }
     }
 
     private void positionFloatingControls() {

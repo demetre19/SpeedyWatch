@@ -106,6 +106,8 @@ final class SettingsDialog {
     private boolean autoScrapeXLinksEnabled;
     private Button startPageButton;
     private String startPage;
+    private Button hideShortsButton;
+    private boolean hideShortsEnabled;
     private Button shortsAsVideosButton;
     private boolean shortsAsVideosEnabled;
     private Button lockIconToggleButton;
@@ -119,6 +121,7 @@ final class SettingsDialog {
     private int omniButtonColor;
     private int omniIconColor;
     private float omniOpacity;
+    private EditText omniOpacityInput;
     private Button omniOpacityButton;
     private LinearLayout omniButtonSwatches;
     private LinearLayout omniIconSwatches;
@@ -345,6 +348,23 @@ final class SettingsDialog {
                 ),
                 matchWrap(dp(2), dp(10))
         );
+        hideShortsEnabled = settings.isYouTubeHideShortsEnabled();
+        hideShortsButton = button("");
+        hideShortsButton.setOnClickListener(ignored -> {
+            hideShortsEnabled = !hideShortsEnabled;
+            updateHideShortsButton();
+            saveImmediateSettings();
+        });
+        updateHideShortsButton();
+        content.addView(hideShortsButton, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "Removes Shorts shelves, thumbnails, and tab entries from YouTube pages. Shorts links still open in the regular player.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
 
 
 
@@ -449,6 +469,38 @@ final class SettingsDialog {
         });
         updateOmniOpacityButton();
         content.addView(omniOpacityButton, matchWrap(0, dp(8)));
+        omniOpacityInput = hexColorInput("Opacity % (20-100)");
+        omniOpacityInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        omniOpacityInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (omniAppearanceUpdating) {
+                    return;
+                }
+                try {
+                    int percent = Integer.parseInt(editable.toString().trim());
+                    if (percent < 20 || percent > 100) {
+                        omniOpacityInput.setError("Enter 20 to 100");
+                        return;
+                    }
+                    omniOpacityInput.setError(null);
+                    omniOpacity = percent / 100f;
+                    updateOmniOpacityButton();
+                    saveImmediateSettings();
+                } catch (NumberFormatException error) {
+                    omniOpacityInput.setError("Enter 20 to 100");
+                }
+            }
+        });
+        content.addView(omniOpacityInput, matchWrap(0, dp(8)));
         refreshOmniAppearanceUi();
         content.addView(
                 text(
@@ -1562,6 +1614,13 @@ final class SettingsDialog {
                         : "Play Shorts as regular videos: Off"
         );
     }
+
+    private void updateHideShortsButton() {
+        hideShortsButton.setText(
+                hideShortsEnabled ? "Hide Shorts: On" : "Hide Shorts: Off"
+        );
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -1581,6 +1640,7 @@ final class SettingsDialog {
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
         settings.setYouTubeShortsAsVideosEnabled(shortsAsVideosEnabled);
+        settings.setYouTubeHideShortsEnabled(hideShortsEnabled);
         settings.setOmniButtonEnabled(omniButtonEnabled);
         settings.setStartPage(startPage);
         settings.setOmniButtonAppearance(omniButtonColor, omniIconColor, omniOpacity);
@@ -1647,6 +1707,7 @@ final class SettingsDialog {
             omniButtonHexInput.setError(null);
             omniIconHexInput.setText(formatHexColor(omniIconColor));
             omniIconHexInput.setError(null);
+            omniOpacityInput.setText(String.valueOf(Math.round(omniOpacity * 100f)));
         } finally {
             omniAppearanceUpdating = false;
         }

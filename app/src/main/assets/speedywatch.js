@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 26) {
+    if (existing && existing.version === 27) {
         return "reused";
     }
 
@@ -25,6 +25,7 @@
         megaBrowserChoiceAt: 0,
         lastFrameCaptionReportAt: 0,
         shortsAsVideos: false,
+        hideShorts: false,
         lastShortsRedirectAt: 0
     };
     const documentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden");
@@ -1000,7 +1001,7 @@
         return JSON.stringify({ url: "" });
     };
     const redirectShorts = () => {
-        if (!state.shortsAsVideos) {
+        if (!state.shortsAsVideos && !state.hideShorts) {
             return;
         }
         const host = window.location.hostname.toLowerCase();
@@ -1027,10 +1028,44 @@
             }
         }
     };
+    const HIDE_SHORTS_REMOVE_SELECTORS = [
+        "ytm-reel-shelf-renderer",
+        "ytd-reel-shelf-renderer",
+        "ytm-shorts-lockup-view-model",
+        "ytd-shorts-lockup-view-model",
+        "ytd-rich-item-renderer:has(a[href^='/shorts/'])",
+        "ytm-video-with-context-renderer:has(a[href^='/shorts/'])",
+        "ytm-rich-item-renderer:has(a[href^='/shorts/'])"
+    ];
+    const HIDE_SHORTS_DISPLAY_SELECTORS = [
+        "ytm-pivot-bar-item-renderer:has(a[href^='/shorts'])",
+        "ytd-mini-guide-entry-renderer:has(a[href^='/shorts'])",
+        "ytd-guide-entry-renderer:has(a[href^='/shorts'])",
+        "ytm-chip-cloud-chip-renderer:has(a[href^='/shorts'])"
+    ];
+    const hideShortsUi = () => {
+        if (!state.hideShorts) {
+            return;
+        }
+        const host = window.location.hostname.toLowerCase();
+        if (host !== "youtube.com" && !host.endsWith(".youtube.com")) {
+            return;
+        }
+        for (const selector of HIDE_SHORTS_REMOVE_SELECTORS) {
+            document.querySelectorAll(selector).forEach(node => node.remove());
+        }
+        for (const selector of HIDE_SHORTS_DISPLAY_SELECTORS) {
+            document.querySelectorAll(selector).forEach(node => {
+                node.style.display = "none";
+            });
+        }
+    };
+
 
     const tick = () => {
         state.pending = false;
         selectMegaBrowserChoice();
+        hideShortsUi();
         redirectShorts();
         removeFeedAds();
         if (!skipVideoAd()) {
@@ -1048,7 +1083,7 @@
     };
 
     const api = {
-        version: 26,
+        version: 27,
         megaFolderName,
         collectXLinks,
         collectPageLinks,
@@ -1094,6 +1129,11 @@
             state.shortsAsVideos = Boolean(enabled);
             tick();
             return state.shortsAsVideos;
+        },
+        setHideShorts(enabled) {
+            state.hideShorts = Boolean(enabled);
+            tick();
+            return state.hideShorts;
         },
         clearSponsorSegments() {
             state.sponsorSegments = [];

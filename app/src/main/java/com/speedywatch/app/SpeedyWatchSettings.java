@@ -63,6 +63,7 @@ final class SpeedyWatchSettings {
     private static final String START_PAGE = "start_page";
     private static final String LAST_ERROR_URL = "last_error_url";
     private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
+    private static final String YOUTUBE_HIDE_SHORTS = "youtube_hide_shorts";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -324,6 +325,20 @@ final class SpeedyWatchSettings {
 
     void setYouTubeShortsAsVideosEnabled(boolean enabled) {
         preferences.edit().putBoolean(YOUTUBE_SHORTS_AS_VIDEOS, enabled).apply();
+    }
+
+    boolean isYouTubeHideShortsEnabled() {
+        return preferences.getBoolean(YOUTUBE_HIDE_SHORTS, false);
+    }
+
+    void setYouTubeHideShortsEnabled(boolean enabled) {
+        preferences.edit().putBoolean(YOUTUBE_HIDE_SHORTS, enabled).apply();
+    }
+
+    boolean shouldRedirectShorts() {
+        return isYouTubeShortsAsVideosEnabled() || isYouTubeHideShortsEnabled();
+    }
+
     int getOmniButtonColor() {
         return preferences.getInt(OMNI_BUTTON_COLOR, 0xFF303030);
     }
