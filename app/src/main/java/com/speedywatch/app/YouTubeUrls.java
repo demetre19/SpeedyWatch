@@ -101,6 +101,28 @@ final class YouTubeUrls {
         }
     }
 
+    static String shortsVideoUrl(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(value.trim());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
+                return null;
+            }
+            String host = uri.getHost().toLowerCase(Locale.US);
+            if (!isYouTubeHost(host) || !"shorts".equals(pathSegment(uri.getPath(), 0))) {
+                return null;
+            }
+            String videoId = pathSegment(uri.getPath(), 1);
+            return isVideoId(videoId)
+                    ? "https://www.youtube.com/watch?v=" + videoId
+                    : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
     private static boolean isYouTubeHost(String host) {
         return "youtube.com".equals(host) || host.endsWith(".youtube.com");
     }

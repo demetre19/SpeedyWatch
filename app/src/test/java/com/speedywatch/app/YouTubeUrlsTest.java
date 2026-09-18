@@ -49,4 +49,22 @@ public final class YouTubeUrlsTest {
         assertNull(YouTubeUrls.searchOrVideoUrl("http://youtu.be/" + VIDEO_ID));
         assertNull(YouTubeUrls.searchOrVideoUrl("https://example.com/watch?v=" + VIDEO_ID));
     }
+
+    @Test
+    public void shortsVideoUrl_mapsOnlyShortsPagesToWatch() {
+        assertEquals(CANONICAL_URL, YouTubeUrls.shortsVideoUrl(
+                "https://www.youtube.com/shorts/" + VIDEO_ID
+        ));
+        assertEquals(CANONICAL_URL, YouTubeUrls.shortsVideoUrl(
+                "https://m.youtube.com/shorts/" + VIDEO_ID + "?feature=share"
+        ));
+        assertNull(YouTubeUrls.shortsVideoUrl("https://www.youtube.com/shorts"));
+        assertNull(YouTubeUrls.shortsVideoUrl("https://www.youtube.com/shorts/"));
+        assertNull(YouTubeUrls.shortsVideoUrl(CANONICAL_URL));
+        assertNull(YouTubeUrls.shortsVideoUrl("https://youtu.be/" + VIDEO_ID));
+        assertNull(YouTubeUrls.shortsVideoUrl("https://example.com/shorts/" + VIDEO_ID));
+        assertNull(YouTubeUrls.shortsVideoUrl("http://www.youtube.com/shorts/" + VIDEO_ID));
+        assertNull(YouTubeUrls.shortsVideoUrl(null));
+    }
+
 }

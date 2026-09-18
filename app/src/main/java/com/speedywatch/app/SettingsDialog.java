@@ -105,6 +105,8 @@ final class SettingsDialog {
     private boolean autoScrapeXLinksEnabled;
     private Button startPageButton;
     private String startPage;
+    private Button shortsAsVideosButton;
+    private boolean shortsAsVideosEnabled;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button pictureInPictureControlButton;
@@ -316,6 +318,24 @@ final class SettingsDialog {
                 matchWrap(dp(2), dp(10))
         );
         updateSponsorBlockButtons();
+        shortsAsVideosEnabled = settings.isYouTubeShortsAsVideosEnabled();
+        shortsAsVideosButton = button("");
+        shortsAsVideosButton.setOnClickListener(ignored -> {
+            shortsAsVideosEnabled = !shortsAsVideosEnabled;
+            updateShortsAsVideosButton();
+            saveImmediateSettings();
+        });
+        updateShortsAsVideosButton();
+        content.addView(shortsAsVideosButton, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "YouTube Shorts open in the regular player instead of the Shorts feed, so speed controls, captions, summaries, and downloads work on them.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+
 
 
         LinearLayout defaultSpeedRow = horizontalLayout();
@@ -1493,6 +1513,13 @@ final class SettingsDialog {
     }
 
 
+    private void updateShortsAsVideosButton() {
+        shortsAsVideosButton.setText(
+                shortsAsVideosEnabled
+                        ? "Play Shorts as regular videos: On"
+                        : "Play Shorts as regular videos: Off"
+        );
+    }
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -1511,6 +1538,7 @@ final class SettingsDialog {
         settings.setDefaultMp3Quality(defaultMp3Quality);
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
+        settings.setYouTubeShortsAsVideosEnabled(shortsAsVideosEnabled);
         settings.setOmniButtonEnabled(omniButtonEnabled);
         settings.setStartPage(startPage);
         if (!settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts)) {

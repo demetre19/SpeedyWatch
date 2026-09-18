@@ -296,6 +296,13 @@ public final class MainActivity extends Activity {
                 if (!request.isForMainFrame()) {
                     return false;
                 }
+                if (appSettings.isYouTubeShortsAsVideosEnabled()) {
+                    String watchUrl = YouTubeUrls.shortsVideoUrl(request.getUrl().toString());
+                    if (watchUrl != null) {
+                        view.loadUrl(watchUrl);
+                        return true;
+                    }
+                }
                 return openExternallyIfNeeded(request.getUrl());
             }
 
@@ -305,6 +312,12 @@ public final class MainActivity extends Activity {
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                if (appSettings.isYouTubeShortsAsVideosEnabled()) {
+                    String watchUrl = YouTubeUrls.shortsVideoUrl(url);
+                    if (watchUrl != null) {
+                        view.post(() -> view.loadUrl(watchUrl));
+                    }
+                }
                 rememberMainFrameUrl(url);
                 updateSelectedSiteForUrl(url);
                 clearObservedCaptionRequestForNavigation(url);
@@ -1198,6 +1211,7 @@ public final class MainActivity extends Activity {
         statusText.setText(formatRate(selectedSpeed) + " | applying");
         String script = "(() => { const c = window.__speedyWatchController; "
                 + "if (!c) return 'missing'; "
+                + "c.setShortsAsVideos(" + appSettings.isYouTubeShortsAsVideosEnabled() + "); "
                 + "c.setSpeed(" + String.format(Locale.US, "%.2f", selectedSpeed) + "); "
                 + "c.setAdSkipping(true); "
                 + "c.setAdaptiveSpeed(" + appSettings.isAdaptiveSpeedEnabled() + ", "
