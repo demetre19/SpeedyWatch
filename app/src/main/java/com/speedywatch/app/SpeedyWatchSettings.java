@@ -57,6 +57,8 @@ final class SpeedyWatchSettings {
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
+    private static final String START_PAGE = "start_page";
+    private static final String LAST_ERROR_URL = "last_error_url";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -66,6 +68,9 @@ final class SpeedyWatchSettings {
     static final String MP3_QUALITY_HIGH = "high";
     static final String MP3_QUALITY_STANDARD = "standard";
     static final String MP3_QUALITY_COMPACT = "compact";
+    static final String START_PAGE_RESUME = "resume";
+    static final String START_PAGE_YOUTUBE = "youtube";
+    static final String START_PAGE_X = "x";
     private static final String LEGACY_SUMMARY_ONE_PROMPT =
             "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
                     + "- A brief overview of the video topic (2-3 sentences)\n"
@@ -266,6 +271,39 @@ final class SpeedyWatchSettings {
 
     static boolean isPictureInPictureControl(String control) {
         return PIP_CONTROL_BUTTON.equals(control) || PIP_CONTROL_PINCH.equals(control);
+    }
+
+    String getStartPage() {
+        String saved = preferences.getString(START_PAGE, START_PAGE_RESUME);
+        return isStartPage(saved) ? saved : START_PAGE_RESUME;
+    }
+
+    void setStartPage(String startPage) {
+        preferences.edit()
+                .putString(
+                        START_PAGE,
+                        isStartPage(startPage) ? startPage : START_PAGE_RESUME
+                )
+                .apply();
+    }
+
+    static boolean isStartPage(String startPage) {
+        return START_PAGE_RESUME.equals(startPage)
+                || START_PAGE_YOUTUBE.equals(startPage)
+                || START_PAGE_X.equals(startPage);
+    }
+
+    String getLastErrorUrl() {
+        String saved = preferences.getString(LAST_ERROR_URL, "");
+        return saved == null ? "" : saved;
+    }
+
+    void setLastErrorUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            preferences.edit().remove(LAST_ERROR_URL).apply();
+            return;
+        }
+        preferences.edit().putString(LAST_ERROR_URL, url).apply();
     }
 
     boolean isOmniButtonEnabled() {
