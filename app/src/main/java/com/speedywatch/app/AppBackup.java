@@ -52,7 +52,8 @@ final class AppBackup {
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
-                .put("interactionCategoryEnabled", settings.skipsInteractionSegments());
+                .put("interactionCategoryEnabled", settings.skipsInteractionSegments())
+                .put("shortsAsVideos", settings.isYouTubeShortsAsVideosEnabled());
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -409,6 +410,10 @@ final class AppBackup {
         settings.setAutoScrapeXLinksEnabled(preferences.optBoolean(
                 "autoScrapeXLinks",
                 settings.isAutoScrapeXLinksEnabled()
+        ));
+        settings.setYouTubeShortsAsVideosEnabled(preferences.optBoolean(
+                "shortsAsVideos",
+                settings.isYouTubeShortsAsVideosEnabled()
         ));
         if (preferences.has("omniButtonGesturesWeb")) {
             settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts);

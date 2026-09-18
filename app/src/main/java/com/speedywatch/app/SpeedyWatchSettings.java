@@ -57,6 +57,7 @@ final class SpeedyWatchSettings {
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
+    private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -274,6 +275,14 @@ final class SpeedyWatchSettings {
 
     void setOmniButtonEnabled(boolean enabled) {
         preferences.edit().putBoolean(OMNI_BUTTON_ENABLED, enabled).apply();
+    }
+
+    boolean isYouTubeShortsAsVideosEnabled() {
+        return preferences.getBoolean(YOUTUBE_SHORTS_AS_VIDEOS, false);
+    }
+
+    void setYouTubeShortsAsVideosEnabled(boolean enabled) {
+        preferences.edit().putBoolean(YOUTUBE_SHORTS_AS_VIDEOS, enabled).apply();
     }
 
     OmniButtonAction getOmniButtonAction(OmniButtonGesture.Direction direction) {
