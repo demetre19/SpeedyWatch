@@ -340,6 +340,80 @@
         });
     };
 
+    // Checks one timeline cell for promoted-post signals and hides the whole
+    // cell when found. Signals (from live X mobile markup and the open-source
+    // twitter_cleaner extension):
+    // - an exact "Ad" / "Promoted" / "Sponsored" label outside tweetText in a
+    //   post that has X's caret menu (organic posts never carry this label);
+    // - a [data-testid="placementTracking"] node, which X only renders in
+    //   promoted posts.
+    const hideXAdCell = (cell, force) => {
+        if (cell.hasAttribute("data-speedywatch-x-ad-hidden")) {
+            return;
+        }
+        let matched = false;
+        if (force) {
+            matched = true;
+        } else {
+            const label = Array.from(cell.querySelectorAll("span")).some((node) => {
+                if (!/^(ad|promoted|sponsored)$/i.test((node.textContent || "").trim())) {
+                    return false;
+                }
+                return !node.closest('[data-testid="tweetText"]')
+                    && Boolean(cell.querySelector('[data-testid="caret"]'));
+            });
+            const placement = Boolean(cell.querySelector('[data-testid="placementTracking"]'));
+            matched = label || placement;
+        }
+        if (!matched) {
+            return;
+        }
+        cell.style.setProperty("display", "none", "important");
+        cell.setAttribute("data-speedywatch-x-ad-hidden", "true");
+    };
+
+    // inspects a node (or its subtree) for timeline cells the moment X adds
+    // them; this is the primary path because promoted cells can appear seconds
+    // after load with no further mutation or scrolling afterwards.
+    const scanXAdCells = (root) => {
+        if (!root || root.nodeType !== 1) {
+            return;
+        }
+        if (root.getAttribute && root.getAttribute("data-testid") === "cellInnerDiv") {
+            hideXAdCell(root);
+        }
+        root.querySelectorAll
+            && root.querySelectorAll('[data-testid="cellInnerDiv"]').forEach(hideXAdCell);
+    };
+
+    // Positional fallback: on mobile X the promoted slots land on a steady
+    // cadence (observed: every 5th timeline cell, starting with the 2nd).
+    // Signal-based hiding stays primary; this covers cells whose markers the
+    // markup does not expose. Ordinals count cells in current DOM order, so a
+    // re-scan after every insert batch keeps the cadence aligned.
+    const hideXAdsByPosition = () => {
+        const cells = document.querySelectorAll('[data-testid="cellInnerDiv"]');
+        for (let index = 1; index < cells.length; index += 5) {
+            hideXAdCell(cells[index], true);
+        }
+    };
+
+    const removeXFeedAds = (force) => {
+        if (!onXSite()) {
+            return;
+        }
+        // Full-document sweeps are the fallback: at most one per second while
+        // the viewport is settled. Delayed catch-up sweeps pass force=true.
+        const now = Date.now();
+        const scrolling = Date.now() - (state.xLastScrollAt || 0) < 350;
+        if (!force && (scrolling || now - (state.xAdSweptAt || 0) < 1000)) {
+            return;
+        }
+        state.xAdSweptAt = now;
+        scanXAdCells(document);
+        hideXAdsByPosition();
+    };
+
     const clickSkipButton = () => {
         const button = document.querySelector(
             ".ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern"
@@ -1001,6 +1075,7 @@
         state.pending = false;
         selectMegaBrowserChoice();
         removeFeedAds();
+        removeXFeedAds();
         if (!skipVideoAd()) {
             skipSponsorSegment();
             applySpeed();
@@ -1479,9 +1554,20 @@
     document.addEventListener("playing", scheduleTick, true);
     document.addEventListener("loadeddata", scheduleTick, true);
     document.addEventListener("ratechange", scheduleTick, true);
+    window.addEventListener("scroll", () => {
+        state.xLastScrollAt = Date.now();
+        scheduleTick();
+    }, { passive: true });
     document.addEventListener("yt-navigate-finish", scheduleTick, true);
 
-    const observer = new MutationObserver(scheduleTick);
+    const observer = new MutationObserver((mutations) => {
+        if (onXSite()) {
+            for (const mutation of mutations) {
+                mutation.addedNodes.forEach(scanXAdCells);
+            }
+        }
+        scheduleTick();
+    });
     const startObserver = () => {
         if (!document.documentElement) {
             return false;
@@ -1502,6 +1588,9 @@
         tick();
         reportFrameStatus();
     }, 500);
+    [1000, 3000, 5000].forEach((delay) => {
+        window.setTimeout(() => removeXFeedAds(true), delay);
+    });
     tick();
     reportFrameStatus();
     return "installed";

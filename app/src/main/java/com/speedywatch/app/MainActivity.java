@@ -245,7 +245,9 @@ public final class MainActivity extends Activity {
             );
         }
 
-        WebView.setWebContentsDebuggingEnabled(false);
+        WebView.setWebContentsDebuggingEnabled(
+                (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        );
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
