@@ -54,9 +54,16 @@ final class SpeedyWatchSettings {
     private static final String OMNI_WEB_AMOUNT_PREFIX = "omni_web_amount_";
     private static final String OMNI_X_ACTION_PREFIX = "omni_x_action_";
     private static final String OMNI_X_AMOUNT_PREFIX = "omni_x_amount_";
+    private static final String OMNI_BUTTON_COLOR = "omni_button_color";
+    private static final String OMNI_ICON_COLOR = "omni_icon_color";
+    private static final String OMNI_OPACITY = "omni_opacity";
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
+    private static final String START_PAGE = "start_page";
+    private static final String LAST_ERROR_URL = "last_error_url";
+    private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
+    private static final String YOUTUBE_HIDE_SHORTS = "youtube_hide_shorts";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -66,6 +73,9 @@ final class SpeedyWatchSettings {
     static final String MP3_QUALITY_HIGH = "high";
     static final String MP3_QUALITY_STANDARD = "standard";
     static final String MP3_QUALITY_COMPACT = "compact";
+    static final String START_PAGE_RESUME = "resume";
+    static final String START_PAGE_YOUTUBE = "youtube";
+    static final String START_PAGE_X = "x";
     private static final String LEGACY_SUMMARY_ONE_PROMPT =
             "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
                     + "- A brief overview of the video topic (2-3 sentences)\n"
@@ -268,12 +278,92 @@ final class SpeedyWatchSettings {
         return PIP_CONTROL_BUTTON.equals(control) || PIP_CONTROL_PINCH.equals(control);
     }
 
+    String getStartPage() {
+        String saved = preferences.getString(START_PAGE, START_PAGE_RESUME);
+        return isStartPage(saved) ? saved : START_PAGE_RESUME;
+    }
+
+    void setStartPage(String startPage) {
+        preferences.edit()
+                .putString(
+                        START_PAGE,
+                        isStartPage(startPage) ? startPage : START_PAGE_RESUME
+                )
+                .apply();
+    }
+
+    static boolean isStartPage(String startPage) {
+        return START_PAGE_RESUME.equals(startPage)
+                || START_PAGE_YOUTUBE.equals(startPage)
+                || START_PAGE_X.equals(startPage);
+    }
+
+    String getLastErrorUrl() {
+        String saved = preferences.getString(LAST_ERROR_URL, "");
+        return saved == null ? "" : saved;
+    }
+
+    void setLastErrorUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            preferences.edit().remove(LAST_ERROR_URL).apply();
+            return;
+        }
+        preferences.edit().putString(LAST_ERROR_URL, url).apply();
+    }
+
     boolean isOmniButtonEnabled() {
         return preferences.getBoolean(OMNI_BUTTON_ENABLED, false);
     }
 
     void setOmniButtonEnabled(boolean enabled) {
         preferences.edit().putBoolean(OMNI_BUTTON_ENABLED, enabled).apply();
+    }
+
+    boolean isYouTubeShortsAsVideosEnabled() {
+        return preferences.getBoolean(YOUTUBE_SHORTS_AS_VIDEOS, false);
+    }
+
+    void setYouTubeShortsAsVideosEnabled(boolean enabled) {
+        preferences.edit().putBoolean(YOUTUBE_SHORTS_AS_VIDEOS, enabled).apply();
+    }
+
+    boolean isYouTubeHideShortsEnabled() {
+        return preferences.getBoolean(YOUTUBE_HIDE_SHORTS, false);
+    }
+
+    void setYouTubeHideShortsEnabled(boolean enabled) {
+        preferences.edit().putBoolean(YOUTUBE_HIDE_SHORTS, enabled).apply();
+    }
+
+    boolean shouldRedirectShorts() {
+        return isYouTubeShortsAsVideosEnabled() || isYouTubeHideShortsEnabled();
+    }
+
+    int getOmniButtonColor() {
+        return preferences.getInt(OMNI_BUTTON_COLOR, 0xFF303030);
+    }
+
+    int getOmniIconColor() {
+        return preferences.getInt(OMNI_ICON_COLOR, 0xFFFFFFFF);
+    }
+
+    float getOmniButtonOpacity() {
+        return boundedOmniOpacity(preferences.getFloat(OMNI_OPACITY, 0.5f));
+    }
+
+    void setOmniButtonAppearance(int buttonColor, int iconColor, float opacity) {
+        preferences.edit()
+                .putInt(OMNI_BUTTON_COLOR, buttonColor)
+                .putInt(OMNI_ICON_COLOR, iconColor)
+                .putFloat(OMNI_OPACITY, boundedOmniOpacity(opacity))
+                .apply();
+    }
+
+    static float boundedOmniOpacity(float value) {
+        if (Float.isNaN(value)) {
+            return 0.5f;
+        }
+        return Math.max(0.2f, Math.min(1.0f, value));
     }
 
     OmniButtonAction getOmniButtonAction(OmniButtonGesture.Direction direction) {

@@ -17,6 +17,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -134,6 +135,7 @@ public final class MainActivity extends Activity {
     private LinearLayout speedControls;
     private View speedControlsContent;
     private View collapsedSpeedControlsRow;
+    private ImageButton collapsedSpeedRestoreButton;
     private View navigationControls;
     private LinearLayout watchPathControls;
     private TextView watchPathStatus;
@@ -217,6 +219,8 @@ public final class MainActivity extends Activity {
     private ImageButton siteButton;
     private volatile String activeMainFrameUrl = "";
     private volatile CapturedMediaRequest capturedMediaRequest;
+    private String loadingPageUrl;
+    private boolean pageLoadFailed;
 
     @Override
     @SuppressLint("SetJavaScriptEnabled")
@@ -295,6 +299,13 @@ public final class MainActivity extends Activity {
                 if (!request.isForMainFrame()) {
                     return false;
                 }
+                if (appSettings.shouldRedirectShorts()) {
+                    String watchUrl = YouTubeUrls.shortsVideoUrl(request.getUrl().toString());
+                    if (watchUrl != null) {
+                        view.loadUrl(watchUrl);
+                        return true;
+                    }
+                }
                 return openExternallyIfNeeded(request.getUrl());
             }
 
@@ -304,6 +315,12 @@ public final class MainActivity extends Activity {
             }
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                if (appSettings.shouldRedirectShorts()) {
+                    String watchUrl = YouTubeUrls.shortsVideoUrl(url);
+                    if (watchUrl != null) {
+                        view.post(() -> view.loadUrl(watchUrl));
+                    }
+                }
                 rememberMainFrameUrl(url);
                 updateSelectedSiteForUrl(url);
                 clearObservedCaptionRequestForNavigation(url);
@@ -316,9 +333,18 @@ public final class MainActivity extends Activity {
                 }
             }
 
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                loadingPageUrl = url;
+                pageLoadFailed = false;
+            }
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (!pageLoadFailed || !url.equals(loadingPageUrl)) {
+                    appSettings.setLastErrorUrl("");
+                }
+                loadingPageUrl = null;
                 rememberMainFrameUrl(url);
                 injectController();
             }
@@ -328,6 +354,17 @@ public final class MainActivity extends Activity {
                 injectController();
             }
 
+            @Override
+            public void onReceivedHttpError(
+                    WebView view,
+                    WebResourceRequest request,
+                    WebResourceResponse errorResponse
+            ) {
+                if (request.isForMainFrame()) {
+                    pageLoadFailed = true;
+                    appSettings.setLastErrorUrl(request.getUrl().toString());
+                }
+            }
 
             @Override
             public void onReceivedError(
@@ -336,17 +373,26 @@ public final class MainActivity extends Activity {
                     WebResourceError error
             ) {
                 if (request.isForMainFrame()) {
+                    pageLoadFailed = true;
+                    appSettings.setLastErrorUrl(request.getUrl().toString());
                     Toast.makeText(MainActivity.this, "This site could not be loaded", Toast.LENGTH_SHORT).show();
                 }
             }
         });
-
         String incomingPageUrl = incomingPageUrl(getIntent());
         if (incomingPageUrl != null) {
             updateSelectedSiteForUrl(incomingPageUrl);
+        } else if (getIntent() != null
+                && Intent.ACTION_VIEW.equals(getIntent().getAction())) {
+            Toast.makeText(this, "Open a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
-        if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(incomingPageUrl == null ? HOME_URL : incomingPageUrl);
+        String startUrl = startPageUrl();
+        if (savedInstanceState == null || startUrl != null
+                || webView.restoreState(savedInstanceState) == null
+                || lastErrorUrlMatchesCurrent()) {
+            webView.loadUrl(incomingPageUrl == null
+                    ? (startUrl == null ? HOME_URL : startUrl)
+                    : incomingPageUrl);
         } else if (incomingPageUrl != null) {
             webView.loadUrl(incomingPageUrl);
         }
@@ -359,9 +405,12 @@ public final class MainActivity extends Activity {
         String pageUrl = incomingPageUrl(intent);
         if (pageUrl != null) {
             loadBrowsableUrl(pageUrl);
-        } else if (Intent.ACTION_SEND.equals(intent.getAction())
-                || Intent.ACTION_VIEW.equals(intent.getAction())) {
+        } else if (Intent.ACTION_MAIN.equals(intent.getAction()) && startPageUrl() != null) {
+            loadBrowsableUrl(startPageUrl());
+        } else if (Intent.ACTION_SEND.equals(intent.getAction())) {
             Toast.makeText(this, "Share a valid public HTTPS link", Toast.LENGTH_SHORT).show();
+        } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            Toast.makeText(this, "Open a valid public HTTPS link", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -425,7 +474,11 @@ public final class MainActivity extends Activity {
         }
         if (Intent.ACTION_VIEW.equals(intent.getAction())) {
             Uri data = intent.getData();
-            return SupportedSite.browsableUrlFromText(data == null ? null : data.toString());
+            String raw = data == null ? null : data.toString();
+            if (raw != null && raw.toLowerCase(Locale.ROOT).startsWith("http://")) {
+                raw = "https://" + raw.substring(7);
+            }
+            return SupportedSite.browsableUrlFromText(raw);
         }
         if (!Intent.ACTION_SEND.equals(intent.getAction())) {
             return null;
@@ -632,11 +685,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout collapsedRow = horizontalRow();
         collapsedRow.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        collapsedRow.addView(makeIconButton(
+        collapsedSpeedRestoreButton = makeIconButton(
                 R.drawable.ic_expand,
                 "Restore speed controls",
                 ignored -> applySpeedControlsCollapsed(false, true)
-        ));
+        );
+        collapsedRow.addView(collapsedSpeedRestoreButton);
         collapsedSpeedControlsRow = collapsedRow;
         speedControls.addView(collapsedRow);
 
@@ -1161,6 +1215,8 @@ public final class MainActivity extends Activity {
         statusText.setText(formatRate(selectedSpeed) + " | applying");
         String script = "(() => { const c = window.__speedyWatchController; "
                 + "if (!c) return 'missing'; "
+                + "c.setShortsAsVideos(" + appSettings.isYouTubeShortsAsVideosEnabled() + "); "
+                + "if (c.setHideShorts) c.setHideShorts(" + appSettings.isYouTubeHideShortsEnabled() + "); "
                 + "c.setSpeed(" + String.format(Locale.US, "%.2f", selectedSpeed) + "); "
                 + "c.setAdSkipping(true); "
                 + "c.setAdaptiveSpeed(" + appSettings.isAdaptiveSpeedEnabled() + ", "
@@ -1456,6 +1512,7 @@ public final class MainActivity extends Activity {
         if (button == null) {
             return;
         }
+
         button.setImageResource(selectedSite.iconResource);
         button.setContentDescription("Current site: " + selectedSite.label + ". Choose site");
         setButtonBackground(button, ACTIVE, ACTIVE, 0);
@@ -1485,6 +1542,27 @@ public final class MainActivity extends Activity {
         updateSelectedSiteForUrl(browsableUrl);
         webView.loadUrl(browsableUrl);
     }
+
+    private String startPageUrl() {
+        switch (appSettings.getStartPage()) {
+            case SpeedyWatchSettings.START_PAGE_YOUTUBE:
+                return SupportedSite.YOUTUBE.homeUrl;
+            case SpeedyWatchSettings.START_PAGE_X:
+                return SupportedSite.X.homeUrl;
+            default:
+                return null;
+        }
+    }
+
+    private boolean lastErrorUrlMatchesCurrent() {
+        String failed = appSettings.getLastErrorUrl();
+        if (failed.isEmpty()) {
+            return false;
+        }
+        String current = webView.getUrl();
+        return current != null && failed.equals(current);
+    }
+
 
     private void openExternalUrl(String value) {
         String httpsUrl = SupportedSite.validatedHttpsUrl(value);
@@ -3152,6 +3230,7 @@ public final class MainActivity extends Activity {
         pictureInPictureButton.setVisibility(shouldShowPictureInPictureButton()
                 ? View.VISIBLE : View.GONE);
         omniButton.setVisibility(!screenLocked && omniEnabled ? View.VISIBLE : View.GONE);
+        applyOmniButtonAppearance();
         updateOmniButtonContentDescription();
         positionFloatingControls();
         screenLockShield.bringToFront();
@@ -3168,6 +3247,22 @@ public final class MainActivity extends Activity {
                 && SpeedyWatchSettings.PIP_CONTROL_BUTTON.equals(
                         appSettings.getPictureInPictureControl()
                 );
+    }
+
+    private void applyOmniButtonAppearance() {
+        int buttonColor = appSettings.getOmniButtonColor();
+        int iconColor = appSettings.getOmniIconColor();
+        float opacity = appSettings.getOmniButtonOpacity();
+        if (omniButton != null) {
+            setButtonBackground(omniButton, buttonColor, buttonColor, 0);
+            omniButton.setColorFilter(iconColor);
+            omniButton.setAlpha(opacity);
+        }
+        if (collapsedSpeedRestoreButton != null) {
+            setButtonBackground(collapsedSpeedRestoreButton, buttonColor, buttonColor, 0);
+            collapsedSpeedRestoreButton.setColorFilter(iconColor);
+            collapsedSpeedRestoreButton.setAlpha(opacity);
+        }
     }
 
     private void positionFloatingControls() {

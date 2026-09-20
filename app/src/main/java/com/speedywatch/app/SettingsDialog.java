@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.concurrent.ExecutorService;
 
 final class SettingsDialog {
@@ -103,6 +104,12 @@ final class SettingsDialog {
     private boolean scrapedLinksBackupEnabled;
     private Button autoScrapeXLinksButton;
     private boolean autoScrapeXLinksEnabled;
+    private Button startPageButton;
+    private String startPage;
+    private Button hideShortsButton;
+    private boolean hideShortsEnabled;
+    private Button shortsAsVideosButton;
+    private boolean shortsAsVideosEnabled;
     private Button lockIconToggleButton;
     private boolean lockIconEnabled;
     private Button pictureInPictureControlButton;
@@ -111,6 +118,16 @@ final class SettingsDialog {
     private boolean omniButtonEnabled;
     private Button omniButtonConfigureButton;
     private TextView omniButtonSummary;
+    private int omniButtonColor;
+    private int omniIconColor;
+    private float omniOpacity;
+    private EditText omniOpacityInput;
+    private Button omniOpacityButton;
+    private LinearLayout omniButtonSwatches;
+    private LinearLayout omniIconSwatches;
+    private EditText omniButtonHexInput;
+    private EditText omniIconHexInput;
+    private boolean omniAppearanceUpdating;
     private final EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
             new EnumMap<>(OmniButtonGesture.Direction.class);
     private final EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -246,8 +263,28 @@ final class SettingsDialog {
         root.addView(header);
 
         LinearLayout content = verticalLayout();
+        content.addView(text("Startup", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        startPage = settings.getStartPage();
+        startPageButton = button("");
+        startPageButton.setOnClickListener(ignored -> {
+            startPage = nextStartPage(startPage);
+            updateStartPageButton();
+            saveImmediateSettings();
+        });
+        updateStartPageButton();
+        content.addView(startPageButton, matchWrap(0, dp(8)));
+        content.addView(
+                text(
+                        "Choose where SpeedyWatch opens. Resume last page keeps your place; a site always starts fresh. Pages that failed to load never reopen.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+
         content.addView(text("Playback", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
         playbackProfile = settings.getPlaybackProfile();
+
         playbackProfileButton = button("");
         playbackProfileButton.setOnClickListener(ignored -> {
             playbackProfile = nextPlaybackProfile(playbackProfile);
@@ -294,6 +331,41 @@ final class SettingsDialog {
                 matchWrap(dp(2), dp(10))
         );
         updateSponsorBlockButtons();
+        shortsAsVideosEnabled = settings.isYouTubeShortsAsVideosEnabled();
+        shortsAsVideosButton = button("");
+        shortsAsVideosButton.setOnClickListener(ignored -> {
+            shortsAsVideosEnabled = !shortsAsVideosEnabled;
+            updateShortsAsVideosButton();
+            saveImmediateSettings();
+        });
+        updateShortsAsVideosButton();
+        content.addView(shortsAsVideosButton, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "YouTube Shorts open in the regular player instead of the Shorts feed, so speed controls, captions, summaries, and downloads work on them.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+        hideShortsEnabled = settings.isYouTubeHideShortsEnabled();
+        hideShortsButton = button("");
+        hideShortsButton.setOnClickListener(ignored -> {
+            hideShortsEnabled = !hideShortsEnabled;
+            updateHideShortsButton();
+            saveImmediateSettings();
+        });
+        updateHideShortsButton();
+        content.addView(hideShortsButton, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "Removes Shorts shelves, thumbnails, and tab entries from YouTube pages. Shorts links still open in the regular player.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+
 
 
         LinearLayout defaultSpeedRow = horizontalLayout();
@@ -366,6 +438,70 @@ final class SettingsDialog {
         content.addView(omniButtonConfigureButton, matchWrap(0, 0));
         omniButtonSummary = text("", 12, MUTED);
         content.addView(omniButtonSummary, matchWrap(dp(8), 0));
+        omniButtonColor = settings.getOmniButtonColor();
+        omniIconColor = settings.getOmniIconColor();
+        omniOpacity = settings.getOmniButtonOpacity();
+        content.addView(label("Button color"), matchWrap(0, dp(6)));
+        omniButtonSwatches = horizontalLayout();
+        content.addView(omniButtonSwatches, matchWrap(0, dp(6)));
+        omniButtonHexInput = hexColorInput("Button color hex (e.g. #303030)");
+        bindHexInput(omniButtonHexInput, color -> {
+            omniButtonColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        content.addView(omniButtonHexInput, matchWrap(0, dp(8)));
+        content.addView(label("Icon color"), matchWrap(0, dp(6)));
+        omniIconSwatches = horizontalLayout();
+        content.addView(omniIconSwatches, matchWrap(0, dp(6)));
+        omniIconHexInput = hexColorInput("Icon color hex (e.g. #FFFFFF)");
+        bindHexInput(omniIconHexInput, color -> {
+            omniIconColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        content.addView(omniIconHexInput, matchWrap(0, dp(8)));
+        omniOpacityButton = button("");
+        omniOpacityButton.setOnClickListener(ignored -> {
+            omniOpacity = nextOmniOpacity(omniOpacity);
+            updateOmniOpacityButton();
+            saveImmediateSettings();
+        });
+        updateOmniOpacityButton();
+        content.addView(omniOpacityButton, matchWrap(0, dp(8)));
+        omniOpacityInput = hexColorInput("Opacity % (20-100)");
+        omniOpacityInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        omniOpacityInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (omniAppearanceUpdating) {
+                    return;
+                }
+                try {
+                    int percent = Integer.parseInt(editable.toString().trim());
+                    if (percent < 20 || percent > 100) {
+                        omniOpacityInput.setError("Enter 20 to 100");
+                        return;
+                    }
+                    omniOpacityInput.setError(null);
+                    omniOpacity = percent / 100f;
+                    updateOmniOpacityButton();
+                    saveImmediateSettings();
+                } catch (NumberFormatException error) {
+                    omniOpacityInput.setError("Enter 20 to 100");
+                }
+            }
+        });
+        content.addView(omniOpacityInput, matchWrap(0, dp(8)));
+        refreshOmniAppearanceUi();
         content.addView(
                 text(
                         "Swipe in any of eight directions. Hold for 350 ms before dragging; triple-tap still locks the screen.",
@@ -1446,6 +1582,45 @@ final class SettingsDialog {
         );
     }
 
+    private String nextStartPage(String current) {
+        if (SpeedyWatchSettings.START_PAGE_YOUTUBE.equals(current)) {
+            return SpeedyWatchSettings.START_PAGE_X;
+        }
+        if (SpeedyWatchSettings.START_PAGE_X.equals(current)) {
+            return SpeedyWatchSettings.START_PAGE_RESUME;
+        }
+        return SpeedyWatchSettings.START_PAGE_YOUTUBE;
+    }
+
+    private String startPageLabel(String value) {
+        if (SpeedyWatchSettings.START_PAGE_YOUTUBE.equals(value)) {
+            return "YouTube";
+        }
+        if (SpeedyWatchSettings.START_PAGE_X.equals(value)) {
+            return "X";
+        }
+        return "Resume last page";
+    }
+
+    private void updateStartPageButton() {
+        startPageButton.setText("Start page: " + startPageLabel(startPage));
+    }
+
+
+    private void updateShortsAsVideosButton() {
+        shortsAsVideosButton.setText(
+                shortsAsVideosEnabled
+                        ? "Play Shorts as regular videos: On"
+                        : "Play Shorts as regular videos: Off"
+        );
+    }
+
+    private void updateHideShortsButton() {
+        hideShortsButton.setText(
+                hideShortsEnabled ? "Hide Shorts: On" : "Hide Shorts: Off"
+        );
+    }
+
     private Double readDefaultSpeed() {
         try {
             double speed = Double.parseDouble(defaultSpeedInput.getText().toString().trim());
@@ -1464,7 +1639,11 @@ final class SettingsDialog {
         settings.setDefaultMp3Quality(defaultMp3Quality);
         settings.setLockIconEnabled(lockIconEnabled);
         settings.setPictureInPictureControl(pictureInPictureControl);
+        settings.setYouTubeShortsAsVideosEnabled(shortsAsVideosEnabled);
+        settings.setYouTubeHideShortsEnabled(hideShortsEnabled);
         settings.setOmniButtonEnabled(omniButtonEnabled);
+        settings.setStartPage(startPage);
+        settings.setOmniButtonAppearance(omniButtonColor, omniIconColor, omniOpacity);
         if (!settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts)) {
             Toast.makeText(
                     activity,
@@ -1502,6 +1681,133 @@ final class SettingsDialog {
         onSettingsSaved.run();
         showAutoSaved();
     }
+
+    private static final int[] OMNI_COLOR_PRESETS = {
+            0xFF303030, 0xFF000000, 0xFFFFFFFF, 0xFFFF0033, 0xFF1565C0, 0xFF2E7D32
+    };
+
+    private EditText hexColorInput(String hint) {
+        EditText input = new EditText(activity);
+        input.setHint(hint);
+        input.setHintTextColor(MUTED);
+        input.setTextColor(Color.WHITE);
+        input.setTextSize(14);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setPadding(dp(12), 0, dp(12), 0);
+        input.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        input.setMinHeight(dp(44));
+        return input;
+    }
+
+    private void refreshOmniAppearanceUi() {
+        omniAppearanceUpdating = true;
+        try {
+            omniButtonHexInput.setText(formatHexColor(omniButtonColor));
+            omniButtonHexInput.setError(null);
+            omniIconHexInput.setText(formatHexColor(omniIconColor));
+            omniIconHexInput.setError(null);
+            omniOpacityInput.setText(String.valueOf(Math.round(omniOpacity * 100f)));
+        } finally {
+            omniAppearanceUpdating = false;
+        }
+        populateSwatches(omniButtonSwatches, omniButtonColor, color -> {
+            omniButtonColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+        populateSwatches(omniIconSwatches, omniIconColor, color -> {
+            omniIconColor = color;
+            refreshOmniAppearanceUi();
+            saveImmediateSettings();
+        });
+    }
+
+    private void populateSwatches(LinearLayout row, int selected, IntConsumer onPick) {
+        row.removeAllViews();
+        for (int color : OMNI_COLOR_PRESETS) {
+            View swatch = new View(activity);
+            GradientDrawable shape = new GradientDrawable();
+            shape.setShape(GradientDrawable.OVAL);
+            shape.setColor(color);
+            shape.setStroke(dp(2), color == selected ? ACTIVE : Color.rgb(90, 90, 90));
+            swatch.setBackground(shape);
+            swatch.setContentDescription("Color " + formatHexColor(color));
+            swatch.setOnClickListener(ignored -> onPick.accept(color));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(36), dp(36));
+            params.setMarginEnd(dp(8));
+            row.addView(swatch, params);
+        }
+    }
+
+    private void bindHexInput(EditText input, IntConsumer onColor) {
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (omniAppearanceUpdating) {
+                    return;
+                }
+                Integer color = parseHexColor(editable.toString());
+                if (color == null) {
+                    input.setError("Use #RRGGBB or #AARRGGBB");
+                    return;
+                }
+                input.setError(null);
+                onColor.accept(color);
+            }
+        });
+    }
+
+    private static Integer parseHexColor(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (!trimmed.startsWith("#")) {
+            trimmed = "#" + trimmed;
+        }
+        if (trimmed.length() != 7 && trimmed.length() != 9) {
+            return null;
+        }
+        try {
+            return Color.parseColor(trimmed);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
+    }
+
+    private static String formatHexColor(int color) {
+        return String.format(Locale.US, "#%06X", color & 0xFFFFFF);
+    }
+
+    private float nextOmniOpacity(float current) {
+        int percent = Math.round(current * 100f);
+        if (percent < 40) {
+            return 0.5f;
+        }
+        if (percent < 65) {
+            return 0.75f;
+        }
+        if (percent < 90) {
+            return 1.0f;
+        }
+        return 0.25f;
+    }
+
+    private void updateOmniOpacityButton() {
+        omniOpacityButton.setText(
+                "Opacity: " + Math.round(omniOpacity * 100f) + "%"
+        );
+    }
+
 
     private void attachEditableAutoSave(EditText input) {
         input.addTextChangedListener(new SimpleTextWatcher() {

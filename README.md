@@ -11,13 +11,38 @@
   <small>Installable Android APK.</small>
 </p>
 
+## What is SpeedyWatch?
+
+SpeedyWatch is an Android application designed to maximize the utility of web-based media and textual content. Its core philosophy is that a 60-minute video should not cost you 60 minutes. The system achieves this by integrating enhanced playback controls, LLM-driven content processing (summaries, quizzes, and guided navigation), and a robust media acquisition pipeline.
+
+The application functions as a specialized browser that injects a custom control layer into standard HTTPS pages and embedded frames, allowing users to manipulate HTML5 video and audio elements regardless of the host platform's native UI limitations.
+
+### Core Pillars
+
+**1. Enhanced Playback & Control**
+
+SpeedyWatch provides granular control over media playback speed, ranging from 0.25x to 4x in precise 0.1x increments. It features an Omnibutton—a draggable floating interface that maps gestures to specific actions like seeking, speed adjustment, and system functions. It also integrates SponsorBlock to automatically skip non-content segments in supported videos.
+
+**2. LLM Content Processing**
+
+Leveraging the OpenRouter API, SpeedyWatch transforms transcripts and video sources into actionable structured data:
+
+- **Summarization & Chat:** Generates structured summaries and supports follow-up questions.
+- **WatchPath:** An AI-guided navigation system that builds a focused playback route based on a user-defined goal and time budget.
+- **Video Quizzes:** Generates assessment questions from video content to verify comprehension.
+
+**3. Media Acquisition & Persistence**
+
+The app includes a background download engine powered by yt-dlp and FFmpeg, supporting MP3 and MP4 formats. It also maintains a local library of saved summaries, quizzes, and scraped links, supporting full-text search and versioned JSON backups.
+
+
 ## Download SpeedyWatch
 
 | Android |
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.43**, debug-signed |
+| Current public APK: **v0.45**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -40,11 +65,13 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.43.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.45.
 
 ### Browse the web with SpeedyWatch controls
 
-Open or share any public HTTPS page in SpeedyWatch. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it.
+Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
+
+Choose where SpeedyWatch starts with **Settings → Startup**: resume where you left off, or open straight to YouTube or X. A page that failed to load is never restored as your start page.
 
 DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams without a seekable timeline, and players that reject browser controls may remain unavailable. SpeedyWatch reports that directly rather than controlling the wrong media.
 
@@ -59,10 +86,14 @@ DRM, canvas/WebRTC-only players, blocked or sandboxed embeds, live streams witho
 
 The draggable Android **Omnibutton** keeps the shortcuts you use most under one thumb. Settings provides separate expandable **Web**, **YouTube**, and **X** gesture maps—never a combined “YouTube & other sites” profile—and switches maps automatically with the active page. Configure all eight directions independently for browser Back/Forward, Reload, Search, Share, playback speed, timed seeking, Play/Pause, Picture-in-Picture, Video Subs, summaries, Quiz, Download, Saved, Settings, screen lock, YouTube chapters, link saving, and more. Triple-tap locks the screen; hold briefly to move the button wherever it feels natural.
 
+Match the Omnibutton to your screen: pick button and icon colors from swatches or exact hex values, and dial opacity precisely anywhere from 20% to 100%. The collapsed speed-bar restore arrow follows the same style.
+
 
 ### Skip the dead time
 
 Spend less time on interruptions with best-effort YouTube ad skipping and optional SponsorBlock skips with **Undo**. Your chosen speed stays in place when regular pages, supported sites, or embedded frames reset their HTML5 player.
+
+Tame YouTube Shorts two ways: **Hide Shorts** removes their shelves, thumbnails, and tab entries from YouTube pages entirely, while **Play Shorts as regular videos** opens any Shorts link in the normal player with full speed controls, captions, summaries, and downloads.
 
 ## Find the exact answer
 
@@ -148,7 +179,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.43 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.45 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -160,22 +191,20 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 3. If Android asks, allow APK installation from your browser or file manager.
 4. Confirm the installation.
 
-### [Download SpeedyWatch.apk](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
-
 Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.43
-Version code: 43
+Version: 0.45
+Version code: 45
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,528,961 bytes
-SHA-256: feef2fcaa270658d1ce5cf97349c44347ac1019fe97649832eeb459715d9d0bc
+APK size: 106,546,045 bytes
+SHA-256: 27c664138ccbbaf15cc99d37ebadd88ac8275301764f9905fc2e56e082d3f6d4
 Signing: Android debug signing key
 ```
 
-This public v0.43 APK is debug-signed with APK Signature Scheme v2. It adds bulk link cleanup: long-press any saved link to multi-select, select a whole domain in one tap from the domain list with counts, and delete them all at once.
+This public v0.45 APK is debug-signed with APK Signature Scheme v2. It adds a Startup page setting (resume, YouTube, or X), Hide Shorts and Play Shorts as regular videos toggles, and Omnibutton appearance controls (button color, icon tint, precise 20–100% opacity) that also style the collapsed speed-bar restore arrow.
 
 ## iOS source
 
