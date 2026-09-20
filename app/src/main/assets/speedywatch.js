@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 27) {
+    if (existing && existing.version === 28) {
         return "reused";
     }
 
@@ -1136,8 +1136,35 @@
     };
 
 
+    // Many sites ship <meta name="viewport" content="... user-scalable=no,
+    // maximum-scale=1"> which Android WebView honors by disabling pinch zoom.
+    // Chrome ignores those directives; strip them here so pinch zoom works
+    // everywhere. Re-applied from tick() because SPAs rewrite the tag.
+    const unlockPageZoom = () => {
+        if (window.top !== window || !document.head) {
+            return;
+        }
+        const meta = document.head.querySelector("meta[name='viewport' i]");
+        if (!meta) {
+            return;
+        }
+        const content = meta.getAttribute("content");
+        if (content == null) {
+            return;
+        }
+        const kept = content.split(",")
+            .map((directive) => directive.trim())
+            .filter((directive) => directive.length > 0
+                && !/^(?:user-scalable|maximum-scale|minimum-scale)\b/i.test(directive));
+        const unlocked = kept.length > 0 ? kept.join(", ") : "width=device-width";
+        if (unlocked !== content) {
+            meta.setAttribute("content", unlocked);
+        }
+    };
+
     const tick = () => {
         state.pending = false;
+        unlockPageZoom();
         selectMegaBrowserChoice();
         hideShortsUi();
         redirectShorts();
@@ -1158,7 +1185,7 @@
     };
 
     const api = {
-        version: 27,
+        version: 28,
         megaFolderName,
         collectXLinks,
         collectPageLinks,

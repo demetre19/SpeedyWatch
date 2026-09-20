@@ -105,8 +105,11 @@ public final class SupportedSiteTest {
         assertEquals(9, sites.length);
         assertEquals(SupportedSite.WEB, sites[0]);
         assertEquals(SupportedSite.YOUTUBE, sites[1]);
-        assertEquals(SupportedSite.BILIBILI, sites[2]);
-        assertEquals(SupportedSite.FACEBOOK, sites[6]);
+        assertEquals(SupportedSite.X, sites[2]);
+        assertEquals(SupportedSite.INSTAGRAM, sites[3]);
+        assertEquals(SupportedSite.FACEBOOK, sites[4]);
+        assertEquals(SupportedSite.BILIBILI, sites[5]);
+        assertEquals(SupportedSite.VIMEO, sites[6]);
         assertEquals(SupportedSite.SOUNDCLOUD, sites[7]);
         assertEquals(SupportedSite.MEGA, sites[8]);
         assertTrue(SupportedSite.WEB.supportsKeywordSearch());

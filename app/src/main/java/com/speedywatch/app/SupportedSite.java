@@ -23,11 +23,11 @@ enum SupportedSite {
             "https://www.youtube.com/",
             "https://www.youtube.com/results?search_query="
     ),
-    BILIBILI(
-            R.drawable.ic_site_bilibili,
-            "BiliBili",
-            "https://www.bilibili.tv/en",
-            "https://www.bilibili.tv/en/search-result?q="
+    X(
+            R.drawable.ic_site_x,
+            "X",
+            "https://x.com/",
+            "https://x.com/search?src=typed_query&q="
     ),
     INSTAGRAM(
             R.drawable.ic_site_instagram,
@@ -35,23 +35,23 @@ enum SupportedSite {
             "https://www.instagram.com/",
             "https://www.instagram.com/explore/search/keyword/?q="
     ),
-    VIMEO(
-            R.drawable.ic_site_vimeo,
-            "Vimeo",
-            "https://vimeo.com/",
-            "https://vimeo.com/search?q="
-    ),
-    X(
-            R.drawable.ic_site_x,
-            "X",
-            "https://x.com/",
-            "https://x.com/search?src=typed_query&q="
-    ),
     FACEBOOK(
             R.drawable.ic_site_facebook,
             "Facebook",
             "https://www.facebook.com/",
             "https://www.facebook.com/search/videos/?q="
+    ),
+    BILIBILI(
+            R.drawable.ic_site_bilibili,
+            "BiliBili",
+            "https://www.bilibili.tv/en",
+            "https://www.bilibili.tv/en/search-result?q="
+    ),
+    VIMEO(
+            R.drawable.ic_site_vimeo,
+            "Vimeo",
+            "https://vimeo.com/",
+            "https://vimeo.com/search?q="
     ),
     SOUNDCLOUD(
             R.drawable.ic_site_soundcloud,
@@ -75,11 +75,11 @@ enum SupportedSite {
     private static final SupportedSite[] BROWSABLE_SITES = {
             WEB,
             YOUTUBE,
-            BILIBILI,
-            INSTAGRAM,
-            VIMEO,
             X,
+            INSTAGRAM,
             FACEBOOK,
+            BILIBILI,
+            VIMEO,
             SOUNDCLOUD,
             MEGA
     };
