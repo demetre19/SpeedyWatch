@@ -12,9 +12,24 @@ android {
         targetSdk = 36
         versionCode = 45
         versionName = "0.45"
+        manifestPlaceholders["appLabel"] = "SpeedyWatch"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Opt-in side-by-side install next to an existing SpeedyWatch:
+            // ./gradlew assembleDebug -PdevInstall
+            // Default debug builds keep the release package name so they
+            // update the installed app in place (same-machine debug key).
+            if (findProperty("devInstall") != null) {
+                applicationIdSuffix = ".debug"
+                versionNameSuffix = "-debug"
+                manifestPlaceholders["appLabel"] = "SpeedyWatch Dev"
+            }
         }
     }
 
