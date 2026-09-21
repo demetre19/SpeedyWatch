@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.45**, debug-signed |
+| Current public APK: **v0.46**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -65,11 +65,11 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.45.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.46.
 
 ### Browse the web with SpeedyWatch controls
 
-Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Saved, Settings, and screen lock stay available on regular pages—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
+Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Bookmark, Saved, Settings, and screen lock stay available on regular pages, and every page supports pinch zoom—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
 
 Choose where SpeedyWatch starts with **Settings → Startup**: resume where you left off, or open straight to YouTube or X. A page that failed to load is never restored as your start page.
 
@@ -130,7 +130,7 @@ Leave with answers you can find again.
 ### Keep and share what matters
 
 Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
-The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
+The **Bookmark** action—on the toolbar or the Omnibutton—saves the page you're reading into this library with an automatic Summary One digest and a preview image, so every saved page explains itself. The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
 Cleaning up is fast too: **long-press any link** to multi-select, use **Same domain** or the **Domain list** (every domain with counts) to grab a whole site's links at once, and delete them all with one confirmation.
 
 <p align="center">
@@ -179,7 +179,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.45 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.46 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -195,16 +195,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.45
-Version code: 45
+Version: 0.46
+Version code: 46
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,546,045 bytes
-SHA-256: 27c664138ccbbaf15cc99d37ebadd88ac8275301764f9905fc2e56e082d3f6d4
+APK size: 106,557,055 bytes
+SHA-256: 7e47a5b6b347460fd976ec521ffa9d265c99dd7c5332220b2dbf5401a3da359e
 Signing: Android debug signing key
 ```
 
-This public v0.45 APK is debug-signed with APK Signature Scheme v2. It adds a Startup page setting (resume, YouTube, or X), Hide Shorts and Play Shorts as regular videos toggles, and Omnibutton appearance controls (button color, icon tint, precise 20–100% opacity) that also style the collapsed speed-bar restore arrow.
+This public v0.46 APK is debug-signed with APK Signature Scheme v2. It adds one-tap page bookmarks (toolbar Bookmark icon or Omnibutton `Bookmark page`) that save any public HTTPS page into Saved with an automatic Summary One result and an Open Graph or favicon preview, enables pinch zoom on every page, and fixes a scroll-reset bug that made X feeds jump back to the top.
 
 ## iOS source
 
