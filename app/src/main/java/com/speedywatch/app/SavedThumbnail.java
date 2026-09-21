@@ -147,14 +147,35 @@ final class SavedThumbnail {
             return null;
         }
 
+        try {
+            return encodeBitmap(source, true);
+        } finally {
+            source.recycle();
+        }
+    }
+
+    /**
+     * Encodes an already-decoded bitmap (for example the WebView favicon) into the
+     * standard bounded preview. Cover-fit matches the downloaded-image path;
+     * contain-fit keeps small square icons legible on the black panel.
+     */
+    static byte[] encodeBitmap(Bitmap source, boolean cover) throws IOException {
+        if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
+            return null;
+        }
         Bitmap target = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.RGB_565);
         try {
             Canvas canvas = new Canvas(target);
             canvas.drawColor(android.graphics.Color.BLACK);
-            float scale = Math.max(
-                    WIDTH / (float) source.getWidth(),
-                    HEIGHT / (float) source.getHeight()
-            );
+            float scale = cover
+                    ? Math.max(
+                            WIDTH / (float) source.getWidth(),
+                            HEIGHT / (float) source.getHeight()
+                    )
+                    : Math.min(
+                            WIDTH / (float) source.getWidth(),
+                            HEIGHT / (float) source.getHeight()
+                    );
             float scaledWidth = source.getWidth() * scale;
             float scaledHeight = source.getHeight() * scale;
             Rect sourceBounds = new Rect(0, 0, source.getWidth(), source.getHeight());
@@ -166,21 +187,23 @@ final class SavedThumbnail {
             );
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
             canvas.drawBitmap(source, sourceBounds, destination, paint);
-
-            ByteArrayOutputStream output = new ByteArrayOutputStream(32 * 1024);
-            for (int quality : new int[]{78, 64, 50}) {
-                output.reset();
-                if (!target.compress(Bitmap.CompressFormat.JPEG, quality, output)) {
-                    throw new IOException("Video thumbnail could not be encoded");
-                }
-                if (output.size() <= MAX_BYTES) {
-                    return output.toByteArray();
-                }
-            }
-            return null;
+            return compressJpeg(target);
         } finally {
-            source.recycle();
             target.recycle();
         }
+    }
+
+    private static byte[] compressJpeg(Bitmap target) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream(32 * 1024);
+        for (int quality : new int[]{78, 64, 50}) {
+            output.reset();
+            if (!target.compress(Bitmap.CompressFormat.JPEG, quality, output)) {
+                throw new IOException("Video thumbnail could not be encoded");
+            }
+            if (output.size() <= MAX_BYTES) {
+                return output.toByteArray();
+            }
+        }
+        return null;
     }
 }

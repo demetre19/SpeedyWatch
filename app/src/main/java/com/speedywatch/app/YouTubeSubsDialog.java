@@ -1155,7 +1155,7 @@ final class YouTubeSubsDialog {
                 + transcript;
     }
 
-    private static String summaryCacheKey(
+    static String summaryCacheKey(
             String summaryName,
             String prompt,
             String modelId,

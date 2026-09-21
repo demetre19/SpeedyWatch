@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 28) {
+    if (existing && existing.version === 29) {
         return "reused";
     }
 
@@ -389,18 +389,6 @@
             && root.querySelectorAll('[data-testid="cellInnerDiv"]').forEach(hideXAdCell);
     };
 
-    // Positional fallback: on mobile X the promoted slots land on a steady
-    // cadence (observed: every 5th timeline cell, starting with the 2nd).
-    // Signal-based hiding stays primary; this covers cells whose markers the
-    // markup does not expose. Ordinals count cells in current DOM order, so a
-    // re-scan after every insert batch keeps the cadence aligned.
-    const hideXAdsByPosition = () => {
-        const cells = document.querySelectorAll('[data-testid="cellInnerDiv"]');
-        for (let index = 1; index < cells.length; index += 5) {
-            hideXAdCell(cells[index], true);
-        }
-    };
-
     const removeXFeedAds = (force) => {
         if (!onXSite()) {
             return;
@@ -414,7 +402,6 @@
         }
         state.xAdSweptAt = now;
         scanXAdCells(document);
-        hideXAdsByPosition();
     };
 
     const clickSkipButton = () => {
@@ -1185,8 +1172,7 @@
     };
 
     const api = {
-        version: 28,
-        megaFolderName,
+        version: 29,
         collectXLinks,
         collectPageLinks,
         collectXPageText,

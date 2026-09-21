@@ -266,7 +266,6 @@ public final class MainActivity extends Activity {
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
         installFrameController();
 
         CookieManager cookies = CookieManager.getInstance();
@@ -582,6 +581,11 @@ public final class MainActivity extends Activity {
                 R.drawable.ic_links,
                 "Save visible page links",
                 ignored -> saveLinksManually()
+        ));
+        navigation.addView(makeIconButton(
+                R.drawable.ic_bookmark_add,
+                "Bookmark this page with a summary",
+                ignored -> bookmarkCurrentPage()
         ));
         navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
@@ -1096,6 +1100,210 @@ public final class MainActivity extends Activity {
                         Toast.LENGTH_LONG
                 ).show();
             });
+        });
+    }
+
+    /**
+     * One-tap page bookmark: collects the active page's captions or readable text
+     * through the same pipeline Video Subs uses, generates Summary One (reusing
+     * the exact-context cache when eligible), and saves the result into Saved
+     * with the original URL plus an Open Graph or favicon preview. The bookmark
+     * still saves when summarization is unavailable so the page is never lost.
+     */
+    private void bookmarkCurrentPage() {
+        String pageUrl = webView.getUrl();
+        if (!SupportedSite.isShareablePageUrl(pageUrl)) {
+            Toast.makeText(this, "This page cannot be bookmarked", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (activeTranscriptCallback != null) {
+            Toast.makeText(
+                    this,
+                    "Finish the open captions request first",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
+        Bitmap favicon = webView.getFavicon();
+        String fallbackTitle = webView.getTitle() == null
+                ? "Web page" : webView.getTitle().trim();
+        String fallbackChannel;
+        try {
+            fallbackChannel = SavedSummaryStore.normalizeChannel(
+                    URI.create(pageUrl).getHost()
+            );
+        } catch (RuntimeException ignored) {
+            fallbackChannel = "";
+        }
+        String sourceLabel = transcriptHost().sourceLabel();
+        Toast.makeText(this, "Bookmarking this page...", Toast.LENGTH_SHORT).show();
+        final String savedFallbackTitle = fallbackTitle;
+        final String savedFallbackChannel = fallbackChannel;
+        requestTranscript("", new YouTubeSubsDialog.TranscriptCallback() {
+            @Override
+            public void onLoaded(
+                    List<TranscriptEntry> entries,
+                    String title,
+                    String url,
+                    String channel
+            ) {
+                runBookmarkSummary(
+                        entries,
+                        title,
+                        url,
+                        channel,
+                        sourceLabel,
+                        favicon
+                );
+            }
+
+            @Override
+            public void onError(String message) {
+                saveBookmark(
+                        savedFallbackTitle,
+                        pageUrl,
+                        savedFallbackChannel,
+                        "*Summary unavailable: " + message + "*",
+                        favicon
+                );
+            }
+        });
+    }
+
+    private void runBookmarkSummary(
+            List<TranscriptEntry> entries,
+            String title,
+            String url,
+            String channel,
+            String sourceLabel,
+            Bitmap favicon
+    ) {
+        String prompt = appSettings.getSummaryOnePrompt();
+        String modelId = appSettings.getModelId();
+        final String apiKey;
+        try {
+            apiKey = appSettings.getApiKey();
+        } catch (GeneralSecurityException error) {
+            saveBookmark(
+                    title,
+                    url,
+                    channel,
+                    "*Summary unavailable: stored API key could not be decrypted*",
+                    favicon
+            );
+            return;
+        }
+        if (prompt.trim().isEmpty() || modelId.trim().isEmpty() || apiKey.trim().isEmpty()) {
+            saveBookmark(
+                    title,
+                    url,
+                    channel,
+                    "*Summary unavailable: configure OpenRouter in Settings first*",
+                    favicon
+            );
+            return;
+        }
+        StringBuilder transcript = new StringBuilder();
+        for (TranscriptEntry entry : entries) {
+            String stamp = entry.timestamp();
+            transcript.append(stamp.isEmpty() ? "" : stamp + " ")
+                    .append(entry.text).append('\n');
+        }
+        String userMessage = "Source: " + sourceLabel + "\nTitle: "
+                + title
+                + "\nURL: "
+                + url
+                + "\n\nTranscript:\n"
+                + transcript;
+        String cacheKey = YouTubeSubsDialog.summaryCacheKey(
+                "Summary One",
+                prompt,
+                modelId,
+                url,
+                userMessage
+        );
+        String cached;
+        try {
+            cached = savedSummaryStore.loadCachedSummary(cacheKey);
+        } catch (RuntimeException ignored) {
+            cached = null;
+        }
+        if (cached != null) {
+            saveBookmark(title, url, channel, cached, favicon);
+            return;
+        }
+        ioExecutor.execute(() -> {
+            try {
+                String result = openRouterClient.summarize(apiKey, modelId, prompt, userMessage);
+                try {
+                    savedSummaryStore.cacheSummary(cacheKey, result);
+                } catch (RuntimeException ignored) {
+                    // A cache write failure must not prevent the bookmark save.
+                }
+                runOnUiThread(() -> saveBookmark(title, url, channel, result, favicon));
+            } catch (Exception error) {
+                String reason = error.getMessage() == null || error.getMessage().trim().isEmpty()
+                        ? "summary request failed"
+                        : error.getMessage().trim();
+                runOnUiThread(() -> saveBookmark(
+                        title,
+                        url,
+                        channel,
+                        "*Summary unavailable: " + reason + "*",
+                        favicon
+                ));
+            }
+        });
+    }
+
+    private void saveBookmark(
+            String title,
+            String url,
+            String channel,
+            String summaryText,
+            Bitmap favicon
+    ) {
+        String savedTitle = title == null || title.trim().isEmpty() ? "Web page" : title.trim();
+        String savedUrl = SupportedSite.validatedHttpsUrl(url);
+        if (savedUrl == null) {
+            Toast.makeText(this, "Bookmark could not be saved", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String savedChannel = SavedSummaryStore.normalizeChannel(channel);
+        ioExecutor.execute(() -> {
+            byte[] thumbnail = null;
+            try {
+                thumbnail = SavedThumbnail.fetch(savedUrl);
+                if (thumbnail == null) {
+                    thumbnail = OpenGraphPreview.fetch(savedUrl);
+                }
+                if (thumbnail == null && favicon != null) {
+                    thumbnail = SavedThumbnail.encodeBitmap(favicon, false);
+                }
+            } catch (IOException ignored) {
+                // A bookmark still saves when the optional preview is unavailable.
+            }
+            try {
+                savedSummaryStore.save(
+                        savedTitle,
+                        "Bookmark",
+                        summaryText,
+                        savedUrl,
+                        savedChannel,
+                        thumbnail
+                );
+                runOnUiThread(() -> Toast.makeText(
+                        MainActivity.this,
+                        "Bookmark saved",
+                        Toast.LENGTH_SHORT
+                ).show());
+            } catch (RuntimeException error) {
+                runOnUiThread(() -> Toast.makeText(
+                        MainActivity.this,
+                        "Bookmark could not be saved",
+                        Toast.LENGTH_LONG
+                ).show());
+            }
         });
     }
 
@@ -3831,6 +4039,9 @@ public final class MainActivity extends Activity {
                 break;
             case SAVE_LINKS:
                 saveLinksManually();
+                break;
+            case BOOKMARK:
+                bookmarkCurrentPage();
                 break;
             default:
                 break;
