@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.46**, debug-signed |
+| Current public APK: **v0.47**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -65,7 +65,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.46.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.47.
 
 ### Browse the web with SpeedyWatch controls
 
@@ -179,7 +179,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.46 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.47 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -195,16 +195,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.46
-Version code: 46
+Version: 0.47
+Version code: 47
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,557,055 bytes
-SHA-256: 7e47a5b6b347460fd976ec521ffa9d265c99dd7c5332220b2dbf5401a3da359e
+APK size: 106,557,971 bytes
+SHA-256: 8183e48453590ff3e03afbda26975bfd05f051871af4c2a70a548cd27f195ded
 Signing: Android debug signing key
 ```
 
-This public v0.46 APK is debug-signed with APK Signature Scheme v2. It adds one-tap page bookmarks (toolbar Bookmark icon or Omnibutton `Bookmark page`) that save any public HTTPS page into Saved with an automatic Summary One result and an Open Graph or favicon preview, enables pinch zoom on every page, and fixes a scroll-reset bug that made X feeds jump back to the top.
+This public v0.47 APK is debug-signed with APK Signature Scheme v2. It updates the bundled yt-dlp download engine to the official `2026.08.19` release so media format discovery and downloads keep working as supported services change their delivery, and automatically replaces the older private executable on first use without clearing app data.
 
 ## iOS source
 
@@ -281,7 +281,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## Open-source notices
 
-The Android app bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp) under the Unlicense and [youtubedl-android](https://github.com/yausername/youtubedl-android) under GNU GPLv3, including its FFmpeg-based media-processing package and transitive components under their respective licenses. The exact bundled yt-dlp release is `2026.07.04`; corresponding upstream source and license text are available from the linked projects. Review those licenses before redistributing a modified APK.
+The Android app bundles [yt-dlp](https://github.com/yt-dlp/yt-dlp) under the Unlicense and [youtubedl-android](https://github.com/yausername/youtubedl-android) under GNU GPLv3, including its FFmpeg-based media-processing package and transitive components under their respective licenses. The exact bundled yt-dlp release is `2026.08.19`; corresponding upstream source and license text are available from the linked projects. Review those licenses before redistributing a modified APK.
 
 Uses [SponsorBlock](https://sponsor.ajay.app/) data under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). SponsorBlock support is optional and read-only; SpeedyWatch does not submit or vote on segments.
 

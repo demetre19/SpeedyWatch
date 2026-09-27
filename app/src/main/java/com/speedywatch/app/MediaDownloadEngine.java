@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 
 final class MediaDownloadEngine {
     private static final Object INIT_LOCK = new Object();
-    private static final String BUNDLED_YTDLP_VERSION = "2026.07.04";
+    private static final String BUNDLED_YTDLP_VERSION = "2026.08.19";
     private static final String DOWNLOAD_PREFS = "download_engine";
     private static final String YTDLP_VERSION_KEY = "bundled_ytdlp_version";
     private static final long MAX_INFO_JSON_BYTES = 2L * 1024L * 1024L;
