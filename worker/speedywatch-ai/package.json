@@ -1,0 +1,11 @@
+{
+  "name": "speedywatch-ai-worker",
+  "private": true,
+  "cloudflare": {
+    "bindings": {
+      "AUTH_TOKEN": {
+        "description": "A long random password (at least 32 characters) that SpeedyWatch will use as its Access token. Invent your own and keep it — you will paste the same value into SpeedyWatch Settings."
+      }
+    }
+  }
+}
