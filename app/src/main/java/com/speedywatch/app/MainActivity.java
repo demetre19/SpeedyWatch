@@ -212,8 +212,6 @@ public final class MainActivity extends Activity {
     private int screenLockInsetRight;
     private int screenLockInsetBottom;
     private volatile YouTubeSubsDialog.TranscriptCallback activeTranscriptCallback;
-    private long pendingBookmarkRegenerationId;
-    private String pendingBookmarkRegenerationUrl;
     private volatile long activeTranscriptRequestId;
     private volatile boolean activeTranscriptDelivered;
     private volatile String activeTranscriptTitle = "YouTube Video";
@@ -361,7 +359,6 @@ public final class MainActivity extends Activity {
                 loadingPageUrl = null;
                 rememberMainFrameUrl(url);
                 injectController();
-                maybeRunPendingBookmarkRegeneration(url);
             }
 
             @Override
@@ -596,7 +593,7 @@ public final class MainActivity extends Activity {
         navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark_add,
                 "Bookmark this page with a summary",
-                ignored -> bookmarkCurrentPage(0)
+                ignored -> bookmarkCurrentPage()
         ));
         navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
@@ -1121,7 +1118,7 @@ public final class MainActivity extends Activity {
      * with the original URL plus an Open Graph or favicon preview. The bookmark
      * still saves when summarization is unavailable so the page is never lost.
      */
-    private void bookmarkCurrentPage(long replaceId) {
+    private void bookmarkCurrentPage() {
         String pageUrl = webView.getUrl();
         if (!SupportedSite.isShareablePageUrl(pageUrl)) {
             Toast.makeText(this, "This page cannot be bookmarked", Toast.LENGTH_SHORT).show();
@@ -1147,10 +1144,7 @@ public final class MainActivity extends Activity {
             fallbackChannel = "";
         }
         String sourceLabel = transcriptHost().sourceLabel();
-        Toast.makeText(this, replaceId > 0
-                ? "Regenerating this bookmark..." : "Bookmarking this page...",
-                Toast.LENGTH_SHORT).show();
-        final long savedReplaceId = replaceId;
+        Toast.makeText(this, "Bookmarking this page...", Toast.LENGTH_SHORT).show();
         final String savedFallbackTitle = fallbackTitle;
         final String savedFallbackChannel = fallbackChannel;
         requestTranscript("", new YouTubeSubsDialog.TranscriptCallback() {
@@ -1167,20 +1161,18 @@ public final class MainActivity extends Activity {
                         url,
                         channel,
                         sourceLabel,
-                        favicon,
-                        savedReplaceId
+                        favicon
                 );
             }
 
             @Override
             public void onError(String message) {
-                saveOrUpdateBookmark(
+                saveBookmark(
                         savedFallbackTitle,
                         pageUrl,
                         savedFallbackChannel,
                         "*Summary unavailable: " + message + "*",
-                        favicon,
-                        savedReplaceId
+                        favicon
                 );
             }
         });
@@ -1192,45 +1184,41 @@ public final class MainActivity extends Activity {
             String url,
             String channel,
             String sourceLabel,
-            Bitmap favicon,
-            long replaceId
+            Bitmap favicon
     ) {
         String prompt = appSettings.getSummaryOnePrompt();
         String modelId = appSettings.getModelId();
         String configurationProblem = appSettings.aiConfigurationError();
         final AiEndpoint endpoint;
         if (configurationProblem != null) {
-            saveOrUpdateBookmark(
+            saveBookmark(
                     title,
                     url,
                     channel,
                     "*Summary unavailable: " + configurationProblem.toLowerCase(java.util.Locale.US) + "*",
-                    favicon,
-                    replaceId
+                    favicon
             );
             return;
         }
         try {
             endpoint = appSettings.aiEndpoint();
         } catch (GeneralSecurityException error) {
-            saveOrUpdateBookmark(
+            saveBookmark(
                     title,
                     url,
                     channel,
                     "*Summary unavailable: stored AI credentials could not be decrypted*",
-                    favicon,
-                    replaceId
+                    favicon
             );
             return;
         }
         if (prompt.trim().isEmpty() || modelId.trim().isEmpty()) {
-            saveOrUpdateBookmark(
+            saveBookmark(
                     title,
                     url,
                     channel,
                     "*Summary unavailable: choose an AI model in Settings first*",
-                    favicon,
-                    replaceId
+                    favicon
             );
             return;
         }
@@ -1260,7 +1248,7 @@ public final class MainActivity extends Activity {
             cached = null;
         }
         if (cached != null) {
-            saveOrUpdateBookmark(title, url, channel, cached, favicon, replaceId);
+            saveBookmark(title, url, channel, cached, favicon);
             return;
         }
         ioExecutor.execute(() -> {
@@ -1271,31 +1259,88 @@ public final class MainActivity extends Activity {
                 } catch (RuntimeException ignored) {
                     // A cache write failure must not prevent the bookmark save.
                 }
-                runOnUiThread(() -> saveOrUpdateBookmark(
-                        title, url, channel, result, favicon, replaceId));
+                runOnUiThread(() -> saveBookmark(title, url, channel, result, favicon));
             } catch (Exception error) {
                 String reason = error.getMessage() == null || error.getMessage().trim().isEmpty()
                         ? "summary request failed"
                         : error.getMessage().trim();
-                runOnUiThread(() -> saveOrUpdateBookmark(
+                runOnUiThread(() -> saveBookmark(
                         title,
                         url,
                         channel,
                         "*Summary unavailable: " + reason + "*",
-                        favicon,
-                        replaceId
+                        favicon
                 ));
             }
         });
     }
 
-    private void saveOrUpdateBookmark(
+    private void regenerateBookmark(SavedSummaryStore.Entry entry) {
+        String prompt = appSettings.getSummaryOnePrompt();
+        String modelId = appSettings.getModelId();
+        String problem = appSettings.aiConfigurationError();
+        if (problem != null) {
+            Toast.makeText(this, problem, Toast.LENGTH_LONG).show();
+            return;
+        }
+        final AiEndpoint endpoint;
+        try {
+            endpoint = appSettings.aiEndpoint();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(this, "Stored AI credentials could not be decrypted", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (prompt.trim().isEmpty() || modelId.trim().isEmpty()) {
+            Toast.makeText(this, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, "Regenerating in the background...", Toast.LENGTH_SHORT).show();
+        ioExecutor.execute(() -> {
+            String description = PageDescription.fetch(entry.sourceUrl);
+            if (description == null || description.trim().isEmpty()) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        "Could not fetch this page in the background",
+                        Toast.LENGTH_LONG).show());
+                return;
+            }
+            String userMessage = "Source: " + entry.summaryLabel + "\nTitle: "
+                    + entry.videoTitle
+                    + "\nURL: "
+                    + entry.sourceUrl
+                    + "\n\nPage content:\n"
+                    + description;
+            try {
+                String result = openRouterClient.summarize(
+                        endpoint, modelId, prompt, userMessage);
+                byte[] thumbnail = null;
+                try {
+                    thumbnail = SavedThumbnail.fetch(entry.sourceUrl);
+                    if (thumbnail == null) {
+                        thumbnail = OpenGraphPreview.fetch(entry.sourceUrl);
+                    }
+                } catch (IOException ignored) {
+                    // The summary update still applies without a thumbnail.
+                }
+                boolean updated = savedSummaryStore.updateSummaryAndThumbnail(
+                        entry.id, result, thumbnail);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        updated ? "Bookmark summary regenerated"
+                                : "Bookmark could not be updated",
+                        Toast.LENGTH_SHORT).show());
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        "Still unavailable: try again later",
+                        Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private void saveBookmark(
             String title,
             String url,
             String channel,
             String summaryText,
-            Bitmap favicon,
-            long replaceId
+            Bitmap favicon
     ) {
         String savedTitle = title == null || title.trim().isEmpty() ? "Web page" : title.trim();
         String savedUrl = SupportedSite.validatedHttpsUrl(url);
@@ -1318,23 +1363,6 @@ public final class MainActivity extends Activity {
                 // A bookmark still saves when the optional preview is unavailable.
             }
             try {
-                if (replaceId > 0) {
-                    boolean updated = savedSummaryStore.updateSummaryAndThumbnail(
-                            replaceId,
-                            summaryText,
-                            thumbnail
-                    );
-                    runOnUiThread(() -> Toast.makeText(
-                            MainActivity.this,
-                            updated
-                                    ? (SavedSummaryStore.isSummaryUnavailable(summaryText)
-                                            ? "Still unavailable: try again later"
-                                            : "Bookmark summary regenerated")
-                                    : "Bookmark could not be updated",
-                            Toast.LENGTH_SHORT
-                    ).show());
-                    return;
-                }
                 savedSummaryStore.save(
                         savedTitle,
                         "Bookmark",
@@ -1356,40 +1384,6 @@ public final class MainActivity extends Activity {
                 ).show());
             }
         });
-    }
-
-    private void regenerateBookmark(SavedSummaryStore.Entry entry) {
-        if (entry == null
-                || SavedSummaryStore.isSupportedSourceUrl(entry.sourceUrl) == false) {
-            Toast.makeText(this, "This bookmark cannot be regenerated", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (activeTranscriptCallback != null) {
-            Toast.makeText(this, "Finish the open captions request first", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        pendingBookmarkRegenerationId = entry.id;
-        pendingBookmarkRegenerationUrl = entry.sourceUrl;
-        Toast.makeText(this, "Opening the page to regenerate...", Toast.LENGTH_SHORT).show();
-        loadBrowsableUrl(entry.sourceUrl);
-    }
-
-    private void maybeRunPendingBookmarkRegeneration(String url) {
-        long replaceId = pendingBookmarkRegenerationId;
-        if (replaceId <= 0 || pendingBookmarkRegenerationUrl == null || url == null) {
-            return;
-        }
-        if (!pendingBookmarkRegenerationUrl.equals(url)) {
-            return;
-        }
-        pendingBookmarkRegenerationId = 0;
-        pendingBookmarkRegenerationUrl = null;
-        // The controller was just injected; give the page a moment to settle.
-        webView.postDelayed(() -> {
-            if (activeTranscriptCallback == null) {
-                bookmarkCurrentPage(replaceId);
-            }
-        }, 1500);
     }
 
     private List<ScrapedLinkCandidate> parseXLinkResult(String result) {
@@ -4135,7 +4129,7 @@ public final class MainActivity extends Activity {
                 saveLinksManually();
                 break;
             case BOOKMARK:
-                bookmarkCurrentPage(0);
+                bookmarkCurrentPage();
                 break;
             default:
                 break;
