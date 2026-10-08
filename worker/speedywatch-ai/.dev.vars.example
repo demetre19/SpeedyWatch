@@ -1,3 +1,0 @@
-# Copy this file to .dev.vars and fill in your own value, or set the
-# AUTH_TOKEN secret during the Deploy to Cloudflare flow.
-AUTH_TOKEN=replace-with-a-long-random-password

@@ -1,6 +1,0 @@
-name = "speedywatch-ai"
-main = "worker.js"
-compatibility_date = "2024-12-01"
-
-[ai]
-binding = "AI"
