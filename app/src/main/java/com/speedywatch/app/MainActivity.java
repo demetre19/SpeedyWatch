@@ -1302,7 +1302,8 @@ public final class MainActivity extends Activity {
         ioExecutor.execute(() -> {
             String description = PageDescription.fetch(this, entry.sourceUrl);
             if (description == null || description.trim().isEmpty()) {
-                callback.onDone(false, null, null, "could not fetch this page in the background");
+                runOnUiThread(() -> callback.onDone(
+                        false, null, null, "could not fetch this page in the background"));
                 return;
             }
             String userMessage = "Source: " + entry.summaryLabel + "\nTitle: "
