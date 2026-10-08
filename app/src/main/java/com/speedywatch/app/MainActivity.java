@@ -2189,7 +2189,7 @@ public final class MainActivity extends Activity {
                             SavedSummaryStore.Entry entry,
                             SavedSummariesDialog.Host.RegenerateCallback callback
                     ) {
-                        regenerateBookmark(entry, callback);
+                        MainActivity.this.regenerateBookmark(entry, callback);
                     }
                 }
         ).show();
