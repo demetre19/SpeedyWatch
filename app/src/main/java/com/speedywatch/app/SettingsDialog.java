@@ -1108,12 +1108,17 @@ final class SettingsDialog {
                 + "on the right side of the page, come back to this app, and paste it "
                 + "into the Account ID field. ",
                 "Go here for the Account ID", CLOUDFLARE_WORKERS_URL));
-        content.addView(guideStep(3, "Go here: tap Create Token, then Create Custom "
-                + "Token, set Permissions to Account / Workers AI / Edit, continue, "
-                + "and create. The token is shown only once — copy it, come back to "
-                + "this app, paste it into the API token field, and tap "
-                + "Check connection. ",
+        content.addView(guideStep(3, "Go here: tap Create Token, then "
+                + "Create Custom Token. ",
                 "Go here for the API token", CLOUDFLARE_API_TOKENS_URL));
+        content.addView(guideStep(4, "Set the permissions — edit the very top row only, "
+                + "the one that starts with Account. That row is wider than the screen: "
+                + "SCROLL it sideways (swipe left on the row itself). Tap the search "
+                + "bar, type Workers AI and pick it, then scroll right again and tap "
+                + "the last dropdown — choose Edit."));
+        content.addView(guideStep(5, "Tap Continue and Create. The token is shown only "
+                + "once — copy it, come back to this app, paste it into the API token "
+                + "field, and tap Check connection."));
 
         content.addView(text(
                 "Free plan: about 10,000 AI credits per day for this account, "
