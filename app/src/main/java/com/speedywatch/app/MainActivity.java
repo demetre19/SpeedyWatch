@@ -1296,7 +1296,6 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
-        Toast.makeText(this, "Regenerating in the background...", Toast.LENGTH_SHORT).show();
         ioExecutor.execute(() -> {
             String description = PageDescription.fetch(this, entry.sourceUrl);
             if (description == null || description.trim().isEmpty()) {
@@ -1323,15 +1322,14 @@ public final class MainActivity extends Activity {
                 } catch (IOException ignored) {
                     // The summary update still applies without a thumbnail.
                 }
-                boolean updated = savedSummaryStore.updateSummaryAndThumbnail(
+                savedSummaryStore.updateSummaryAndThumbnail(
                         entry.id, result, thumbnail);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        updated ? "Bookmark summary regenerated"
-                                : "Bookmark could not be updated",
-                        Toast.LENGTH_SHORT).show());
             } catch (Exception error) {
+                String reason = error.getMessage() == null
+                        || error.getMessage().trim().isEmpty()
+                        ? "request failed" : error.getMessage().trim();
                 runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        "Still unavailable: try again later",
+                        "Regenerate failed: " + reason,
                         Toast.LENGTH_LONG).show());
             }
         });
