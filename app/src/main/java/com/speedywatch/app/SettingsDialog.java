@@ -1103,14 +1103,25 @@ final class SettingsDialog {
         content.addView(guideStep(1, "Click here → create free account. ",
                 "Create free account", CLOUDFLARE_SIGNUP_URL));
         content.addView(guideStep(2, "Click here → create organization (or pick your "
-                + "account) → scroll right → tap the 3 dots → Copy Account ID → come "
-                + "back and paste it into the Account ID field. ",
-                "Click here for the Account ID", CLOUDFLARE_WORKERS_URL));
-        content.addView(guideStep(3, "Click here → Create Token → Create Custom Token → "
-                "in the top Account row: scroll right, pick Workers AI, then Edit → "
-                "Continue → Create. Token shows once — copy it, come back, paste into "
-                "the API token field → Check connection. ",
-                "Click here for the API token", CLOUDFLARE_API_TOKENS_URL));
+                + "account). ",
+                "Click here", CLOUDFLARE_WORKERS_URL));
+        content.addView(guideStep(3, "On the overview page: the Account ID is on the "
+                + "RIGHT side — the page itself does not scroll. If the ID is cut off, "
+                + "scroll that row sideways, then tap the 3 dots → Copy Account ID."));
+        content.addView(guideStep(4, "Come back to SpeedyWatch → paste it into the "
+                + "Account ID field."));
+        content.addView(guideStep(5, "Click here → Create Token → Create Custom Token. ",
+                "Click here", CLOUDFLARE_API_TOKENS_URL));
+        content.addView(guideStep(6, "In the permissions row (the top row that starts "
+                + "with Account): the row is wider than the screen — SCROLL THE ROW "
+                + "sideways (swipe left on the row itself, do not scroll the page). "
+                + "Tap the search bar → type Workers AI → pick it."));
+        content.addView(guideStep(7, "Scroll the row right again → tap the last "
+                + "dropdown → Edit."));
+        content.addView(guideStep(8, "Tap Continue → Create. The token shows ONCE → "
+                + "copy it."));
+        content.addView(guideStep(9, "Come back to SpeedyWatch → paste it into the "
+                + "API token field → tap Check connection → the button turns green."));
 
         content.addView(text(
                 "Free plan: about 10,000 AI credits per day for this account, "
