@@ -103,6 +103,7 @@ final class SettingsDialog {
     private String aiProvider;
     private LinearLayout openRouterRows;
     private LinearLayout cloudflareRows;
+    private Button cloudflareCheckButton;
     private EditText cloudflareUrlInput;
     private EditText cloudflareTokenInput;
     private TextView cloudflareTokenPreview;
@@ -726,6 +727,8 @@ final class SettingsDialog {
         updateCloudflareTokenPreview();
 
         Button cloudflareCheck = button("Check connection");
+        cloudflareCheckButton = cloudflareCheck;
+        applyCloudflareCheckButton(false);
         cloudflareCheck.setOnClickListener(ignored -> refreshModels());
         cloudflareRows.addView(cloudflareCheck, matchWrap(dp(8), dp(4)));
         Button cloudflareGuide = button("Setup guide for a new Cloudflare account");
@@ -1101,17 +1104,16 @@ final class SettingsDialog {
         content.addView(guideStep(1, "Create a free Cloudflare account (or add a new "
                 + "account from the menu of your existing one). ",
                 "Create a free Cloudflare account", CLOUDFLARE_SIGNUP_URL));
-        content.addView(guideStep(2, "Open the dashboard — your 32-character "
-                + "Account ID is on the right side of the overview page. Copy it into "
-                + "the Account ID field in Settings. ",
-                "Open the dashboard", CLOUDFLARE_WORKERS_URL));
-        content.addView(guideStep(3, "Create the API token: tap your profile icon, "
-                + "then My Profile, then API Tokens, Create Token, Create Custom Token. "
-                + "Set Permissions to Account, Workers AI, Edit, continue, and create. ",
-                "Open API Tokens", CLOUDFLARE_API_TOKENS_URL));
-        content.addView(guideStep(4, "Copy the token Cloudflare shows (it is shown "
-                + "only once) into the API token field in Settings, then tap "
-                + "Check connection."));
+        content.addView(guideStep(2, "Go here, copy the 32-character Account ID shown "
+                + "on the right side of the page, come back to this app, and paste it "
+                + "into the Account ID field. ",
+                "Go here for the Account ID", CLOUDFLARE_WORKERS_URL));
+        content.addView(guideStep(3, "Go here: tap Create Token, then Create Custom "
+                + "Token, set Permissions to Account / Workers AI / Edit, continue, "
+                + "and create. The token is shown only once — copy it, come back to "
+                + "this app, paste it into the API token field, and tap "
+                + "Check connection. ",
+                "Go here for the API token", CLOUDFLARE_API_TOKENS_URL));
 
         content.addView(text(
                 "Free plan: about 10,000 AI credits per day for this account, "
@@ -1233,6 +1235,20 @@ final class SettingsDialog {
         );
     }
 
+    private void applyCloudflareCheckButton(boolean connected) {
+        if (cloudflareCheckButton == null) {
+            return;
+        }
+        if (connected) {
+            cloudflareCheckButton.setText("✓ Connected");
+            cloudflareCheckButton.setBackground(
+                    panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+        } else {
+            cloudflareCheckButton.setText("Check connection");
+            cloudflareCheckButton.setBackground(panelBackground(BUTTON, BUTTON));
+        }
+    }
+
     private AiEndpoint dialogEndpoint() {
         if (SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)) {
             return AiEndpoint.openRouter(apiKeyInput.getText().toString().trim());
@@ -1266,6 +1282,7 @@ final class SettingsDialog {
         }
         AiEndpoint endpoint = dialogEndpoint();
         if (endpoint == null || endpoint.bearer.trim().isEmpty()) {
+            applyCloudflareCheckButton(false);
             modelStatus.setText(SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)
                     ? "Add an OpenRouter API key" : "Add the Account ID and API token");
             return;
@@ -1281,10 +1298,13 @@ final class SettingsDialog {
                             settings.getCloudflareModelId(),
                             List.of(new OpenRouterClient.Message(
                                     "user", "Reply with exactly: OK")));
-                    activity.runOnUiThread(() ->
-                            applyModels(AiEndpoint.cloudflareCatalog()));
+                    activity.runOnUiThread(() -> {
+                        applyCloudflareCheckButton(true);
+                        applyModels(AiEndpoint.cloudflareCatalog());
+                    });
                 } catch (Exception error) {
                     activity.runOnUiThread(() -> {
+                        applyCloudflareCheckButton(false);
                         if (dialog != null && dialog.isShowing()) {
                             modelStatus.setText("Connection failed");
                             modelButton.setEnabled(!models.isEmpty());

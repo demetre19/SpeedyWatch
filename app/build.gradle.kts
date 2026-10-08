@@ -10,8 +10,8 @@ android {
         applicationId = "com.speedywatch.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 53
-        versionName = "0.53"
+        versionCode = 54
+        versionName = "0.54"
         manifestPlaceholders["appLabel"] = "SpeedyWatch"
 
         ndk {
