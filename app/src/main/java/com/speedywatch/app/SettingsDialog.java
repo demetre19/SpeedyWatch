@@ -1096,29 +1096,21 @@ final class SettingsDialog {
         content.addView(title, matchWrap(0, dp(10)));
 
         content.addView(text(
-                "Two pastes — everything works on your phone. No coding, "
-                        + "no desktop, no Worker to deploy.",
+                "Three clicks, two pastes. All on your phone.",
                 13, Color.WHITE
         ), matchWrap(0, dp(12)));
 
-        content.addView(guideStep(1, "Create a free Cloudflare account (or add a new "
-                + "account from the menu of your existing one). ",
-                "Create a free Cloudflare account", CLOUDFLARE_SIGNUP_URL));
-        content.addView(guideStep(2, "Go here, copy the 32-character Account ID shown "
-                + "on the right side of the page, come back to this app, and paste it "
-                + "into the Account ID field. ",
-                "Go here for the Account ID", CLOUDFLARE_WORKERS_URL));
-        content.addView(guideStep(3, "Go here: tap Create Token, then "
-                + "Create Custom Token. ",
-                "Go here for the API token", CLOUDFLARE_API_TOKENS_URL));
-        content.addView(guideStep(4, "Set the permissions — edit the very top row only, "
-                + "the one that starts with Account. That row is wider than the screen: "
-                + "SCROLL it sideways (swipe left on the row itself). Tap the search "
-                + "bar, type Workers AI and pick it, then scroll right again and tap "
-                + "the last dropdown — choose Edit."));
-        content.addView(guideStep(5, "Tap Continue and Create. The token is shown only "
-                + "once — copy it, come back to this app, paste it into the API token "
-                + "field, and tap Check connection."));
+        content.addView(guideStep(1, "Click here → create free account. ",
+                "Create free account", CLOUDFLARE_SIGNUP_URL));
+        content.addView(guideStep(2, "Click here → create organization (or pick your "
+                + "account) → scroll right → tap the 3 dots → Copy Account ID → come "
+                + "back and paste it into the Account ID field. ",
+                "Click here for the Account ID", CLOUDFLARE_WORKERS_URL));
+        content.addView(guideStep(3, "Click here → Create Token → Create Custom Token → "
+                "in the top Account row: scroll right, pick Workers AI, then Edit → "
+                "Continue → Create. Token shows once — copy it, come back, paste into "
+                "the API token field → Check connection. ",
+                "Click here for the API token", CLOUDFLARE_API_TOKENS_URL));
 
         content.addView(text(
                 "Free plan: about 10,000 AI credits per day for this account, "
