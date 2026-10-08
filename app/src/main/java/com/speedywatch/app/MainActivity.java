@@ -1277,31 +1277,32 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void regenerateBookmark(SavedSummaryStore.Entry entry) {
+    private void regenerateBookmark(
+            SavedSummaryStore.Entry entry,
+            SavedSummariesDialog.Host.RegenerateCallback callback
+    ) {
         String prompt = appSettings.getSummaryOnePrompt();
         String modelId = appSettings.getModelId();
         String problem = appSettings.aiConfigurationError();
         if (problem != null) {
-            Toast.makeText(this, problem, Toast.LENGTH_LONG).show();
+            callback.onDone(false, null, null, problem);
             return;
         }
         final AiEndpoint endpoint;
         try {
             endpoint = appSettings.aiEndpoint();
         } catch (GeneralSecurityException error) {
-            Toast.makeText(this, "Stored AI credentials could not be decrypted", Toast.LENGTH_LONG).show();
+            callback.onDone(false, null, null, "stored AI credentials could not be decrypted");
             return;
         }
         if (prompt.trim().isEmpty() || modelId.trim().isEmpty()) {
-            Toast.makeText(this, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
+            callback.onDone(false, null, null, "choose an AI model in Settings first");
             return;
         }
         ioExecutor.execute(() -> {
             String description = PageDescription.fetch(this, entry.sourceUrl);
             if (description == null || description.trim().isEmpty()) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        "Could not fetch this page in the background",
-                        Toast.LENGTH_LONG).show());
+                callback.onDone(false, null, null, "could not fetch this page in the background");
                 return;
             }
             String userMessage = "Source: " + entry.summaryLabel + "\nTitle: "
@@ -1322,15 +1323,17 @@ public final class MainActivity extends Activity {
                 } catch (IOException ignored) {
                     // The summary update still applies without a thumbnail.
                 }
-                savedSummaryStore.updateSummaryAndThumbnail(
-                        entry.id, result, thumbnail);
+                final byte[] resultThumbnail = thumbnail;
+                boolean updated = savedSummaryStore.updateSummaryAndThumbnail(
+                        entry.id, result, resultThumbnail);
+                runOnUiThread(() -> callback.onDone(
+                        updated, updated ? result : null, resultThumbnail,
+                        updated ? null : "bookmark could not be updated"));
             } catch (Exception error) {
                 String reason = error.getMessage() == null
                         || error.getMessage().trim().isEmpty()
                         ? "request failed" : error.getMessage().trim();
-                runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        "Regenerate failed: " + reason,
-                        Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> callback.onDone(false, null, null, reason));
             }
         });
     }
@@ -2182,8 +2185,11 @@ public final class MainActivity extends Activity {
                     }
 
                     @Override
-                    public void regenerateBookmark(SavedSummaryStore.Entry entry) {
-                        regenerateBookmark(entry);
+                    public void regenerateBookmark(
+                            SavedSummaryStore.Entry entry,
+                            SavedSummariesDialog.Host.RegenerateCallback callback
+                    ) {
+                        regenerateBookmark(entry, callback);
                     }
                 }
         ).show();

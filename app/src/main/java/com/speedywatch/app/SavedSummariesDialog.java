@@ -52,7 +52,11 @@ final class SavedSummariesDialog {
 
         void openLink(String url);
 
-        void regenerateBookmark(SavedSummaryStore.Entry entry);
+        interface RegenerateCallback {
+            void onDone(boolean success, String summary, byte[] thumbnail, String failureReason);
+        }
+
+        void regenerateBookmark(SavedSummaryStore.Entry entry, RegenerateCallback callback);
     }
 
     private static final int BACKGROUND = Color.rgb(15, 15, 15);
@@ -650,26 +654,6 @@ final class SavedSummariesDialog {
         sourceUrl.setOnClickListener(ignored -> openVideo(entry, detail));
         content.addView(sourceUrl);
 
-        if (SavedSummaryStore.isSummaryUnavailable(entry.summaryText)) {
-            Button regenerate = new Button(activity);
-            regenerate.setText("Regenerate summary");
-            regenerate.setTextColor(Color.WHITE);
-            regenerate.setTextSize(14);
-            regenerate.setAllCaps(false);
-            regenerate.setBackground(panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
-            regenerate.setOnClickListener(ignored -> {
-                detail.dismiss();
-                dialog.dismiss();
-                host.regenerateBookmark(entry);
-            });
-            LinearLayout.LayoutParams regenerateParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(44)
-            );
-            regenerateParams.setMargins(0, dp(12), 0, 0);
-            content.addView(regenerate, regenerateParams);
-        }
-
         List<View> topChrome = new ArrayList<>();
         topChrome.add(header);
         if (supportsThumbnail) {
@@ -690,6 +674,54 @@ final class SavedSummariesDialog {
         ));
         ScrollView summaryScroll = new ScrollView(activity);
         summaryScroll.addView(summary);
+
+        if (SavedSummaryStore.isSummaryUnavailable(entry.summaryText)) {
+            Button regenerate = new Button(activity);
+            regenerate.setText("Regenerate summary");
+            regenerate.setTextColor(Color.WHITE);
+            regenerate.setTextSize(14);
+            regenerate.setAllCaps(false);
+            regenerate.setBackground(panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+            regenerate.setOnClickListener(ignored -> {
+                regenerate.setEnabled(false);
+                regenerate.setText("Regenerating…");
+                host.regenerateBookmark(entry, (success, newSummary, newThumbnail, failureReason) -> {
+                    regenerate.setEnabled(true);
+                    if (success) {
+                        if (newSummary != null) {
+                            summary.setText(MarkdownRenderer.render(
+                                    newSummary,
+                                    activity.getResources().getDisplayMetrics().density
+                            ));
+                        }
+                        if (newThumbnail != null) {
+                            Bitmap bitmap = decodeThumbnail(newThumbnail);
+                            if (bitmap != null) {
+                                thumbnailPreview.setImageBitmap(bitmap);
+                                thumbnailPreview.setVisibility(View.VISIBLE);
+                            }
+                        }
+                        regenerate.setText("✓ Regenerated");
+                        regenerate.setBackground(panelBackground(
+                                Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+                    } else {
+                        regenerate.setText("Regenerate summary");
+                        if (failureReason != null && !failureReason.isEmpty()) {
+                            Toast.makeText(activity,
+                                    "Regenerate failed: " + failureReason,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            });
+            LinearLayout.LayoutParams regenerateParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(44)
+            );
+            regenerateParams.setMargins(0, dp(12), 0, 0);
+            content.addView(regenerate, regenerateParams);
+        }
+
 
         LinearLayout actions = horizontalLayout();
         ImageButton openVideo = detailIconButton(
