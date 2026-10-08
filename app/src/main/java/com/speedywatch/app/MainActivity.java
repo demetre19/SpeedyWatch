@@ -10,9 +10,11 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.BroadcastReceiver;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.provider.MediaStore;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -1296,7 +1298,7 @@ public final class MainActivity extends Activity {
         }
         Toast.makeText(this, "Regenerating in the background...", Toast.LENGTH_SHORT).show();
         ioExecutor.execute(() -> {
-            String description = PageDescription.fetch(entry.sourceUrl);
+            String description = PageDescription.fetch(this, entry.sourceUrl);
             if (description == null || description.trim().isEmpty()) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this,
                         "Could not fetch this page in the background",
@@ -2202,7 +2204,8 @@ public final class MainActivity extends Activity {
                 },
                 () -> setSpeed(appSettings.getDefaultPlaybackSpeed()),
                 this::chooseBackupDestination,
-                this::chooseBackupFile
+                this::chooseBackupFile,
+                this::backupToPhone
         ).show();
     }
 
@@ -2212,6 +2215,75 @@ public final class MainActivity extends Activity {
                 .setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, "SpeedyWatch-backup.json");
         startActivityForResult(intent, REQUEST_EXPORT_BACKUP);
+    }
+
+    private void backupToPhone() {
+        ioExecutor.execute(() -> {
+            try {
+                String json = AppBackup.create(appSettings, savedSummaryStore, scrapedLinkStore);
+                String name = "SpeedyWatch-backup-"
+                        + new java.text.SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US)
+                                .format(new java.util.Date())
+                        + ".json";
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/SpeedyWatch/backups");
+                Uri uri = getContentResolver().insert(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) {
+                    throw new IOException("Backup destination is unavailable");
+                }
+                try (java.io.OutputStream output =
+                        getContentResolver().openOutputStream(uri)) {
+                    if (output == null) {
+                        throw new IOException("Backup destination is unavailable");
+                    }
+                    output.write(json.getBytes(StandardCharsets.UTF_8));
+                }
+                prunePhoneBackups();
+                runOnUiThread(() -> Toast.makeText(this,
+                        "Backup saved to Downloads/SpeedyWatch/backups",
+                        Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this,
+                        "Backup could not be saved to the phone",
+                        Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private void prunePhoneBackups() {
+        try {
+            String selection = MediaStore.Downloads.DISPLAY_NAME + " LIKE ?";
+            String[] args = {"SpeedyWatch-backup-%.json"};
+            android.database.Cursor cursor = getContentResolver().query(
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    new String[]{MediaStore.Downloads._ID},
+                    selection,
+                    args,
+                    MediaStore.Downloads.DATE_ADDED + " DESC"
+            );
+            if (cursor == null) {
+                return;
+            }
+            int kept = 0;
+            List<Uri> stale = new ArrayList<>();
+            while (cursor.moveToNext()) {
+                int id = cursor.getInt(0);
+                kept++;
+                if (kept > 7) {
+                    stale.add(android.content.ContentUris.withAppendedId(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI, id));
+                }
+            }
+            cursor.close();
+            for (Uri uri : stale) {
+                getContentResolver().delete(uri, null, null);
+            }
+        } catch (RuntimeException ignored) {
+            // Pruning is best effort; the newest backup is already written.
+        }
     }
 
     private void chooseBackupFile() {

@@ -19,7 +19,7 @@ final class PageDescription {
     private PageDescription() {
     }
 
-    static String fetch(String url) {
+    static String fetch(android.content.Context context, String url) {
         String validated = SupportedSite.validatedHttpsUrl(url);
         if (validated == null) {
             return null;
@@ -33,9 +33,16 @@ final class PageDescription {
             connection.setInstanceFollowRedirects(true);
             connection.setRequestProperty(
                     "User-Agent",
-                    "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) "
-                            + "Chrome/124.0.0.0 Mobile Safari/537.36"
+                    android.webkit.WebSettings.getDefaultUserAgent(context)
             );
+            // Send the WebView's own session cookies for THIS host only — X and other
+            // gated sites serve post content only to authenticated requests. Cookies
+            // are never sent to any other host.
+            String cookies = android.webkit.CookieManager.getInstance()
+                    .getCookie(validated);
+            if (cookies != null && !cookies.isEmpty()) {
+                connection.setRequestProperty("Cookie", cookies);
+            }
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
                 return null;

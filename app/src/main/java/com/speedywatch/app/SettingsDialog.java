@@ -83,6 +83,7 @@ final class SettingsDialog {
     private final Runnable onDefaultSpeedSaved;
     private final Runnable onExportBackup;
     private final Runnable onImportBackup;
+    private final Runnable onPhoneBackup;
     private final String installedVersionName;
     private final long installedVersionCode;
 
@@ -206,7 +207,8 @@ final class SettingsDialog {
             Runnable onSettingsSaved,
             Runnable onDefaultSpeedSaved,
             Runnable onExportBackup,
-            Runnable onImportBackup
+            Runnable onImportBackup,
+            Runnable onPhoneBackup
     ) {
         this.activity = activity;
         this.settings = settings;
@@ -216,6 +218,7 @@ final class SettingsDialog {
         this.onDefaultSpeedSaved = onDefaultSpeedSaved;
         this.onExportBackup = onExportBackup;
         this.onImportBackup = onImportBackup;
+        this.onPhoneBackup = onPhoneBackup;
         try {
             PackageInfo packageInfo = activity.getPackageManager().getPackageInfo(
                     activity.getPackageName(),
@@ -234,7 +237,12 @@ final class SettingsDialog {
         dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(buildContent());
-        dialog.setOnDismissListener(ignored -> flushPendingAutoSave());
+        dialog.setOnDismissListener(ignored -> {
+            flushPendingAutoSave();
+            if (onPhoneBackup != null) {
+                onPhoneBackup.run();
+            }
+        });
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -645,6 +653,19 @@ final class SettingsDialog {
                 ),
                 matchWrap(0, dp(8))
         );
+        Button phoneBackup = button("Backup to phone");
+        phoneBackup.setOnClickListener(ignored -> {
+            if (onPhoneBackup != null) {
+                onPhoneBackup.run();
+            }
+        });
+        content.addView(phoneBackup, matchWrap(0, dp(8)));
+        content.addView(text(
+                "Saves to Downloads/SpeedyWatch/backups automatically on close. "
+                        + "Restore picks a file from that folder.",
+                12, MUTED
+        ), matchWrap(dp(8), dp(8)));
+
         LinearLayout backupActions = horizontalLayout();
         Button exportBackup = button("Export backup");
         exportBackup.setOnClickListener(ignored -> {
