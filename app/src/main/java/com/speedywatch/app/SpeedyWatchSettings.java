@@ -19,12 +19,20 @@ import javax.crypto.spec.GCMParameterSpec;
 
 final class SpeedyWatchSettings {
     static final String PREFERRED_MODEL_ID = "inception/mercury-2";
+    static final String AI_PROVIDER_CLOUDFLARE = "cloudflare";
+    static final String AI_PROVIDER_OPENROUTER = "openrouter";
+    static final String CLOUDFLARE_DEFAULT_MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
 
     private static final String PREFERENCES = "speedywatch_settings";
     private static final String KEY_ALIAS = "speedywatch_openrouter_key";
     private static final String API_KEY_CIPHERTEXT = "openrouter_key_ciphertext";
     private static final String API_KEY_IV = "openrouter_key_iv";
     private static final String MODEL_ID = "openrouter_model_id";
+    private static final String AI_PROVIDER = "ai_provider";
+    private static final String CLOUDFLARE_ACCOUNT_ID = "cloudflare_account_id";
+    private static final String CLOUDFLARE_TOKEN_CIPHERTEXT = "cloudflare_token_ciphertext";
+    private static final String CLOUDFLARE_TOKEN_IV = "cloudflare_token_iv";
+    private static final String CLOUDFLARE_MODEL_ID = "cloudflare_model_id";
     private static final String SUMMARY_ONE = "summary_one_prompt";
     private static final String SUMMARY_TWO = "summary_two_prompt";
     private static final String QUIZ = "quiz_prompt";
@@ -793,13 +801,124 @@ final class SpeedyWatchSettings {
                 .apply();
     }
 
-    String getModelId() {
+    synchronized String getCloudflareToken() throws GeneralSecurityException {
+        String encodedCiphertext = preferences.getString(CLOUDFLARE_TOKEN_CIPHERTEXT, "");
+        String encodedIv = preferences.getString(CLOUDFLARE_TOKEN_IV, "");
+        if (encodedCiphertext == null || encodedCiphertext.isEmpty()
+                || encodedIv == null || encodedIv.isEmpty()) {
+            return "";
+        }
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        byte[] iv = Base64.decode(encodedIv, Base64.NO_WRAP);
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), new GCMParameterSpec(128, iv));
+        byte[] plaintext = cipher.doFinal(Base64.decode(encodedCiphertext, Base64.NO_WRAP));
+        return new String(plaintext, StandardCharsets.UTF_8);
+    }
+
+    synchronized void setCloudflareToken(String token) throws GeneralSecurityException {
+        String normalized = token == null ? "" : token.trim();
+        if (normalized.isEmpty()) {
+            preferences.edit()
+                    .remove(CLOUDFLARE_TOKEN_CIPHERTEXT)
+                    .remove(CLOUDFLARE_TOKEN_IV)
+                    .apply();
+            return;
+        }
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey());
+        byte[] ciphertext = cipher.doFinal(normalized.getBytes(StandardCharsets.UTF_8));
+        preferences.edit()
+                .putString(CLOUDFLARE_TOKEN_CIPHERTEXT,
+                        Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                .putString(CLOUDFLARE_TOKEN_IV, Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP))
+                .apply();
+    }
+
+    String getAiProvider() {
+        String provider = preferences.getString(AI_PROVIDER, AI_PROVIDER_CLOUDFLARE);
+        return AI_PROVIDER_OPENROUTER.equals(provider)
+                ? AI_PROVIDER_OPENROUTER : AI_PROVIDER_CLOUDFLARE;
+    }
+
+    void setAiProvider(String provider) {
+        preferences.edit()
+                .putString(AI_PROVIDER,
+                        AI_PROVIDER_OPENROUTER.equals(provider)
+                                ? AI_PROVIDER_OPENROUTER : AI_PROVIDER_CLOUDFLARE)
+                .apply();
+    }
+
+    String getCloudflareAccountId() {
+        String accountId = preferences.getString(CLOUDFLARE_ACCOUNT_ID, "");
+        return accountId == null ? "" : accountId.trim();
+    }
+
+    void setCloudflareAccountId(String accountId) {
+        String normalized = accountId == null ? "" : accountId.trim();
+        preferences.edit().putString(CLOUDFLARE_ACCOUNT_ID, normalized).apply();
+    }
+
+    String getOpenRouterModelId() {
         String model = preferences.getString(MODEL_ID, "");
         return model == null ? "" : model.trim();
     }
 
-    void setModelId(String modelId) {
+    void setOpenRouterModelId(String modelId) {
         preferences.edit().putString(MODEL_ID, modelId == null ? "" : modelId.trim()).apply();
+    }
+
+    String getCloudflareModelId() {
+        String model = preferences.getString(CLOUDFLARE_MODEL_ID, "");
+        return model == null || model.trim().isEmpty()
+                ? CLOUDFLARE_DEFAULT_MODEL_ID : model.trim();
+    }
+
+    void setCloudflareModelId(String modelId) {
+        preferences.edit()
+                .putString(CLOUDFLARE_MODEL_ID, modelId == null ? "" : modelId.trim())
+                .apply();
+    }
+
+    String getModelId() {
+        return getAiProvider().equals(AI_PROVIDER_OPENROUTER)
+                ? getOpenRouterModelId() : getCloudflareModelId();
+    }
+
+    void setModelId(String modelId) {
+        if (getAiProvider().equals(AI_PROVIDER_OPENROUTER)) {
+            setOpenRouterModelId(modelId);
+        } else {
+            setCloudflareModelId(modelId);
+        }
+    }
+
+    AiEndpoint aiEndpoint() throws GeneralSecurityException {
+        if (getAiProvider().equals(AI_PROVIDER_OPENROUTER)) {
+            return AiEndpoint.openRouter(getApiKey());
+        }
+        String accountId = getCloudflareAccountId();
+        if (accountId.isEmpty()) {
+            return null;
+        }
+        return AiEndpoint.cloudflare(accountId, getCloudflareToken());
+    }
+
+    String aiConfigurationError() {
+        try {
+            if (getAiProvider().equals(AI_PROVIDER_OPENROUTER)) {
+                return getApiKey().trim().isEmpty()
+                        ? "Add the OpenRouter API key in Settings" : null;
+            }
+            if (getCloudflareAccountId().isEmpty()) {
+                return "Add the Cloudflare Account ID in Settings";
+            }
+            return getCloudflareToken().isEmpty()
+                    ? "Add the Cloudflare API token in Settings" : null;
+        } catch (GeneralSecurityException error) {
+            return "Stored AI credentials could not be decrypted";
+        }
     }
 
     String getSummaryOnePrompt() {

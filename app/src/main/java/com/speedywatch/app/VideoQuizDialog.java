@@ -228,16 +228,21 @@ final class VideoQuizDialog {
     }
 
     private void createQuiz() {
-        final String apiKey;
+        String problem = settings.aiConfigurationError();
+        if (problem != null) {
+            Toast.makeText(activity, problem, Toast.LENGTH_LONG).show();
+            return;
+        }
+        final AiEndpoint endpoint;
         try {
-            apiKey = settings.getApiKey();
+            endpoint = settings.aiEndpoint();
         } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "Stored AI credentials could not be decrypted", Toast.LENGTH_LONG).show();
             return;
         }
         String modelId = settings.getModelId();
-        if (apiKey.trim().isEmpty() || modelId.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+        if (modelId.trim().isEmpty()) {
+            Toast.makeText(activity, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
         String prompt = settings.getQuizPrompt();
@@ -258,7 +263,7 @@ final class VideoQuizDialog {
         executor.execute(() -> {
             try {
                 String result = client.summarize(
-                        apiKey,
+                        endpoint,
                         modelId,
                         prompt,
                         userMessage

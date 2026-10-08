@@ -15,8 +15,6 @@ import java.util.Comparator;
 import java.util.List;
 
 final class OpenRouterClient {
-    private static final String MODELS_URL = "https://openrouter.ai/api/v1/models";
-    private static final String CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
     private static final int MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
     static final class Model {
@@ -25,13 +23,27 @@ final class OpenRouterClient {
         final int contextLength;
         final double promptPrice;
         final double completionPrice;
+        final String description;
 
         Model(String id, String name, int contextLength, double promptPrice, double completionPrice) {
+            this(id, name, contextLength, promptPrice, completionPrice, null);
+        }
+
+        Model(
+                String id,
+                String name,
+                int contextLength,
+                double promptPrice,
+                double completionPrice,
+                String description
+        ) {
             this.id = id;
             this.name = name;
             this.contextLength = contextLength;
             this.promptPrice = promptPrice;
             this.completionPrice = completionPrice;
+            this.description = description == null || description.trim().isEmpty()
+                    ? null : description.trim();
         }
 
         boolean isFree() {
@@ -46,6 +58,9 @@ final class OpenRouterClient {
         }
 
         String guidance() {
+            if (description != null) {
+                return description;
+            }
             return contextLabel() + " • " + pricingLabel();
         }
 
@@ -93,16 +108,36 @@ final class OpenRouterClient {
     }
 
 
-    List<Model> fetchModels(String apiKey) throws IOException, JSONException {
-        HttpURLConnection connection = openConnection(MODELS_URL, "GET", apiKey, 30000);
+    List<Model> fetchModels(AiEndpoint endpoint) throws IOException, JSONException {
+        HttpURLConnection connection = openConnection(
+                endpoint.modelsUrl, "GET", endpoint.bearer, 30000);
         try {
             JSONObject response = readJsonResponse(connection);
+            List<Model> models = new ArrayList<>();
+            if (endpoint.cloudflare) {
+                JSONArray catalog = response.optJSONArray("models");
+                if (catalog == null) {
+                    throw new IOException("Cloudflare AI returned no model catalog");
+                }
+                for (int index = 0; index < catalog.length(); index++) {
+                    JSONObject item = catalog.optJSONObject(index);
+                    if (item == null) {
+                        continue;
+                    }
+                    String id = item.optString("id", "").trim();
+                    if (id.isEmpty()) {
+                        continue;
+                    }
+                    models.add(new Model(id, id, 0, Double.NaN, Double.NaN,
+                            item.optString("desc", "").trim()));
+                }
+                return models;
+            }
             JSONArray data = response.optJSONArray("data");
             if (data == null) {
                 throw new IOException("OpenRouter returned no model catalog");
             }
 
-            List<Model> models = new ArrayList<>();
             for (int index = 0; index < data.length(); index++) {
                 JSONObject item = data.optJSONObject(index);
                 if (item == null || !supportsTextOutput(item)) {
@@ -130,7 +165,7 @@ final class OpenRouterClient {
     }
 
     String summarize(
-            String apiKey,
+            AiEndpoint endpoint,
             String modelId,
             String systemPrompt,
             String userMessage
@@ -138,28 +173,33 @@ final class OpenRouterClient {
         List<Message> messages = new ArrayList<>();
         messages.add(new Message("system", systemPrompt));
         messages.add(new Message("user", userMessage));
-        return generate(apiKey, modelId, messages);
+        return generate(endpoint, modelId, messages);
     }
 
     String generate(
-            String apiKey,
+            AiEndpoint endpoint,
             String modelId,
             List<Message> messages
     ) throws IOException, JSONException {
-        if (apiKey == null || apiKey.trim().isEmpty()) {
-            throw new IOException("Add an OpenRouter API key in Settings");
+        String providerLabel = endpoint.cloudflare ? "Cloudflare AI" : "OpenRouter";
+        if (endpoint.bearer.trim().isEmpty()) {
+            throw new IOException(endpoint.cloudflare
+                    ? "Add the Cloudflare access token in Settings"
+                    : "Add an OpenRouter API key in Settings");
         }
         if (modelId == null || modelId.trim().isEmpty()) {
-            throw new IOException("Choose an OpenRouter model in Settings");
+            throw new IOException("Choose an AI model in Settings");
         }
         if (messages == null || messages.isEmpty()) {
-            throw new IOException("OpenRouter request has no messages");
+            throw new IOException(providerLabel + " request has no messages");
         }
 
         JSONObject body = new JSONObject();
         body.put("model", modelId.trim());
         body.put("max_tokens", 4096);
-        body.put("temperature", 0.7);
+        if (!endpoint.cloudflare) {
+            body.put("temperature", 0.7);
+        }
         JSONArray payloadMessages = new JSONArray();
         for (Message message : messages) {
             payloadMessages.put(new JSONObject()
@@ -168,7 +208,8 @@ final class OpenRouterClient {
         }
         body.put("messages", payloadMessages);
 
-        HttpURLConnection connection = openConnection(CHAT_URL, "POST", apiKey, 120000);
+        HttpURLConnection connection = openConnection(
+                endpoint.chatUrl, "POST", endpoint.bearer, 120000);
         try {
             byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(payload.length);
@@ -179,11 +220,11 @@ final class OpenRouterClient {
             JSONObject message = choices == null || choices.length() == 0
                     ? null : choices.optJSONObject(0).optJSONObject("message");
             if (message == null) {
-                throw new IOException("OpenRouter returned no result");
+                throw new IOException(providerLabel + " returned no result");
             }
             String content = extractContent(message.opt("content"));
             if (content.trim().isEmpty()) {
-                throw new IOException("OpenRouter returned an empty result");
+                throw new IOException(providerLabel + " returned an empty result");
             }
             return content.trim();
         } finally {
@@ -223,13 +264,18 @@ final class OpenRouterClient {
         try {
             response = text.trim().isEmpty() ? new JSONObject() : new JSONObject(text);
         } catch (JSONException error) {
-            throw new IOException("OpenRouter returned an invalid response (HTTP " + status + ")", error);
+            throw new IOException("The AI service returned an invalid response (HTTP " + status + ")", error);
         }
         if (status < 200 || status >= 300 || response.has("error")) {
-            JSONObject error = response.optJSONObject("error");
-            String message = error == null ? "" : error.optString("message", "").trim();
-            throw new IOException(message.isEmpty()
-                    ? "OpenRouter request failed (HTTP " + status + ")" : message);
+            Object error = response.opt("error");
+            String message = null;
+            if (error instanceof JSONObject errorObject) {
+                message = errorObject.optString("message", "").trim();
+            } else if (error instanceof String errorText) {
+                message = errorText.trim();
+            }
+            throw new IOException(message == null || message.isEmpty()
+                    ? "AI request failed (HTTP " + status + ")" : message);
         }
         return response;
     }

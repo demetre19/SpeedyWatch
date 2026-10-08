@@ -103,6 +103,8 @@ public final class MainActivity extends Activity {
     private static final int BUTTON = Color.rgb(48, 48, 48);
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final long OMNI_DRAG_HOLD_MILLIS = 350L;
+    private static final long IMMERSIVE_POLL_MILLIS = 750;
+    private static final int IMMERSIVE_TRANSITION_COUNT = 2;
     private static final long OMNI_EMPHASIS_MILLIS = 100L;
     private static final float OMNI_PRESS_SCALE = 1.08f;
     private static final float OMNI_DRAG_READY_SCALE = 1.25f;
@@ -156,6 +158,12 @@ public final class MainActivity extends Activity {
     private final Runnable megaResumeTick = this::attemptPendingMegaResume;
     private final Handler megaBookmarkPositionHandler = new Handler(Looper.getMainLooper());
     private final Runnable megaBookmarkPositionTick = this::captureActiveMegaBookmarkPosition;
+    private final Handler immersiveHandler = new Handler(Looper.getMainLooper());
+    private final Runnable immersiveTick = this::pollImmersiveMedia;
+    private boolean immersiveMediaActive;
+    private boolean immersiveDismissedByUser;
+    private int immersivePositiveCount;
+    private int immersiveNegativeCount;
     private WatchPathPlayback activeWatchPath;
     private boolean watchPathForeground;
     private boolean activityResumed;
@@ -1180,25 +1188,36 @@ public final class MainActivity extends Activity {
     ) {
         String prompt = appSettings.getSummaryOnePrompt();
         String modelId = appSettings.getModelId();
-        final String apiKey;
+        String configurationProblem = appSettings.aiConfigurationError();
+        final AiEndpoint endpoint;
+        if (configurationProblem != null) {
+            saveBookmark(
+                    title,
+                    url,
+                    channel,
+                    "*Summary unavailable: " + configurationProblem.toLowerCase(java.util.Locale.US) + "*",
+                    favicon
+            );
+            return;
+        }
         try {
-            apiKey = appSettings.getApiKey();
+            endpoint = appSettings.aiEndpoint();
         } catch (GeneralSecurityException error) {
             saveBookmark(
                     title,
                     url,
                     channel,
-                    "*Summary unavailable: stored API key could not be decrypted*",
+                    "*Summary unavailable: stored AI credentials could not be decrypted*",
                     favicon
             );
             return;
         }
-        if (prompt.trim().isEmpty() || modelId.trim().isEmpty() || apiKey.trim().isEmpty()) {
+        if (prompt.trim().isEmpty() || modelId.trim().isEmpty()) {
             saveBookmark(
                     title,
                     url,
                     channel,
-                    "*Summary unavailable: configure OpenRouter in Settings first*",
+                    "*Summary unavailable: choose an AI model in Settings first*",
                     favicon
             );
             return;
@@ -1234,7 +1253,7 @@ public final class MainActivity extends Activity {
         }
         ioExecutor.execute(() -> {
             try {
-                String result = openRouterClient.summarize(apiKey, modelId, prompt, userMessage);
+                String result = openRouterClient.summarize(endpoint, modelId, prompt, userMessage);
                 try {
                     savedSummaryStore.cacheSummary(cacheKey, result);
                 } catch (RuntimeException ignored) {
@@ -3451,12 +3470,16 @@ public final class MainActivity extends Activity {
 
     private void updateScreenLockButtonVisibility() {
         boolean visible = screenLocked
-                || (appSettings.isLockIconEnabled() && !appSettings.isOmniButtonEnabled());
+                || (fullscreenView == null
+                        && !immersiveMediaActive
+                        && appSettings.isLockIconEnabled()
+                        && !appSettings.isOmniButtonEnabled());
         screenLockButton.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     private boolean shouldShowPictureInPictureButton() {
-        return !screenLocked
+        return !immersiveMediaActive
+                && !screenLocked
                 && SpeedyWatchSettings.PIP_CONTROL_BUTTON.equals(
                         appSettings.getPictureInPictureControl()
                 );
@@ -4186,6 +4209,69 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void pollImmersiveMedia() {
+        immersiveHandler.postDelayed(immersiveTick, IMMERSIVE_POLL_MILLIS);
+        if (!activityResumed || isInPictureInPictureMode() || fullscreenView != null) {
+            return;
+        }
+        String script = "window.__speedyWatchController "
+                + "? window.__speedyWatchController.fullscreenState() : false";
+        webView.evaluateJavascript(script, result -> {
+            boolean fullscreen = "true".equals(result);
+            if (fullscreen == immersiveMediaActive) {
+                immersivePositiveCount = 0;
+                immersiveNegativeCount = 0;
+                return;
+            }
+            if (fullscreen) {
+                immersiveNegativeCount = 0;
+                if (immersiveDismissedByUser || ++immersivePositiveCount
+                        < IMMERSIVE_TRANSITION_COUNT) {
+                    return;
+                }
+                enterImmersiveMedia();
+            } else {
+                immersivePositiveCount = 0;
+                immersiveDismissedByUser = false;
+                if (++immersiveNegativeCount < IMMERSIVE_TRANSITION_COUNT) {
+                    return;
+                }
+                exitImmersiveMedia();
+            }
+        });
+    }
+
+    private void enterImmersiveMedia() {
+        immersiveMediaActive = true;
+        immersivePositiveCount = 0;
+        immersiveNegativeCount = 0;
+        applyImmersiveMediaChrome(true);
+        setFullscreenSystemBars(true);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+    }
+
+    private void exitImmersiveMedia() {
+        immersiveMediaActive = false;
+        immersiveNegativeCount = 0;
+        applyImmersiveMediaChrome(false);
+        setFullscreenSystemBars(false);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+    }
+
+    private void applyImmersiveMediaChrome(boolean immersive) {
+        navigationControls.setVisibility(immersive ? View.GONE : View.VISIBLE);
+        watchPathControls.setVisibility(
+                immersive || activeWatchPath == null ? View.GONE : View.VISIBLE);
+        speedControls.setVisibility(immersive ? View.GONE : View.VISIBLE);
+        if (!immersive) {
+            applySpeedControlsCollapsed(appSettings.areSpeedControlsCollapsed(), false);
+        }
+        updateScreenLockButtonVisibility();
+        pictureInPictureButton.setVisibility(
+                shouldShowPictureInPictureButton() ? View.VISIBLE : View.GONE);
+        appRoot.requestApplyInsets();
+    }
+
     private void showFullscreenView(View view, WebChromeClient.CustomViewCallback callback) {
         if (fullscreenView != null) {
             callback.onCustomViewHidden();
@@ -4201,10 +4287,10 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
         setFullscreenSystemBars(true);
-        if (screenLockShield.getVisibility() == View.VISIBLE) {
-            screenLockShield.bringToFront();
-            screenLockShield.requestApplyInsets();
-        }
+        updateScreenLockButtonVisibility();
+        pictureInPictureButton.setVisibility(View.GONE);
+        screenLockShield.bringToFront();
+        screenLockShield.requestApplyInsets();
     }
 
     private void hideFullscreenView() {
@@ -4217,13 +4303,16 @@ public final class MainActivity extends Activity {
         }
         fullscreenView = null;
         appRoot.setVisibility(View.VISIBLE);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-        setFullscreenSystemBars(false);
+        setRequestedOrientation(immersiveMediaActive
+                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        setFullscreenSystemBars(immersiveMediaActive);
         appRoot.requestApplyInsets();
-        if (screenLockShield.getVisibility() == View.VISIBLE) {
-            screenLockShield.bringToFront();
-            screenLockShield.requestApplyInsets();
-        }
+        updateScreenLockButtonVisibility();
+        pictureInPictureButton.setVisibility(
+                shouldShowPictureInPictureButton() ? View.VISIBLE : View.GONE);
+        screenLockShield.bringToFront();
+        screenLockShield.requestApplyInsets();
         if (fullscreenCallback != null) {
             fullscreenCallback.onCustomViewHidden();
             fullscreenCallback = null;
@@ -4413,6 +4502,9 @@ public final class MainActivity extends Activity {
             speedControls.setVisibility(View.VISIBLE);
             appRoot.requestApplyInsets();
             applyScreenLockSettings();
+            if (immersiveMediaActive) {
+                applyImmersiveMediaChrome(true);
+            }
         }
         appRoot.requestLayout();
         if (ready != null) {
@@ -4598,6 +4690,11 @@ public final class MainActivity extends Activity {
         }
         if (fullscreenView != null) {
             hideFullscreenView();
+        } else if (immersiveMediaActive) {
+            immersiveDismissedByUser = true;
+            exitImmersiveMedia();
+            webView.evaluateJavascript("window.__speedyWatchController "
+                    + "? window.__speedyWatchController.exitPageFullscreen() : false", null);
         } else if (webView.canGoBack()) {
             webView.goBack();
         } else {
@@ -4609,6 +4706,7 @@ public final class MainActivity extends Activity {
     protected void onPause() {
         activityResumed = false;
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        immersiveHandler.removeCallbacks(immersiveTick);
         chapterHandler.removeCallbacks(chapterRefreshTick);
         watchPathForeground = false;
         captureMegaBookmarkPosition(webView.getUrl());
@@ -4650,6 +4748,7 @@ public final class MainActivity extends Activity {
         GitHubUpdateChecker.resumePendingInstaller(this);
         scheduleWatchPathTick();
         pictureInPictureHandler.post(pictureInPictureTick);
+        immersiveHandler.post(immersiveTick);
         megaBookmarkPositionHandler.post(megaBookmarkPositionTick);
         scheduleChapterRefresh();
     }
@@ -4664,6 +4763,7 @@ public final class MainActivity extends Activity {
         megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
         ioExecutor.shutdownNow();
         pictureInPictureHandler.removeCallbacks(pictureInPictureTick);
+        immersiveHandler.removeCallbacks(immersiveTick);
         chapterHandler.removeCallbacks(chapterRefreshTick);
         if (pictureInPictureReceiverRegistered) {
             unregisterReceiver(pictureInPictureReceiver);

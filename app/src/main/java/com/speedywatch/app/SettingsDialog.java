@@ -12,6 +12,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -53,6 +54,12 @@ final class SettingsDialog {
     private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final int MUTED = Color.rgb(180, 180, 180);
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
+    private static final String CLOUDFLARE_SIGNUP_URL =
+            "https://dash.cloudflare.com/sign-up/workers-and-pages";
+    private static final String CLOUDFLARE_WORKERS_URL =
+            "https://dash.cloudflare.com/?to=/:account/workers-and-pages";
+    private static final String CLOUDFLARE_API_TOKENS_URL =
+            "https://dash.cloudflare.com/profile/api-tokens";
     private static final long AUTO_SAVE_DELAY_MILLIS = 650L;
 
     private enum OmniScope {
@@ -89,6 +96,18 @@ final class SettingsDialog {
         }
     };
     private boolean autoSaveReady;
+    private String loadedApiKey = "";
+    private String loadedCloudflareUrl = "";
+    private String loadedCloudflareToken = "";
+    private Button aiProviderButton;
+    private String aiProvider;
+    private LinearLayout openRouterRows;
+    private LinearLayout cloudflareRows;
+    private EditText cloudflareUrlInput;
+    private EditText cloudflareTokenInput;
+    private TextView cloudflareTokenPreview;
+    private ImageButton cloudflareTokenVisibilityButton;
+    private boolean cloudflareTokenVisible;
     private EditText apiKeyInput;
     private TextView apiKeyPreview;
     private ImageButton apiKeyVisibilityButton;
@@ -619,7 +638,7 @@ final class SettingsDialog {
         content.addView(text("Backup", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
         content.addView(
                 text(
-                        "Exports settings and saved summaries or quizzes. OpenRouter and MEGA access keys are never included.",
+                        "Exports settings and saved summaries or quizzes. AI access keys and MEGA material are never included.",
                         12,
                         MUTED
                 ),
@@ -647,9 +666,76 @@ final class SettingsDialog {
         backupActions.addView(importBackup, importParams);
         content.addView(backupActions, matchWrap(0, dp(14)));
 
-        content.addView(text("OpenRouter", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        content.addView(text("AI", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
 
-        content.addView(label("API key"));
+        aiProvider = settings.getAiProvider();
+        aiProviderButton = button(aiProviderLabel(aiProvider));
+        aiProviderButton.setOnClickListener(ignored -> cycleAiProvider());
+        content.addView(aiProviderButton, matchWrap(dp(8), dp(2)));
+        content.addView(text(
+                "Cloudflare uses the free Workers AI allocation from your own "
+                        + "Cloudflare account — no Worker to deploy.",
+                12, MUTED
+        ), matchWrap(dp(8), dp(10)));
+
+        cloudflareRows = new LinearLayout(activity);
+        cloudflareRows.setOrientation(LinearLayout.VERTICAL);
+        cloudflareRows.addView(label("Account ID"));
+        cloudflareUrlInput = input(false, 1);
+        cloudflareUrlInput.setHint("32 characters, from the Cloudflare dashboard");
+        cloudflareUrlInput.setText(settings.getCloudflareAccountId());
+        loadedCloudflareUrl = settings.getCloudflareAccountId();
+        cloudflareUrlInput.setInputType(InputType.TYPE_CLASS_TEXT);
+        attachEditableAutoSave(cloudflareUrlInput);
+        cloudflareRows.addView(cloudflareUrlInput, matchWrap(dp(8), 0));
+
+        cloudflareRows.addView(label("API token"), matchWrap(dp(8), dp(10)));
+        LinearLayout cloudflareTokenRow = horizontalLayout();
+        cloudflareTokenInput = input(false, 1);
+        cloudflareTokenInput.setInputType(
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        cloudflareTokenInput.setTransformationMethod(PasswordTransformationMethod.getInstance());
+        try {
+            cloudflareTokenInput.setText(settings.getCloudflareToken());
+            loadedCloudflareToken = settings.getCloudflareToken();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(activity, "Stored access token could not be decrypted", Toast.LENGTH_LONG).show();
+        }
+        cloudflareTokenInput.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                updateCloudflareTokenPreview();
+                scheduleEditableAutoSave();
+            }
+        });
+        cloudflareTokenRow.addView(cloudflareTokenInput, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        cloudflareTokenVisibilityButton = new ImageButton(activity);
+        cloudflareTokenVisibilityButton.setImageResource(R.drawable.ic_visibility);
+        cloudflareTokenVisibilityButton.setContentDescription("Show access token");
+        cloudflareTokenVisibilityButton.setPadding(dp(10), dp(10), dp(10), dp(10));
+        cloudflareTokenVisibilityButton.setBackground(panelBackground(BUTTON, BUTTON));
+        cloudflareTokenVisibilityButton.setOnClickListener(ignored -> toggleCloudflareTokenVisibility());
+        LinearLayout.LayoutParams cloudflareVisibilityParams =
+                new LinearLayout.LayoutParams(dp(48), dp(48));
+        cloudflareVisibilityParams.setMarginStart(dp(8));
+        cloudflareTokenRow.addView(cloudflareTokenVisibilityButton, cloudflareVisibilityParams);
+        cloudflareRows.addView(cloudflareTokenRow, matchWrap(dp(8), 0));
+
+        cloudflareTokenPreview = text("", 12, MUTED);
+        cloudflareRows.addView(cloudflareTokenPreview, matchWrap(dp(8), dp(10)));
+        updateCloudflareTokenPreview();
+
+        Button cloudflareCheck = button("Check connection");
+        cloudflareCheck.setOnClickListener(ignored -> refreshModels());
+        cloudflareRows.addView(cloudflareCheck, matchWrap(dp(8), dp(4)));
+        Button cloudflareGuide = button("Setup guide for a new Cloudflare account");
+        cloudflareGuide.setOnClickListener(ignored -> showCloudflareSetupGuide());
+        cloudflareRows.addView(cloudflareGuide, matchWrap(dp(8), dp(4)));
+        content.addView(cloudflareRows, matchWrap(0, 0));
+
+        openRouterRows = new LinearLayout(activity);
+        openRouterRows.setOrientation(LinearLayout.VERTICAL);
+        openRouterRows.addView(label("API key"));
         LinearLayout apiKeyRow = horizontalLayout();
         apiKeyInput = input(false, 1);
         apiKeyInput.setHint("sk-or-v1-...");
@@ -657,6 +743,7 @@ final class SettingsDialog {
         apiKeyInput.setTransformationMethod(PasswordTransformationMethod.getInstance());
         try {
             apiKeyInput.setText(settings.getApiKey());
+            loadedApiKey = settings.getApiKey();
         } catch (GeneralSecurityException error) {
             Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
         }
@@ -670,10 +757,10 @@ final class SettingsDialog {
         LinearLayout.LayoutParams visibilityParams = new LinearLayout.LayoutParams(dp(48), dp(48));
         visibilityParams.setMarginStart(dp(8));
         apiKeyRow.addView(apiKeyVisibilityButton, visibilityParams);
-        content.addView(apiKeyRow, matchWrap(dp(8), 0));
+        openRouterRows.addView(apiKeyRow, matchWrap(dp(8), 0));
 
         apiKeyPreview = text("", 12, MUTED);
-        content.addView(apiKeyPreview, matchWrap(dp(8), dp(10)));
+        openRouterRows.addView(apiKeyPreview, matchWrap(dp(8), dp(10)));
         apiKeyInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
@@ -682,6 +769,8 @@ final class SettingsDialog {
             }
         });
         updateApiKeyPreview();
+        content.addView(openRouterRows, matchWrap(0, 0));
+        applyAiProviderRows();
 
         content.addView(label("Model"));
         selectedModelId = settings.getModelId();
@@ -694,7 +783,7 @@ final class SettingsDialog {
         Button refresh = button("Refresh models");
         refresh.setOnClickListener(ignored -> refreshModels());
         modelActions.addView(refresh, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        modelStatus = text("Live OpenRouter catalog", 12, MUTED);
+        modelStatus = text("Live model catalog", 12, MUTED);
         modelStatus.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams modelStatusParams =
                 new LinearLayout.LayoutParams(0, dp(42), 1f);
@@ -941,15 +1030,140 @@ final class SettingsDialog {
         return value.length() <= maximum ? value : value.substring(0, maximum) + "...";
     }
 
+    private void openExternalLink(String url) {
+        openLinkOutsideApp(Uri.parse(url));
+    }
+
     private void openSeoTimeMachines() {
-        Uri uri = Uri.parse(SEO_TIME_MACHINES_URL);
+        openLinkOutsideApp(Uri.parse(SEO_TIME_MACHINES_URL));
+    }
+
+    /**
+     * Opens an HTTPS link through an external handler. SpeedyWatch itself must be
+     * excluded: as the default browser it would otherwise load the page in its own
+     * WebView behind the open dialog, which looks like the link did nothing.
+     */
+    private void openLinkOutsideApp(Uri uri) {
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        PackageManager packageManager = activity.getPackageManager();
+        String selfPackage = activity.getPackageName();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            List<android.content.pm.ResolveInfo> handlers = packageManager.queryIntentActivities(
+                    intent, PackageManager.ResolveInfoFlags.of(0));
+            for (android.content.pm.ResolveInfo handler : handlers) {
+                if (!selfPackage.equals(handler.activityInfo.packageName)) {
+                    intent.setClassName(
+                            handler.activityInfo.packageName,
+                            handler.activityInfo.name
+                    );
+                    break;
+                }
+            }
+        } else {
+            List<android.content.pm.ResolveInfo> handlers = packageManager.queryIntentActivities(
+                    intent, PackageManager.MATCH_DEFAULT_ONLY);
+            for (android.content.pm.ResolveInfo handler : handlers) {
+                if (!selfPackage.equals(handler.activityInfo.packageName)) {
+                    intent.setClassName(
+                            handler.activityInfo.packageName,
+                            handler.activityInfo.name
+                    );
+                    break;
+                }
+            }
+        }
         try {
             activity.startActivity(intent);
         } catch (RuntimeException error) {
             Toast.makeText(activity, "No app can open this link", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showCloudflareSetupGuide() {
+        Dialog guide = new Dialog(activity);
+        guide.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        LinearLayout content = verticalLayout();
+        content.setPadding(dp(16), dp(14), dp(16), dp(14));
+        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+
+        TextView title = text("Cloudflare AI setup", 20, Color.WHITE);
+        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
+        content.addView(title, matchWrap(0, dp(10)));
+
+        content.addView(text(
+                "Two pastes — everything works on your phone. No coding, "
+                        + "no desktop, no Worker to deploy.",
+                13, Color.WHITE
+        ), matchWrap(0, dp(12)));
+
+        content.addView(guideStep(1, "Create a free Cloudflare account (or add a new "
+                + "account from the menu of your existing one). ",
+                "Create a free Cloudflare account", CLOUDFLARE_SIGNUP_URL));
+        content.addView(guideStep(2, "Open the dashboard — your 32-character "
+                + "Account ID is on the right side of the overview page. Copy it into "
+                + "the Account ID field in Settings. ",
+                "Open the dashboard", CLOUDFLARE_WORKERS_URL));
+        content.addView(guideStep(3, "Create the API token: tap your profile icon, "
+                + "then My Profile, then API Tokens, Create Token, Create Custom Token. "
+                + "Set Permissions to Account, Workers AI, Edit, continue, and create. ",
+                "Open API Tokens", CLOUDFLARE_API_TOKENS_URL));
+        content.addView(guideStep(4, "Copy the token Cloudflare shows (it is shown "
+                + "only once) into the API token field in Settings, then tap "
+                + "Check connection."));
+
+        content.addView(text(
+                "Free plan: about 10,000 AI credits per day for this account, "
+                        + "resetting daily. Each summary or quiz uses only a small amount.",
+                12, MUTED
+        ), matchWrap(0, dp(12)));
+
+        Button close = button("Close");
+        close.setOnClickListener(ignored -> guide.dismiss());
+        content.addView(close, matchWrap(0, dp(8)));
+
+        ScrollView guideScroll = new ScrollView(activity);
+        guideScroll.addView(content);
+        guide.setContentView(guideScroll);
+        Window window = guide.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        guide.show();
+    }
+
+    private TextView guideStep(int number, String plainText, String linkText, String url) {
+        SpannableString text = new SpannableString(
+                number + ". " + plainText + linkText + ".");
+        text.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                openExternalLink(url);
+            }
+
+            @Override
+            public void updateDrawState(TextPaint drawState) {
+                drawState.setColor(Color.rgb(90, 180, 255));
+                drawState.setUnderlineText(true);
+                drawState.setTypeface(Typeface.DEFAULT_BOLD);
+            }
+        }, (number + ". " + plainText).length(), text.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        TextView view = text("", 13, Color.WHITE);
+        view.setText(text);
+        view.setMovementMethod(LinkMovementMethod.getInstance());
+        view.setHighlightColor(Color.TRANSPARENT);
+        view.setPadding(dp(4), dp(6), dp(4), dp(6));
+        return view;
+    }
+
+    private TextView guideStep(int number, String plainText) {
+        TextView view = text(number + ". " + plainText, 13, Color.WHITE);
+        view.setPadding(dp(4), dp(6), dp(4), dp(6));
+        return view;
     }
 
     private void toggleApiKeyVisibility() {
@@ -962,6 +1176,72 @@ final class SettingsDialog {
         );
         apiKeyVisibilityButton.setContentDescription(apiKeyVisible ? "Hide API key" : "Show API key");
         apiKeyInput.setSelection(apiKeyInput.length());
+    }
+
+    private String aiProviderLabel(String provider) {
+        return "AI provider: " + (SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(provider)
+                ? "OpenRouter" : "Cloudflare (free)");
+    }
+
+    private void cycleAiProvider() {
+        aiProvider = SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)
+                ? SpeedyWatchSettings.AI_PROVIDER_CLOUDFLARE
+                : SpeedyWatchSettings.AI_PROVIDER_OPENROUTER;
+        settings.setAiProvider(aiProvider);
+        aiProviderButton.setText(aiProviderLabel(aiProvider));
+        applyAiProviderRows();
+        selectedModelId = settings.getModelId();
+        updateModelButton();
+        models.clear();
+        modelButton.setEnabled(false);
+        refreshModels();
+        showAutoSaved();
+    }
+
+    private void applyAiProviderRows() {
+        boolean cloudflare = !SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider);
+        cloudflareRows.setVisibility(cloudflare ? View.VISIBLE : View.GONE);
+        openRouterRows.setVisibility(cloudflare ? View.GONE : View.VISIBLE);
+    }
+
+    private void toggleCloudflareTokenVisibility() {
+        cloudflareTokenVisible = !cloudflareTokenVisible;
+        cloudflareTokenInput.setTransformationMethod(
+                cloudflareTokenVisible ? null : PasswordTransformationMethod.getInstance()
+        );
+        cloudflareTokenVisibilityButton.setImageResource(
+                cloudflareTokenVisible ? R.drawable.ic_visibility_off : R.drawable.ic_visibility
+        );
+        cloudflareTokenVisibilityButton.setContentDescription(
+                cloudflareTokenVisible ? "Hide access token" : "Show access token");
+        cloudflareTokenInput.setSelection(cloudflareTokenInput.length());
+    }
+
+    private void updateCloudflareTokenPreview() {
+        String token = cloudflareTokenInput.getText().toString().trim();
+        if (token.isEmpty()) {
+            cloudflareTokenPreview.setText("Token check: Not set");
+            return;
+        }
+        int suffixLength = Math.min(5, Math.max(1, token.length() - 1));
+        int prefixLength = token.length() > 13 ? 8 : 1;
+        cloudflareTokenPreview.setText(
+                "Token check: "
+                        + token.substring(0, prefixLength)
+                        + "..."
+                        + token.substring(token.length() - suffixLength)
+        );
+    }
+
+    private AiEndpoint dialogEndpoint() {
+        if (SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)) {
+            return AiEndpoint.openRouter(apiKeyInput.getText().toString().trim());
+        }
+        String accountId = cloudflareUrlInput.getText().toString().trim();
+        if (accountId.isEmpty()) {
+            return null;
+        }
+        return AiEndpoint.cloudflare(accountId, cloudflareTokenInput.getText().toString().trim());
     }
 
     private void updateApiKeyPreview() {
@@ -984,12 +1264,44 @@ final class SettingsDialog {
         if (modelStatus == null) {
             return;
         }
+        AiEndpoint endpoint = dialogEndpoint();
+        if (endpoint == null || endpoint.bearer.trim().isEmpty()) {
+            modelStatus.setText(SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)
+                    ? "Add an OpenRouter API key" : "Add the Account ID and API token");
+            return;
+        }
         modelStatus.setText("Loading...");
         modelButton.setEnabled(false);
-        String apiKey = apiKeyInput.getText().toString().trim();
+        if (!SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)) {
+            // Cloudflare has no model catalog endpoint: verify the connection with a
+            // tiny real request, then show the curated static catalog.
+            executor.execute(() -> {
+                try {
+                    client.generate(endpoint,
+                            settings.getCloudflareModelId(),
+                            List.of(new OpenRouterClient.Message(
+                                    "user", "Reply with exactly: OK")));
+                    activity.runOnUiThread(() ->
+                            applyModels(AiEndpoint.cloudflareCatalog()));
+                } catch (Exception error) {
+                    activity.runOnUiThread(() -> {
+                        if (dialog != null && dialog.isShowing()) {
+                            modelStatus.setText("Connection failed");
+                            modelButton.setEnabled(!models.isEmpty());
+                            Toast.makeText(
+                                    activity,
+                                    safeMessage(error, "Connection check failed"),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    });
+                }
+            });
+            return;
+        }
         executor.execute(() -> {
             try {
-                List<OpenRouterClient.Model> loaded = client.fetchModels(apiKey);
+                List<OpenRouterClient.Model> loaded = client.fetchModels(endpoint);
                 activity.runOnUiThread(() -> applyModels(loaded));
             } catch (Exception error) {
                 activity.runOnUiThread(() -> {
@@ -1015,7 +1327,10 @@ final class SettingsDialog {
         String previousModelId = selectedModelId;
         boolean selectedExists = findModel(selectedModelId) != null;
         if (!selectedExists) {
-            OpenRouterClient.Model preferred = findModel(SpeedyWatchSettings.PREFERRED_MODEL_ID);
+            OpenRouterClient.Model preferred = findModel(
+                    SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)
+                            ? SpeedyWatchSettings.PREFERRED_MODEL_ID
+                            : SpeedyWatchSettings.CLOUDFLARE_DEFAULT_MODEL_ID);
             selectedModelId = preferred == null ? "" : preferred.id;
         }
         if (!selectedModelId.isEmpty() && !selectedModelId.equals(previousModelId)) {
@@ -1023,7 +1338,9 @@ final class SettingsDialog {
         }
         updateModelButton();
         modelButton.setEnabled(!models.isEmpty());
-        modelStatus.setText(models.size() + " text models");
+        modelStatus.setText(SpeedyWatchSettings.AI_PROVIDER_OPENROUTER.equals(aiProvider)
+                ? models.size() + " text models"
+                : "Cloudflare connected • " + models.size() + " models");
     }
 
     private OpenRouterClient.Model findModel(String id) {
@@ -1056,7 +1373,7 @@ final class SettingsDialog {
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(14), dp(14), dp(14));
         content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
-        TextView title = text("Choose OpenRouter model", 19, Color.WHITE);
+        TextView title = text("Choose AI model", 19, Color.WHITE);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         content.addView(title);
         EditText search = input(false, 1);
@@ -1867,13 +2184,32 @@ final class SettingsDialog {
 
         try {
             String apiKey = apiKeyInput.getText().toString();
-            if (!apiKey.equals(settings.getApiKey())) {
+            if (!apiKey.equals(loadedApiKey)) {
                 settings.setApiKey(apiKey);
+                loadedApiKey = apiKey;
                 changed = true;
             }
             apiKeyInput.setError(null);
         } catch (GeneralSecurityException error) {
             apiKeyInput.setError("Could not store this key securely");
+        }
+
+        String accountId = cloudflareUrlInput.getText().toString().trim();
+        if (!accountId.equals(loadedCloudflareUrl)) {
+            settings.setCloudflareAccountId(accountId);
+            loadedCloudflareUrl = accountId;
+            changed = true;
+        }
+        try {
+            String token = cloudflareTokenInput.getText().toString();
+            if (!token.equals(loadedCloudflareToken)) {
+                settings.setCloudflareToken(token);
+                loadedCloudflareToken = token;
+                changed = true;
+            }
+            cloudflareTokenInput.setError(null);
+        } catch (GeneralSecurityException error) {
+            cloudflareTokenInput.setError("Could not store this token securely");
         }
 
         if (changed) {

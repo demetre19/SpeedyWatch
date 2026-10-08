@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 29) {
+    if (existing && existing.version === 30) {
         return "reused";
     }
 
@@ -202,6 +202,63 @@
     const activePictureInPictureMedia = () => {
         const target = selectedMediaTarget();
         return target?.status?.playing ? target : null;
+    };
+    const pageFullscreenElement = () => document.fullscreenElement
+        || document.webkitFullscreenElement || null;
+    const coversViewport = (rect) => {
+        const width = window.innerWidth || 0;
+        const height = window.innerHeight || 0;
+        if (width <= 0 || height <= 0 || !rect) {
+            return false;
+        }
+        return rect.width >= width * 0.95
+            && rect.height >= height * 0.9
+            && rect.right > 0 && rect.bottom > 0
+            && rect.left < width && rect.top < height;
+    };
+    const pageFullscreenActive = () => {
+        if (pageFullscreenElement()) {
+            return true;
+        }
+        const target = selectedMediaTarget(true);
+        if (!target || !target.status || !target.status.video || !target.status.ready) {
+            return false;
+        }
+        if (!target.media) {
+            // Embedded-frame media cannot be measured from the top document, so
+            // only a real element-fullscreen signal counts for frames.
+            return false;
+        }
+        let mediaRect;
+        try {
+            mediaRect = target.media.getBoundingClientRect();
+        } catch (_) {
+            return false;
+        }
+        if (coversViewport(mediaRect)) {
+            return true;
+        }
+        // Letterboxed players wrap the video in a fixed full-viewport container
+        // (X's player does this), so the video element alone may not fill the
+        // screen even though the player does.
+        let node = target.media.parentElement;
+        for (let depth = 0; node && depth < 6; depth++) {
+            let style;
+            let container;
+            try {
+                style = window.getComputedStyle(node);
+                container = node.getBoundingClientRect();
+            } catch (_) {
+                return false;
+            }
+            if (style.position === "fixed" && coversViewport(container)) {
+                const containerArea = Math.max(1, container.width * container.height);
+                const mediaArea = Math.max(0, mediaRect.width * mediaRect.height);
+                return mediaArea / containerArea >= 0.2;
+            }
+            node = node.parentElement;
+        }
+        return false;
     };
     const pictureInPictureLabel = () => {
         const host = window.location.hostname.toLowerCase();
@@ -1172,7 +1229,7 @@
     };
 
     const api = {
-        version: 29,
+        version: 30,
         collectXLinks,
         collectPageLinks,
         collectXPageText,
@@ -1246,6 +1303,24 @@
             });
             state.sponsorSegments.sort((left, right) => left.start - right.start);
             return true;
+        },
+        fullscreenState() {
+            return pageFullscreenActive();
+        },
+        exitPageFullscreen() {
+            if (!pageFullscreenElement()) {
+                return false;
+            }
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            try {
+                if (exit) {
+                    exit.call(document);
+                    return true;
+                }
+            } catch (_) {
+                // Page-owned fullscreen cannot always be exited programmatically.
+            }
+            return false;
         },
         setAdSkipping() {
             state.adSkipping = true;

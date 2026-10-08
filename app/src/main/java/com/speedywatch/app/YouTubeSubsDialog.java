@@ -560,6 +560,20 @@ final class YouTubeSubsDialog {
         transcriptAdapter.filter(search.getText().toString());
         updateTranscriptStatus();
     }
+    private AiEndpoint resolveAiEndpoint() {
+        String problem = settings.aiConfigurationError();
+        if (problem != null) {
+            Toast.makeText(activity, problem, Toast.LENGTH_LONG).show();
+            return null;
+        }
+        try {
+            return settings.aiEndpoint();
+        } catch (GeneralSecurityException error) {
+            Toast.makeText(activity, "Stored AI credentials could not be decrypted", Toast.LENGTH_LONG).show();
+            return null;
+        }
+    }
+
     private void generateWatchPath() {
         if (entries.isEmpty()) {
             Toast.makeText(activity, "No subtitles found", Toast.LENGTH_SHORT).show();
@@ -577,7 +591,7 @@ final class YouTubeSubsDialog {
         }
         String modelId = settings.getModelId();
         if (modelId == null || modelId.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -626,15 +640,8 @@ final class YouTubeSubsDialog {
             // Invalid or unavailable cache data falls through to a fresh request.
         }
 
-        final String apiKey;
-        try {
-            apiKey = settings.getApiKey();
-        } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (apiKey.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+        final AiEndpoint endpoint = resolveAiEndpoint();
+        if (endpoint == null) {
             return;
         }
 
@@ -642,7 +649,7 @@ final class YouTubeSubsDialog {
         status.setText("Creating WatchPath with " + modelId);
         executor.execute(() -> {
             try {
-                String response = client.summarize(apiKey, modelId, prompt, userMessage);
+                String response = client.summarize(endpoint, modelId, prompt, userMessage);
                 WatchPathPlan plan = WatchPathPlan.parse(
                         response,
                         videoUrl,
@@ -918,7 +925,7 @@ final class YouTubeSubsDialog {
 
         String modelId = settings.getModelId();
         if (modelId == null || modelId.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -948,15 +955,8 @@ final class YouTubeSubsDialog {
             // A cache read failure must not prevent a fresh summary.
         }
 
-        final String apiKey;
-        try {
-            apiKey = settings.getApiKey();
-        } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (apiKey.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+        final AiEndpoint endpoint = resolveAiEndpoint();
+        if (endpoint == null) {
             return;
         }
         summaryOneButton.setEnabled(false);
@@ -969,7 +969,7 @@ final class YouTubeSubsDialog {
 
         executor.execute(() -> {
             try {
-                String result = client.summarize(apiKey, modelId, prompt, userMessage);
+                String result = client.summarize(endpoint, modelId, prompt, userMessage);
                 boolean cacheStored;
                 try {
                     savedSummaryStore.cacheSummary(cacheKey, result);
@@ -1033,16 +1033,13 @@ final class YouTubeSubsDialog {
             return;
         }
 
-        final String apiKey;
-        try {
-            apiKey = settings.getApiKey();
-        } catch (GeneralSecurityException error) {
-            Toast.makeText(activity, "Stored API key could not be decrypted", Toast.LENGTH_LONG).show();
+        final AiEndpoint endpoint = resolveAiEndpoint();
+        if (endpoint == null) {
             return;
         }
         String modelId = settings.getModelId();
-        if (apiKey.trim().isEmpty() || modelId.trim().isEmpty()) {
-            Toast.makeText(activity, "Configure OpenRouter in Settings first", Toast.LENGTH_LONG).show();
+        if (modelId.trim().isEmpty()) {
+            Toast.makeText(activity, "Choose an AI model in Settings first", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -1059,7 +1056,7 @@ final class YouTubeSubsDialog {
         status.setText("Asking " + modelId + "...");
         executor.execute(() -> {
             try {
-                String answer = client.generate(apiKey, modelId, messages);
+                String answer = client.generate(endpoint, modelId, messages);
                 activity.runOnUiThread(() -> {
                     if (dialog != null && dialog.isShowing()) {
                         chatTurns.add(new SavedSummaryChat.Turn(question, answer));

@@ -26,7 +26,10 @@ final class AppBackup {
             ScrapedLinkStore scrapedLinkStore
     ) throws JSONException {
         JSONObject preferences = new JSONObject()
-                .put("modelId", settings.getModelId())
+                .put("modelId", settings.getOpenRouterModelId())
+                .put("aiProvider", settings.getAiProvider())
+                .put("cloudflareAccountId", settings.getCloudflareAccountId())
+                .put("cloudflareModelId", settings.getCloudflareModelId())
                 .put("summaryOnePrompt", settings.getSummaryOnePrompt())
                 .put("summaryTwoPrompt", settings.getSummaryTwoPrompt())
                 .put("quizPrompt", settings.getQuizPrompt())
@@ -411,6 +414,15 @@ final class AppBackup {
                 selfPromotionCategoryEnabled,
                 interactionCategoryEnabled
         );
+        settings.setAiProvider(preferences.optString("aiProvider", settings.getAiProvider()));
+        settings.setCloudflareAccountId(preferences.optString(
+                "cloudflareAccountId",
+                settings.getCloudflareAccountId()
+        ));
+        if (preferences.has("cloudflareModelId")) {
+            settings.setCloudflareModelId(
+                    boundedString(preferences, "cloudflareModelId", 300, true));
+        }
         settings.setScrapedLinksBackupEnabled(scrapedLinksBackupEnabled);
         settings.setAutoScrapeXLinksEnabled(preferences.optBoolean(
                 "autoScrapeXLinks",
