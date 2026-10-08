@@ -51,6 +51,8 @@ final class SavedSummariesDialog {
         void openVideo(String url);
 
         void openLink(String url);
+
+        void regenerateBookmark(SavedSummaryStore.Entry entry);
     }
 
     private static final int BACKGROUND = Color.rgb(15, 15, 15);
@@ -647,6 +649,26 @@ final class SavedSummariesDialog {
         sourceUrl.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
         sourceUrl.setOnClickListener(ignored -> openVideo(entry, detail));
         content.addView(sourceUrl);
+
+        if (SavedSummaryStore.isSummaryUnavailable(entry.summaryText)) {
+            Button regenerate = new Button(activity);
+            regenerate.setText("Regenerate summary");
+            regenerate.setTextColor(Color.WHITE);
+            regenerate.setTextSize(14);
+            regenerate.setAllCaps(false);
+            regenerate.setBackground(panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+            regenerate.setOnClickListener(ignored -> {
+                detail.dismiss();
+                dialog.dismiss();
+                host.regenerateBookmark(entry);
+            });
+            LinearLayout.LayoutParams regenerateParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(44)
+            );
+            regenerateParams.setMargins(0, dp(12), 0, 0);
+            content.addView(regenerate, regenerateParams);
+        }
 
         List<View> topChrome = new ArrayList<>();
         topChrome.add(header);

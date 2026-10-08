@@ -272,6 +272,34 @@ final class SavedSummaryStore extends SQLiteOpenHelper {
         ) == 1;
     }
 
+    synchronized boolean updateSummaryAndThumbnail(
+            long id,
+            String summaryText,
+            byte[] thumbnail
+    ) {
+        String normalizedSummary = requireText(summaryText, "Saved item content");
+        if (id <= 0 || (thumbnail != null
+                && (thumbnail.length == 0 || thumbnail.length > SavedThumbnail.MAX_BYTES))) {
+            throw new IllegalArgumentException("Video thumbnail is invalid");
+        }
+        ContentValues values = new ContentValues();
+        values.put("summary_text", normalizedSummary);
+        if (thumbnail != null) {
+            values.put("thumbnail", thumbnail);
+        }
+        return getWritableDatabase().update(
+                TABLE,
+                values,
+                "id = ?",
+                new String[]{Long.toString(id)}
+        ) == 1;
+    }
+
+    static boolean isSummaryUnavailable(String summaryText) {
+        return summaryText != null
+                && summaryText.trim().startsWith("*Summary unavailable");
+    }
+
     synchronized boolean delete(long id) {
         return id > 0 && getWritableDatabase().delete(TABLE, "id = ?", new String[]{Long.toString(id)}) > 0;
     }
