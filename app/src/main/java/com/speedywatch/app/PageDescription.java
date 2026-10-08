@@ -20,6 +20,22 @@ final class PageDescription {
     }
 
     static String fetch(android.content.Context context, String url) {
+        // Logged-out first: sites serve crawler-optimized HTML (with og:description)
+        // to anonymous requests, and an authenticated fetch often returns a JS shell
+        // without meta tags. Retry with the WebView's cookies (same host only) for
+        // sites that gate their metadata behind login.
+        String withoutCookies = fetchOnce(context, url, false);
+        if (withoutCookies != null && !withoutCookies.trim().isEmpty()) {
+            return withoutCookies;
+        }
+        String withCookies = fetchOnce(context, url, true);
+        if (withCookies != null && !withCookies.trim().isEmpty()) {
+            return withCookies;
+        }
+        return null;
+    }
+
+    private static String fetchOnce(android.content.Context context, String url, boolean withCookies) {
         String validated = SupportedSite.validatedHttpsUrl(url);
         if (validated == null) {
             return null;
@@ -35,13 +51,12 @@ final class PageDescription {
                     "User-Agent",
                     android.webkit.WebSettings.getDefaultUserAgent(context)
             );
-            // Send the WebView's own session cookies for THIS host only — X and other
-            // gated sites serve post content only to authenticated requests. Cookies
-            // are never sent to any other host.
-            String cookies = android.webkit.CookieManager.getInstance()
-                    .getCookie(validated);
-            if (cookies != null && !cookies.isEmpty()) {
-                connection.setRequestProperty("Cookie", cookies);
+            if (withCookies) {
+                String cookies = android.webkit.CookieManager.getInstance()
+                        .getCookie(validated);
+                if (cookies != null && !cookies.isEmpty()) {
+                    connection.setRequestProperty("Cookie", cookies);
+                }
             }
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
