@@ -25,7 +25,7 @@ SpeedyWatch provides granular control over media playback speed, ranging from 0.
 
 **2. LLM Content Processing**
 
-Leveraging the OpenRouter API, SpeedyWatch transforms transcripts and video sources into actionable structured data:
+Leveraging Cloudflare's free Workers AI (the default, connected with just your Account ID and an API token) or OpenRouter, SpeedyWatch transforms transcripts and video sources into actionable structured data:
 
 - **Summarization & Chat:** Generates structured summaries and supports follow-up questions.
 - **WatchPath:** An AI-guided navigation system that builds a focused playback route based on a user-defined goal and time budget.
@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.47**, debug-signed |
+| Current public APK: **v0.61**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -117,7 +117,7 @@ Leave with answers you can find again.
 
 ### Summarize, ask, and test yourself
 
-- Create two independently configured summaries with your chosen OpenRouter model.
+- Create two independently configured summaries with your chosen model.
 - Ask follow-up questions while the source stays in view.
 - Reopen an unchanged summary without sending the same request again.
 - Generate a **6, 10, 12, or 20 question** quiz.
@@ -129,7 +129,7 @@ Leave with answers you can find again.
 
 ### Keep and share what matters
 
-Search saved summaries and quizzes by title, creator, type, heading, or full text. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file.
+Search saved summaries and quizzes by title, creator, type, heading, or full text. Bookmarks that were saved without a summary (for example when the AI quota was exhausted) show a green **Regenerate summary** button that quietly refetches the page and fills the summary and preview in place. Saving a summary after follow-up questions keeps the original summary plus every completed `You`/`AI` turn in order. When **Save YouTube thumbnails** is on, newly saved YouTube items can include a compact video preview and older text-only YouTube items offer **Add image** in their detail view; existing previews can be refreshed there too. Turn the setting off to hide all thumbnail previews and image controls without deleting saved data. Share any result with its original source link attached. Back up and restore saved content with a versioned JSON file. Closing Settings also writes an automatic backup to `Downloads/SpeedyWatch/backups/` (the newest seven are kept), so your library survives reinstalls.
 The **Bookmark** action—on the toolbar or the Omnibutton—saves the page you're reading into this library with an automatic Summary One digest and a preview image, so every saved page explains itself. The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
 Cleaning up is fast too: **long-press any link** to multi-select, use **Same domain** or the **Domain list** (every domain with counts) to grab a whole site's links at once, and delete them all with one confirmation.
 
@@ -195,16 +195,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.47
-Version code: 47
+Version: 0.61
+Version code: 61
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,557,971 bytes
-SHA-256: 8183e48453590ff3e03afbda26975bfd05f051871af4c2a70a548cd27f195ded
+APK size: 106,592,915 bytes
+SHA-256: f359e2a2775c7cdf16446ee803d7de6d4722d0ac4d1a3c400f439b3fbf7085ef
 Signing: Android debug signing key
 ```
 
-This public v0.47 APK is debug-signed with APK Signature Scheme v2. It updates the bundled yt-dlp download engine to the official `2026.08.19` release so media format discovery and downloads keep working as supported services change their delivery, and automatically replaces the older private executable on first use without clearing app data.
+This public v0.61 APK is debug-signed with APK Signature Scheme v2. It makes Cloudflare's free Workers AI the default summary engine — connected with just an Account ID and an API token, no Worker to deploy — with a built-in setup guide, a green connected confirmation, and one-tap regeneration for bookmarks that were saved without a summary. Closing Settings now also writes an automatic backup to `Downloads/SpeedyWatch/backups/`. Fullscreen video on any supported site clears every control except the Omnibutton. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
 
 ## iOS source
 
@@ -216,17 +216,20 @@ filtering limitations.
 
 Android remains the only publicly downloadable SpeedyWatch release.
 
-## OpenRouter setup
+## AI setup: Cloudflare first, OpenRouter optional
 
-Summaries, follow-up questions, WatchPath routes, and quizzes require your own OpenRouter API key.
+Summaries, follow-up questions, WatchPath routes, and quizzes use **Cloudflare's free Workers AI by default** — no Worker to deploy and no coding:
 
-1. Open **Settings** in SpeedyWatch.
-2. Paste your OpenRouter API key.
-3. Refresh the model list.
-4. Choose a text model. SpeedyWatch prefers **Inception: Mercury 2** when it is available and shows each model's context length and advertised per-million-token input/output prices. Use the model picker filters to narrow the list to free or long-context options.
-5. Edit the summary, WatchPath, or quiz prompts if needed. Settings autosaves valid changes.
+1. Open **Settings** → **AI** → **Setup guide for a new Cloudflare account**.
+2. Create a free Cloudflare account, copy your 32-character **Account ID** from the dashboard, and paste it in.
+3. Create a custom API token (Account / Workers AI / Edit) and paste it in.
+4. Tap **Check connection** — it turns green with a ✓ when connected. The default model is **Llama 3.1 8B Instruct FP8 Fast**; the picker lists the other curated Workers AI models.
 
-The API key is encrypted with Android Keystore AES-GCM. Settings masks the key by default and shows only a short prefix and suffix check.
+The free tier includes about 10,000 neurons per day per Cloudflare account, resetting daily.
+
+Prefer OpenRouter? Flip **AI provider** to OpenRouter, paste your API key, refresh the model list, and choose a text model — SpeedyWatch prefers **Inception: Mercury 2** when available and shows each model's context length and advertised per-million-token prices with free and long-context filters.
+
+Both credentials are encrypted with Android Keystore AES-GCM. Settings masks them by default and shows only a short prefix and suffix check.
 
 ## Using transcripts, WatchPath, summaries, and quizzes
 
@@ -251,10 +254,10 @@ Caption and readable-text availability depends on what the page exposes. Generic
 - Android loads any validated public HTTPS page and available captions over HTTPS, while service-specific downloads, cookies, and network caption requests remain restricted to their explicit service allowlists. Approved media CDN hosts remain resource-only and cannot become browsable destinations from intercepted requests.
 - Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
-- Your OpenRouter API key remains in Android Keystore-encrypted app storage.
-- Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to OpenRouter only when you request a summary, WatchPath route, follow-up answer, or quiz.
+- Your Cloudflare Account ID stays in plain app settings; your Cloudflare API token and OpenRouter API key remain in Android Keystore-encrypted app storage.
+- Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to the selected AI provider (Cloudflare or OpenRouter) only when you request a summary, WatchPath route, follow-up answer, or quiz. Regenerating a bookmark fetches that one page's description metadata without cookies first (falling back to the page's own session cookies) and sends it to the selected provider.
 - Saved summaries, saved quizzes, their source URLs, completed follow-up turns included through **Save summary**, and optional thumbnails remain in app-private local storage until you delete them. Only while **Save YouTube thumbnails** is enabled, SpeedyWatch displays or regenerates those previews and fetches bounded YouTube thumbnail data directly from `i.ytimg.com` without cookies. Disabling the setting hides the feature without deleting stored thumbnail bytes. Unsaved and in-progress follow-up chat remains transient.
-- Exported backup files contain settings plus saved summaries, quizzes, any completed follow-up turns included in those saved summaries, and their thumbnails, but never the OpenRouter API key. Restoring a backup replaces those exported settings and saved items.
+- Exported backup files contain settings plus saved summaries, quizzes, any completed follow-up turns included in those saved summaries, and their thumbnails, but never the Cloudflare API token or the OpenRouter API key. Restoring a backup replaces those exported settings and saved items. Automatic backups written to `Downloads/SpeedyWatch/backups/` contain the same data.
 - Automatically cached summary and WatchPath results remain in app-private local storage and are removed when the app's data is cleared. Follow-up chat turns are not included in the reusable cache.
 - Invalid or unsupported schemes, malformed URLs, private/local destinations, and bare or malformed MEGA shared links are rejected. Valid generic HTTPS pages stay in SpeedyWatch; approved media CDN hosts cannot become browsable destinations.
 
@@ -292,10 +295,10 @@ Uses [SponsorBlock](https://sponsor.ajay.app/) data under [CC BY-NC-SA 4.0](http
 - Download only media you own or have permission and legal authority to save, and follow the selected service's terms and applicable copyright law.
 - Built-in YouTube ad skipping is always enabled only while YouTube is active and remains best effort. Optional SponsorBlock community-segment skipping is also YouTube-only, defaults off, and depends on third-party submissions and API availability. Neither feature is a network-level ad blocker.
 - Videos without accessible captions cannot use transcript, summary, or quiz features.
-- OpenRouter usage may incur charges depending on the selected model and account.
+- Cloudflare Workers AI is free within about 10,000 neurons per day per account. OpenRouter usage may incur charges depending on the selected model and account.
 
 ## Project status
 
-SpeedyWatch is an independent project and is not affiliated with or endorsed by YouTube, Google, Bilibili, Instagram, Meta, Vimeo, X, MEGA, OpenRouter, or Inception Labs.
+SpeedyWatch is an independent project and is not affiliated with or endorsed by YouTube, Google, Bilibili, Instagram, Meta, Vimeo, X, MEGA, Cloudflare, OpenRouter, or Inception Labs.
 
 Brought to you by the team from [SEO Time Machines](https://seotimemachines.com)
