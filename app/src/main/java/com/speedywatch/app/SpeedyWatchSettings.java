@@ -72,6 +72,9 @@ final class SpeedyWatchSettings {
     private static final String LAST_ERROR_URL = "last_error_url";
     private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
     private static final String YOUTUBE_HIDE_SHORTS = "youtube_hide_shorts";
+    private static final String CHUNK_LIMIT = "chunk_limit";
+    private static final String CHUNK_NUMBERING = "chunk_numbering";
+    private static final String CHUNK_SMART_SPLIT = "chunk_smart_split";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -263,6 +266,33 @@ final class SpeedyWatchSettings {
 
     void setLockIconEnabled(boolean enabled) {
         preferences.edit().putBoolean(LOCK_ICON_ENABLED, enabled).apply();
+    }
+
+    int getChunkLimit() {
+        return TextChunker.boundLimit(preferences.getInt(
+                CHUNK_LIMIT, TextChunker.DEFAULT_LIMIT));
+    }
+
+    void setChunkLimit(int limit) {
+        preferences.edit()
+                .putInt(CHUNK_LIMIT, TextChunker.boundLimit(limit))
+                .apply();
+    }
+
+    boolean isChunkNumberingEnabled() {
+        return preferences.getBoolean(CHUNK_NUMBERING, true);
+    }
+
+    void setChunkNumberingEnabled(boolean enabled) {
+        preferences.edit().putBoolean(CHUNK_NUMBERING, enabled).apply();
+    }
+
+    boolean isChunkSmartSplitEnabled() {
+        return preferences.getBoolean(CHUNK_SMART_SPLIT, true);
+    }
+
+    void setChunkSmartSplitEnabled(boolean enabled) {
+        preferences.edit().putBoolean(CHUNK_SMART_SPLIT, enabled).apply();
     }
 
     String getPictureInPictureControl() {

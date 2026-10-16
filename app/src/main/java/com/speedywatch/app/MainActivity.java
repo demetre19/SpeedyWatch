@@ -598,6 +598,11 @@ public final class MainActivity extends Activity {
                 ignored -> bookmarkCurrentPage()
         ));
         navigation.addView(makeIconButton(
+                R.drawable.ic_text_split,
+                "Split pasted text into post-sized chunks",
+                ignored -> showTextChunks()
+        ));
+        navigation.addView(makeIconButton(
                 R.drawable.ic_bookmark,
                 "Saved summaries and quizzes",
                 ignored -> showSavedSummaries()
@@ -2381,6 +2386,15 @@ public final class MainActivity extends Activity {
                 openRouterClient,
                 ioExecutor,
                 savedSummaryStore
+        ).show();
+    }
+
+    private void showTextChunks() {
+        new TextChunksDialog(
+                this,
+                appSettings,
+                openRouterClient,
+                ioExecutor
         ).show();
     }
 
@@ -4207,6 +4221,9 @@ public final class MainActivity extends Activity {
                 break;
             case BOOKMARK:
                 bookmarkCurrentPage();
+                break;
+            case SPLIT_TEXT:
+                showTextChunks();
                 break;
             default:
                 break;

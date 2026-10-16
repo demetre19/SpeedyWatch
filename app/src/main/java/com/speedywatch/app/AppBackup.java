@@ -61,7 +61,10 @@ final class AppBackup {
                 .put("hideShorts", settings.isYouTubeHideShortsEnabled())
                 .put("omniButtonColor", settings.getOmniButtonColor())
                 .put("omniIconColor", settings.getOmniIconColor())
-                .put("omniOpacity", (double) settings.getOmniButtonOpacity());
+                .put("omniOpacity", (double) settings.getOmniButtonOpacity())
+                .put("chunkLimit", settings.getChunkLimit())
+                .put("chunkNumbering", settings.isChunkNumberingEnabled())
+                .put("chunkSmartSplit", settings.isChunkSmartSplitEnabled());
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -444,6 +447,18 @@ final class AppBackup {
         settings.setYouTubeHideShortsEnabled(preferences.optBoolean(
                 "hideShorts",
                 settings.isYouTubeHideShortsEnabled()
+        ));
+        settings.setChunkLimit(preferences.optInt(
+                "chunkLimit",
+                settings.getChunkLimit()
+        ));
+        settings.setChunkNumberingEnabled(preferences.optBoolean(
+                "chunkNumbering",
+                settings.isChunkNumberingEnabled()
+        ));
+        settings.setChunkSmartSplitEnabled(preferences.optBoolean(
+                "chunkSmartSplit",
+                settings.isChunkSmartSplitEnabled()
         ));
         if (preferences.has("omniButtonGesturesWeb")) {
             settings.setOmniWebButtonBindings(omniWebActions, omniWebAmounts);
