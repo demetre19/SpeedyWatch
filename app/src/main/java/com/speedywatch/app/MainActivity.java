@@ -357,6 +357,7 @@ public final class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 if (!pageLoadFailed || !url.equals(loadingPageUrl)) {
                     appSettings.setLastErrorUrl("");
+                    appSettings.setLastPageUrl(url);
                 }
                 loadingPageUrl = null;
                 rememberMainFrameUrl(url);
@@ -405,7 +406,7 @@ public final class MainActivity extends Activity {
                 || webView.restoreState(savedInstanceState) == null
                 || lastErrorUrlMatchesCurrent()) {
             webView.loadUrl(incomingPageUrl == null
-                    ? (startUrl == null ? HOME_URL : startUrl)
+                    ? (startUrl == null ? resumePageUrl() : startUrl)
                     : incomingPageUrl);
         } else if (incomingPageUrl != null) {
             webView.loadUrl(incomingPageUrl);
@@ -1760,7 +1761,12 @@ public final class MainActivity extends Activity {
         return SupportedSite.isInAppNavigationUrl(uri.toString());
     }
     private void showSitePicker() {
-        SupportedSite[] sites = SupportedSite.browsableValues();
+        java.util.List<SupportedSite> orderedSites = appSettings.visibleSites();
+        SupportedSite[] sites = orderedSites.toArray(new SupportedSite[0]);
+        if (sites.length == 0) {
+            Toast.makeText(this, "Enable at least one site in Settings", Toast.LENGTH_SHORT).show();
+            return;
+        }
         int selectedIndex = 0;
         for (int index = 0; index < sites.length; index++) {
             if (sites[index] == selectedSite) {
@@ -1853,6 +1859,12 @@ public final class MainActivity extends Activity {
             default:
                 return null;
         }
+    }
+
+    private String resumePageUrl() {
+        String lastPage = appSettings.getLastPageUrl();
+        return lastPage.isEmpty() || lastPage.equals(appSettings.getLastErrorUrl())
+                ? HOME_URL : lastPage;
     }
 
     private boolean lastErrorUrlMatchesCurrent() {

@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.crypto.Cipher;
@@ -75,6 +76,9 @@ final class SpeedyWatchSettings {
     private static final String CHUNK_LIMIT = "chunk_limit";
     private static final String CHUNK_NUMBERING = "chunk_numbering";
     private static final String CHUNK_SMART_SPLIT = "chunk_smart_split";
+    private static final String SITE_ORDER = "site_order";
+    private static final String SITE_HIDDEN = "site_hidden";
+    private static final String LAST_PAGE_URL = "last_page_url";
     static final String PIP_CONTROL_BUTTON = "button";
     static final String PIP_CONTROL_PINCH = "pinch";
     static final String PROFILE_NORMAL = "normal";
@@ -93,6 +97,24 @@ final class SpeedyWatchSettings {
                     + "- Key points as bullet points\n"
                     + "- Any notable conclusions or takeaways\n\n"
                     + "Keep the summary factual and focused. Do not add opinions or information not present in the transcript.";
+    private static final String LEGACY_SUMMARY_ONE_PROMPT_V61 =
+            "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
+                    + "- A brief overview of the video topic (2-3 sentences)\n"
+                    + "- Key points as bullet points\n"
+                    + "- Any notable conclusions or takeaways\n\n"
+                    + "This should be a detailed and through overview. With insightful and in-depth commentary and how it can be utilised in a business setting, do NOT include timestamps.\n\n"
+                    + "Keep the summary factual and focused. Do not add opinions or information not present in the transcript.\n\n"
+                    + "Do NOT create tables. Make nice readable heading:text paragraphs. Must be left aligned\n\n"
+                    + "Give me step by step.instructions on how to implement it in a business. Be as detailed as possible.";
+    private static final String LEGACY_SUMMARY_TWO_PROMPT_V61 =
+            "You are a concise video content summariser. Provide a clear, well-structured summary of the following YouTube video transcript. Include:\n"
+                    + "- A brief overview of the video topic (2-3 sentences)\n"
+                    + "- Key points as bullet points\n"
+                    + "- Any notable conclusions or takeaways\n\n"
+                    + "Provide a detailed and thorough overview with insightful, in-depth commentary on how the ideas in the video can be utilised in a business setting. Ground every insight and business application in the transcript.\n\n"
+                    + "Keep the summary factual and focused. Do not add opinions or information not present in the transcript.";
+    private static final String LEGACY_QUIZ_PROMPT_V61 =
+            "You are a study tutor preparing a reader before they study a source. Use only facts, terms, and concepts present in the source. Return exactly the Requested question count from the request data as important pre-watch questions in Markdown. For each item, use a numbered heading for the question, then one short description explaining why the question matters and what the viewer should listen for. Do not answer the questions or include a summary, glossary, introduction, or conclusion.";
 
     private final Context context;
     private final SharedPreferences preferences;
@@ -100,10 +122,20 @@ final class SpeedyWatchSettings {
     SpeedyWatchSettings(Context context) {
         this.context = context.getApplicationContext();
         preferences = this.context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
-        String summaryOne = preferences.getString(SUMMARY_ONE, "");
-        if (LEGACY_SUMMARY_ONE_PROMPT.equals(summaryOne)) {
+        migrateLegacyStockPrompt(SUMMARY_ONE,
+                LEGACY_SUMMARY_ONE_PROMPT, R.string.summary_one_prompt_default);
+        migrateLegacyStockPrompt(SUMMARY_ONE,
+                LEGACY_SUMMARY_ONE_PROMPT_V61, R.string.summary_one_prompt_default);
+        migrateLegacyStockPrompt(SUMMARY_TWO,
+                LEGACY_SUMMARY_TWO_PROMPT_V61, R.string.summary_two_prompt_default);
+        migrateLegacyStockPrompt(QUIZ,
+                LEGACY_QUIZ_PROMPT_V61, R.string.quiz_prompt_default);
+    }
+
+    private void migrateLegacyStockPrompt(String key, String legacyValue, int defaultResource) {
+        if (legacyValue.equals(preferences.getString(key, ""))) {
             preferences.edit()
-                    .putString(SUMMARY_ONE, this.context.getString(R.string.summary_one_prompt_default))
+                    .putString(key, this.context.getString(defaultResource))
                     .apply();
         }
     }
@@ -336,9 +368,71 @@ final class SpeedyWatchSettings {
                 || START_PAGE_X.equals(startPage);
     }
 
+    java.util.Set<String> hiddenSiteIds() {
+        return SiteLayout.parseIds(preferences.getString(SITE_HIDDEN, ""));
+    }
+
+    /** Applies a backup-imported layout; unknown ids are dropped. */
+    void applySiteLayout(String order, String hidden) {
+        List<SupportedSite> sites = SiteLayout.orderedSites(order);
+        java.util.Set<String> ids = SiteLayout.parseIds(hidden);
+        List<SupportedSite> hiddenSites = new java.util.ArrayList<>();
+        for (SupportedSite site : sites) {
+            if (ids.contains(site.name())) {
+                hiddenSites.add(site);
+            }
+        }
+        preferences.edit()
+                .putString(SITE_ORDER, SiteLayout.encodeOrder(sites))
+                .putString(SITE_HIDDEN, SiteLayout.encodeHidden(hiddenSites))
+                .apply();
+    }
+
+    List<SupportedSite> orderedSites() {
+        return SiteLayout.orderedSites(
+                preferences.getString(SITE_ORDER, ""));
+    }
+
     String getLastErrorUrl() {
         String saved = preferences.getString(LAST_ERROR_URL, "");
         return saved == null ? "" : saved;
+    }
+
+    List<SupportedSite> visibleSites() {
+        return SiteLayout.visibleSites(
+                preferences.getString(SITE_ORDER, ""),
+                preferences.getString(SITE_HIDDEN, ""));
+    }
+
+    void setSiteOrder(List<SupportedSite> ordered) {
+        preferences.edit()
+                .putString(SITE_ORDER, SiteLayout.encodeOrder(ordered))
+                .apply();
+    }
+
+    boolean isSiteHidden(SupportedSite site) {
+        return SiteLayout.isHidden(
+                preferences.getString(SITE_HIDDEN, ""), site);
+    }
+
+    void setSiteHidden(List<SupportedSite> hidden) {
+        preferences.edit()
+                .putString(SITE_HIDDEN, SiteLayout.encodeHidden(hidden))
+                .apply();
+    }
+
+    String getLastPageUrl() {
+        String saved = preferences.getString(LAST_PAGE_URL, "");
+        String valid = saved == null ? null : SupportedSite.validatedHttpsUrl(saved);
+        return valid == null ? "" : valid;
+    }
+
+    void setLastPageUrl(String url) {
+        String valid = url == null ? null : SupportedSite.validatedHttpsUrl(url);
+        if (valid == null || valid.isEmpty()) {
+            return;
+        }
+        preferences.edit().putString(LAST_PAGE_URL, valid).apply();
     }
 
     void setLastErrorUrl(String url) {

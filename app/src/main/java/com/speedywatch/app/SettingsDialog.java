@@ -38,6 +38,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,6 +131,9 @@ final class SettingsDialog {
     private String startPage;
     private Button hideShortsButton;
     private boolean hideShortsEnabled;
+    private List<SupportedSite> siteOrder = new ArrayList<>();
+    private Set<String> siteHidden = new LinkedHashSet<>();
+    private LinearLayout siteListContainer;
     private Button shortsAsVideosButton;
     private boolean shortsAsVideosEnabled;
     private Button lockIconToggleButton;
@@ -304,6 +309,21 @@ final class SettingsDialog {
         content.addView(
                 text(
                         "Choose where SpeedyWatch opens. Resume last page keeps your place; a site always starts fresh. Pages that failed to load never reopen.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+
+        content.addView(text("Sites", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        siteOrder = new ArrayList<>(settings.orderedSites());
+        siteHidden = new LinkedHashSet<>(settings.hiddenSiteIds());
+        siteListContainer = verticalLayout();
+        rebuildSiteRows();
+        content.addView(siteListContainer, matchWrap(0, dp(6)));
+        content.addView(
+                text(
+                        "Rearrange the site picker or hide sites with the eye. Hidden sites stay out of the picker until you show them again.",
                         12,
                         MUTED
                 ),
@@ -1985,6 +2005,100 @@ final class SettingsDialog {
         hideShortsButton.setText(
                 hideShortsEnabled ? "Hide Shorts: On" : "Hide Shorts: Off"
         );
+    }
+
+    private void rebuildSiteRows() {
+        if (siteListContainer == null) {
+            return;
+        }
+        siteListContainer.removeAllViews();
+        for (int index = 0; index < siteOrder.size(); index++) {
+            SupportedSite site = siteOrder.get(index);
+            boolean hidden = siteHidden.contains(site.name());
+            LinearLayout row = horizontalLayout();
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            if (site.iconResource != 0) {
+                ImageButton icon = new ImageButton(activity);
+                icon.setImageResource(site.iconResource);
+                icon.setEnabled(false);
+                icon.setClickable(false);
+                icon.setBackground(null);
+                icon.setPadding(0, 0, 0, 0);
+                icon.setImportantForAccessibility(
+                        View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
+            }
+            TextView label = text(site.label, 15,
+                    hidden ? MUTED : Color.WHITE);
+            LinearLayout.LayoutParams labelParams =
+                    new LinearLayout.LayoutParams(0, dp(44), 1f);
+            labelParams.setMargins(dp(10), 0, 0, 0);
+            label.setGravity(Gravity.CENTER_VERTICAL);
+            row.addView(label, labelParams);
+            ImageButton eye = siteIconButton(
+                    hidden ? R.drawable.ic_visibility_off : R.drawable.ic_visibility,
+                    hidden ? "Show " + site.label : "Hide " + site.label);
+            final SupportedSite eyeSite = site;
+            eye.setOnClickListener(ignored -> toggleSiteHidden(eyeSite));
+            row.addView(eye);
+            final int rowIndex = index;
+            ImageButton up = siteIconButton(R.drawable.ic_arrow_up,
+                    "Move " + site.label + " up");
+            up.setEnabled(index > 0);
+            up.setAlpha(index > 0 ? 1f : 0.3f);
+            up.setOnClickListener(ignored -> moveSite(rowIndex, -1));
+            row.addView(up);
+            ImageButton down = siteIconButton(R.drawable.ic_arrow_down,
+                    "Move " + site.label + " down");
+            down.setEnabled(index < siteOrder.size() - 1);
+            down.setAlpha(index < siteOrder.size() - 1 ? 1f : 0.3f);
+            down.setOnClickListener(ignored -> moveSite(rowIndex, 1));
+            row.addView(down);
+            siteListContainer.addView(row, matchWrap(index == 0 ? 0 : dp(4), 0));
+        }
+    }
+
+    private ImageButton siteIconButton(int drawable, String description) {
+        ImageButton button = new ImageButton(activity);
+        button.setImageResource(drawable);
+        button.setContentDescription(description);
+        button.setPadding(dp(8), dp(8), dp(8), dp(8));
+        button.setBackground(panelBackground(BUTTON, BUTTON));
+        return button;
+    }
+
+    private void moveSite(int index, int delta) {
+        int target = index + delta;
+        if (index < 0 || target < 0
+                || index >= siteOrder.size() || target >= siteOrder.size()) {
+            return;
+        }
+        siteOrder.add(target, siteOrder.remove(index));
+        persistSiteLayout();
+        rebuildSiteRows();
+    }
+
+    private void toggleSiteHidden(SupportedSite site) {
+        if (site == null) {
+            return;
+        }
+        if (!siteHidden.remove(site.name())) {
+            siteHidden.add(site.name());
+        }
+        persistSiteLayout();
+        rebuildSiteRows();
+    }
+
+    private void persistSiteLayout() {
+        settings.setSiteOrder(siteOrder);
+        List<SupportedSite> hidden = new ArrayList<>();
+        for (SupportedSite site : siteOrder) {
+            if (siteHidden.contains(site.name())) {
+                hidden.add(site);
+            }
+        }
+        settings.setSiteHidden(hidden);
+        showAutoSaved();
     }
 
     private Double readDefaultSpeed() {

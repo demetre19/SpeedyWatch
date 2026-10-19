@@ -64,7 +64,10 @@ final class AppBackup {
                 .put("omniOpacity", (double) settings.getOmniButtonOpacity())
                 .put("chunkLimit", settings.getChunkLimit())
                 .put("chunkNumbering", settings.isChunkNumberingEnabled())
-                .put("chunkSmartSplit", settings.isChunkSmartSplitEnabled());
+                .put("chunkSmartSplit", settings.isChunkSmartSplitEnabled())
+                .put("siteOrder", SiteLayout.encodeOrder(settings.orderedSites()))
+                .put("siteHidden",
+                        String.join(",", settings.hiddenSiteIds()));
         EnumMap<OmniButtonGesture.Direction, OmniButtonAction> omniActions =
                 new EnumMap<>(OmniButtonGesture.Direction.class);
         EnumMap<OmniButtonGesture.Direction, Double> omniAmounts =
@@ -465,6 +468,15 @@ final class AppBackup {
         }
         if (preferences.has("omniButtonGesturesX")) {
             settings.setOmniXButtonBindings(omniXActions, omniXAmounts);
+        }
+        if (preferences.has("siteOrder") || preferences.has("siteHidden")) {
+            settings.applySiteLayout(
+                    preferences.has("siteOrder")
+                            ? boundedString(preferences, "siteOrder", 500, true)
+                            : SiteLayout.encodeOrder(settings.orderedSites()),
+                    preferences.has("siteHidden")
+                            ? boundedString(preferences, "siteHidden", 500, true)
+                            : String.join(",", settings.hiddenSiteIds()));
         }
         if (root.has("scrapedLinks")) {
             scrapedLinkStore.replaceAll(scrapedLinkRestores);
