@@ -61,6 +61,7 @@ final class TextChunksDialog {
     private TextView status;
     private boolean numbering = true;
     private int nextIndex;
+    private boolean autoCopyFirst;
     private volatile long splitGeneration;
 
     TextChunksDialog(
@@ -219,8 +220,19 @@ final class TextChunksDialog {
         }
         input.setText(text);
         input.setSelection(input.getText().length());
+        autoCopyFirst = true;
         status.setText("Clipboard loaded — splitting…");
         split();
+        // Copy chunk 1 once deterministic chunks exist; a smart-split
+        // refinement copies the refined chunk 1 again before it clears the flag.
+        if (autoCopyFirst && !bodies.isEmpty()) {
+            copyChunk(0);
+            nextIndex = 1;
+            refreshChunks();
+        }
+        if (!settings.isChunkSmartSplitEnabled()) {
+            autoCopyFirst = false;
+        }
     }
 
     private void split() {
@@ -296,9 +308,15 @@ final class TextChunksDialog {
                 if (refined != null) {
                     applyBodies(refined);
                     status.setText(refined.size() + " chunks ready (AI-split verbatim)");
+                    if (autoCopyFirst && !bodies.isEmpty()) {
+                        copyChunk(0);
+                        nextIndex = 1;
+                        refreshChunks();
+                    }
                 } else {
                     status.setText(bodies.size() + " chunks ready (local split)");
                 }
+                autoCopyFirst = false;
             });
         });
     }
