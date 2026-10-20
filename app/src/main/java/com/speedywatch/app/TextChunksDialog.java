@@ -129,6 +129,26 @@ final class TextChunksDialog {
         input.setPadding(dp(10), dp(8), dp(10), dp(8));
         root.addView(input, params(0, 0, 0, dp(8)));
 
+        LinearLayout toggles = horizontalLayout();
+        numberingButton = button(numberingLabel(), ignored -> {
+            numbering = !numbering;
+            settings.setChunkNumberingEnabled(numbering);
+            numberingButton.setText(numberingLabel());
+            refreshChunks();
+        });
+        toggles.addView(numberingButton, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        smartButton = button(smartLabel(), ignored -> {
+            boolean enabled = !settings.isChunkSmartSplitEnabled();
+            settings.setChunkSmartSplitEnabled(enabled);
+            smartButton.setText(smartLabel());
+        });
+        LinearLayout.LayoutParams smartParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        smartParams.setMargins(dp(8), 0, 0, 0);
+        toggles.addView(smartButton, smartParams);
+        root.addView(toggles, params(0, 0, 0, dp(8)));
+
         LinearLayout controls = horizontalLayout();
         TextView limitLabel = text("Limit", 13, MUTED);
         controls.addView(limitLabel);
@@ -143,22 +163,12 @@ final class TextChunksDialog {
         limitInput.setInputType(InputType.TYPE_CLASS_NUMBER);
         limitInput.setBackground(outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1));
         LinearLayout.LayoutParams limitParams =
-                new LinearLayout.LayoutParams(dp(64), dp(40));
+                new LinearLayout.LayoutParams(dp(96), dp(40));
         limitParams.setMargins(dp(6), 0, dp(6), 0);
         controls.addView(limitInput, limitParams);
-        numberingButton = button(numberingLabel(), ignored -> {
-            numbering = !numbering;
-            settings.setChunkNumberingEnabled(numbering);
-            numberingButton.setText(numberingLabel());
-            refreshChunks();
-        });
-        controls.addView(numberingButton);
-        smartButton = button(smartLabel(), ignored -> {
-            boolean enabled = !settings.isChunkSmartSplitEnabled();
-            settings.setChunkSmartSplitEnabled(enabled);
-            smartButton.setText(smartLabel());
-        });
-        controls.addView(smartButton);
+        View spacer = new View(activity);
+        controls.addView(spacer, new LinearLayout.LayoutParams(
+                0, dp(1), 1f));
         splitButton = button("Split", ignored -> split());
         splitButton.setBackground(outlinedBackground(ACTIVE, ACTIVE, 1));
         controls.addView(splitButton);
