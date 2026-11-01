@@ -1246,7 +1246,7 @@
     };
 
     const api = {
-        version: 30,
+        version: 31,
         collectXLinks,
         collectPageLinks,
         collectXPageText,
