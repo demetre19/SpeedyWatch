@@ -2,7 +2,7 @@
     "use strict";
 
     const existing = window.__speedyWatchController;
-    if (existing && existing.version === 30) {
+    if (existing && existing.version === 31) {
         return "reused";
     }
 
@@ -205,37 +205,51 @@
     };
     const pageFullscreenElement = () => document.fullscreenElement
         || document.webkitFullscreenElement || null;
-    const coversViewport = (rect) => {
+    let stickyPageFullscreen = false;
+    const coversViewport = (rect, relaxed) => {
         const width = window.innerWidth || 0;
         const height = window.innerHeight || 0;
         if (width <= 0 || height <= 0 || !rect) {
             return false;
         }
-        return rect.width >= width * 0.95
-            && rect.height >= height * 0.9
+        // Entering uses tight bounds; once sticky fullscreen is active, looser
+        // bounds provide hysteresis so chrome toggling cannot oscillate when
+        // the viewport grows as the system bars hide.
+        const widthRatio = relaxed ? 0.8 : 0.95;
+        const heightRatio = relaxed ? 0.75 : 0.9;
+        return rect.width >= width * widthRatio
+            && rect.height >= height * heightRatio
             && rect.right > 0 && rect.bottom > 0
             && rect.left < width && rect.top < height;
     };
     const pageFullscreenActive = () => {
         if (pageFullscreenElement()) {
+            stickyPageFullscreen = true;
             return true;
         }
         const target = selectedMediaTarget(true);
-        if (!target || !target.status || !target.status.video || !target.status.ready) {
+        if (!target || !target.status || !target.status.video) {
+            stickyPageFullscreen = false;
+            return false;
+        }
+        if (!stickyPageFullscreen && !target.status.ready) {
             return false;
         }
         if (!target.media) {
             // Embedded-frame media cannot be measured from the top document, so
             // only a real element-fullscreen signal counts for frames.
+            stickyPageFullscreen = false;
             return false;
         }
         let mediaRect;
         try {
             mediaRect = target.media.getBoundingClientRect();
         } catch (_) {
-            return false;
+            return stickyPageFullscreen;
         }
-        if (coversViewport(mediaRect)) {
+        const relaxed = stickyPageFullscreen;
+        if (coversViewport(mediaRect, relaxed)) {
+            stickyPageFullscreen = true;
             return true;
         }
         // Letterboxed players wrap the video in a fixed full-viewport container
@@ -249,15 +263,18 @@
                 style = window.getComputedStyle(node);
                 container = node.getBoundingClientRect();
             } catch (_) {
-                return false;
+                return stickyPageFullscreen;
             }
-            if (style.position === "fixed" && coversViewport(container)) {
+            if (style.position === "fixed" && coversViewport(container, relaxed)) {
                 const containerArea = Math.max(1, container.width * container.height);
                 const mediaArea = Math.max(0, mediaRect.width * mediaRect.height);
-                return mediaArea / containerArea >= 0.2;
+                const active = mediaArea / containerArea >= (relaxed ? 0.15 : 0.2);
+                stickyPageFullscreen = active;
+                return active;
             }
             node = node.parentElement;
         }
+        stickyPageFullscreen = false;
         return false;
     };
     const pictureInPictureLabel = () => {

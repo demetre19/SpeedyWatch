@@ -52,6 +52,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.ValueCallback;
 import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -66,6 +67,7 @@ import android.widget.Toast;
 
 import android.webkit.WebResourceResponse;
 
+import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
@@ -73,6 +75,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
@@ -112,11 +115,15 @@ public final class MainActivity extends Activity {
     private static final float OMNI_DRAG_READY_SCALE = 1.25f;
     private static final int REQUEST_EXPORT_BACKUP = 4101;
     private static final int REQUEST_IMPORT_BACKUP = 4102;
+    private static final int REQUEST_FILE_CHOOSER = 4201;
     private static final int REQUEST_NOTIFICATION_PERMISSION = 4001;
     private static final String ACTION_TOGGLE_PICTURE_IN_PICTURE_PLAYBACK =
             "com.speedywatch.app.action.TOGGLE_PICTURE_IN_PICTURE_PLAYBACK";
 
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
+    private final ArrayList<Uri> pendingCaptureUris = new ArrayList<>();
+
     private TextView statusText;
     private String controllerScript;
     private String chineseTranslatorScript;
@@ -292,6 +299,15 @@ public final class MainActivity extends Activity {
             public void onHideCustomView() {
                 hideFullscreenView();
             }
+
+            @Override
+            public boolean onShowFileChooser(
+                    WebView view,
+                    ValueCallback<Uri[]> callback,
+                    FileChooserParams params
+            ) {
+                return openWebFileChooser(callback, params);
+            }
         });
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -432,6 +448,10 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_FILE_CHOOSER) {
+            handleFileChooserResult(resultCode, data);
+            return;
+        }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
             return;
         }
@@ -440,6 +460,167 @@ public final class MainActivity extends Activity {
             exportBackup(uri);
         } else if (requestCode == REQUEST_IMPORT_BACKUP) {
             importBackup(uri);
+        }
+    }
+
+    private boolean openWebFileChooser(
+            ValueCallback<Uri[]> callback,
+            WebChromeClient.FileChooserParams params
+    ) {
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+        }
+        pendingCaptureUris.clear();
+        filePathCallback = callback;
+        String[] acceptTypes = params != null && params.getAcceptTypes() != null
+                ? params.getAcceptTypes()
+                : new String[0];
+        boolean acceptImage = acceptTypes.length == 0;
+        boolean acceptVideo = acceptTypes.length == 0;
+        boolean acceptAudio = acceptTypes.length == 0;
+        String primaryType = null;
+        for (String type : acceptTypes) {
+            String normalized = type == null ? "" : type.trim().toLowerCase(Locale.US);
+            if (normalized.startsWith("image/") || ".jpg".equals(normalized)
+                    || ".jpeg".equals(normalized) || ".png".equals(normalized)
+                    || ".gif".equals(normalized) || ".webp".equals(normalized)) {
+                acceptImage = true;
+            }
+            if (normalized.startsWith("video/")) {
+                acceptVideo = true;
+            }
+            if (normalized.startsWith("audio/")) {
+                acceptAudio = true;
+            }
+            if (primaryType == null && normalized.contains("/")) {
+                primaryType = normalized;
+            }
+        }
+        if (params != null && params.isCaptureEnabled()) {
+            // Per the contract, a capture-enabled input wants the camera
+            // directly rather than a picker.
+            Intent capture = captureIntent(acceptImage, acceptVideo);
+            if (capture == null) {
+                filePathCallback.onReceiveValue(null);
+                filePathCallback = null;
+                pendingCaptureUris.clear();
+                return false;
+            }
+            startActivityForResult(capture, REQUEST_FILE_CHOOSER);
+            return true;
+        }
+        Intent content = new Intent(Intent.ACTION_GET_CONTENT);
+        content.addCategory(Intent.CATEGORY_OPENABLE);
+        content.setType(primaryType != null ? primaryType : "*/*");
+        ArrayList<String> extraTypes = new ArrayList<>();
+        for (String type : acceptTypes) {
+            String normalized = type == null ? "" : type.trim().toLowerCase(Locale.US);
+            if (normalized.contains("/")) {
+                extraTypes.add(normalized);
+            }
+        }
+        if (!extraTypes.isEmpty()) {
+            content.putExtra(Intent.EXTRA_MIME_TYPES, extraTypes.toArray(new String[0]));
+        }
+        if (params != null
+                && params.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+            content.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        }
+        ArrayList<Intent> initialIntents = new ArrayList<>();
+        if (acceptImage) {
+            Intent camera = captureIntent(true, false);
+            if (camera != null) {
+                initialIntents.add(camera);
+            }
+        }
+        if (acceptVideo) {
+            Intent video = captureIntent(false, true);
+            if (video != null) {
+                initialIntents.add(video);
+            }
+        }
+        Intent chooser = Intent.createChooser(content, null);
+        if (!initialIntents.isEmpty()) {
+            chooser.putExtra(
+                    Intent.EXTRA_INITIAL_INTENTS,
+                    initialIntents.toArray(new Intent[0])
+            );
+        }
+        try {
+            startActivityForResult(chooser, REQUEST_FILE_CHOOSER);
+        } catch (Exception e) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+            pendingCaptureUris.clear();
+            Toast.makeText(this, "No app can select this file", Toast.LENGTH_SHORT)
+                    .show();
+            return false;
+        }
+        return true;
+    }
+
+    private Intent captureIntent(boolean image, boolean video) {
+        Intent intent = new Intent(
+                image ? MediaStore.ACTION_IMAGE_CAPTURE : MediaStore.ACTION_VIDEO_CAPTURE);
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            return null;
+        }
+        String name = "speedywatch_capture_" + System.currentTimeMillis()
+                + (image ? ".jpg" : ".mp4");
+        File dir = new File(getCacheDir(), "captures");
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            return null;
+        }
+        Uri uri = FileProvider.getUriForFile(
+                this,
+                getPackageName() + ".fileprovider",
+                new File(dir, name)
+        );
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        for (android.content.pm.ResolveInfo handler : getPackageManager()
+                .queryIntentActivities(intent, 0)) {
+            grantUriPermission(
+                    handler.activityInfo.packageName,
+                    uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                            | Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        }
+        pendingCaptureUris.add(uri);
+        return intent;
+    }
+
+    private void handleFileChooserResult(int resultCode, Intent data) {
+        ValueCallback<Uri[]> callback = filePathCallback;
+        filePathCallback = null;
+        ArrayList<Uri> captures = new ArrayList<>(pendingCaptureUris);
+        pendingCaptureUris.clear();
+        if (callback == null) {
+            return;
+        }
+        Uri[] uris = null;
+        if (resultCode == RESULT_OK) {
+            uris = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+            if (uris == null || uris.length == 0) {
+                for (Uri candidate : captures) {
+                    if (candidate != null && fileHasContent(candidate)) {
+                        uris = new Uri[]{candidate};
+                        break;
+                    }
+                }
+            }
+        }
+        callback.onReceiveValue(uris);
+    }
+
+    private boolean fileHasContent(Uri uri) {
+        try (InputStream stream = getContentResolver().openInputStream(uri)) {
+            return stream != null && stream.read() >= 0;
+        } catch (Exception e) {
+            return false;
         }
     }
 
