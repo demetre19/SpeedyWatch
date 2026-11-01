@@ -498,18 +498,14 @@ public final class MainActivity extends Activity {
             }
         }
         if (params != null && params.isCaptureEnabled()) {
-            // Per the contract, a capture-enabled input wants the camera
-            // directly rather than a picker.
+            // Per the contract, a capture-enabled input prefers the camera;
+            // without a camera app, fall through to the picker so uploads
+            // still work.
             Intent capture = captureIntent(acceptImage, acceptVideo);
-            if (capture == null) {
-                // Returning false makes WebView abort the request itself, so
-                // the callback must not be resolved here.
-                filePathCallback = null;
-                pendingCaptureUris.clear();
-                return false;
+            if (capture != null) {
+                startActivityForResult(capture, REQUEST_FILE_CHOOSER);
+                return true;
             }
-            startActivityForResult(capture, REQUEST_FILE_CHOOSER);
-            return true;
         }
         Intent content = new Intent(Intent.ACTION_GET_CONTENT);
         content.addCategory(Intent.CATEGORY_OPENABLE);
