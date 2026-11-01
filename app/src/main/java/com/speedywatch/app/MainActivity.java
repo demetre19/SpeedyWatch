@@ -467,10 +467,10 @@ public final class MainActivity extends Activity {
             ValueCallback<Uri[]> callback,
             WebChromeClient.FileChooserParams params
     ) {
-        if (filePathCallback != null) {
-            filePathCallback.onReceiveValue(null);
-            filePathCallback = null;
-        }
+        // A fresh chooser request supersedes any pending one; dropping the
+        // stale callback without resolving it keeps WebView from reporting a
+        // duplicate showFileChooser result.
+        filePathCallback = null;
         pendingCaptureUris.clear();
         filePathCallback = callback;
         String[] acceptTypes = params != null && params.getAcceptTypes() != null
@@ -502,7 +502,8 @@ public final class MainActivity extends Activity {
             // directly rather than a picker.
             Intent capture = captureIntent(acceptImage, acceptVideo);
             if (capture == null) {
-                filePathCallback.onReceiveValue(null);
+                // Returning false makes WebView abort the request itself, so
+                // the callback must not be resolved here.
                 filePathCallback = null;
                 pendingCaptureUris.clear();
                 return false;
@@ -550,7 +551,6 @@ public final class MainActivity extends Activity {
         try {
             startActivityForResult(chooser, REQUEST_FILE_CHOOSER);
         } catch (Exception e) {
-            filePathCallback.onReceiveValue(null);
             filePathCallback = null;
             pendingCaptureUris.clear();
             Toast.makeText(this, "No app can select this file", Toast.LENGTH_SHORT)
@@ -613,7 +613,11 @@ public final class MainActivity extends Activity {
                 }
             }
         }
-        callback.onReceiveValue(uris);
+        try {
+            callback.onReceiveValue(uris);
+        } catch (IllegalStateException superseded) {
+            // A newer chooser request already resolved this request id.
+        }
     }
 
     private boolean fileHasContent(Uri uri) {
