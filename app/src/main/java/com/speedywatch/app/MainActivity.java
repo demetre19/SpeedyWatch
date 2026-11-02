@@ -176,6 +176,9 @@ public final class MainActivity extends Activity {
     private WatchPathPlayback activeWatchPath;
     private boolean watchPathForeground;
     private boolean activityResumed;
+    private ClipboardManager.OnPrimaryClipChangedListener clipboardCleaner;
+    private boolean suppressClipboardClean;
+
     private boolean pictureInPicturePlaybackActive;
     private boolean pictureInPictureEntryPending;
     private boolean pictureInPictureParamsActive;
@@ -5061,6 +5064,114 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void registerClipboardCleaner() {
+        if (clipboardCleaner == null) {
+            clipboardCleaner = this::cleanClipboardIfNeeded;
+        }
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.addPrimaryClipChangedListener(clipboardCleaner);
+    }
+
+    // While the app is foregrounded, page-initiated copies (like X's in-post
+    // "Copy link") write straight to the system clipboard. When the Clean
+    // shared links setting is on, rewrite the clip with the tracking
+    // parameters removed so the paste is already clean.
+    private void cleanClipboardIfNeeded() {
+        if (suppressClipboardClean || !appSettings.isCleanSharedLinksEnabled()) {
+            return;
+        }
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip == null) {
+            return;
+        }
+        boolean changed = false;
+        ClipData cleaned = null;
+        for (int index = 0; index < clip.getItemCount(); index++) {
+            CharSequence text = clip.getItemAt(index).getText();
+            if (text == null) {
+                // Non-text items (uri, intent) are left alone entirely.
+                if (clip.getItemAt(index).getUri() != null
+                        || clip.getItemAt(index).getIntent() != null) {
+                    return;
+                }
+                if (cleaned != null) {
+                    cleaned.addItem(new ClipData.Item(""));
+                }
+                continue;
+            }
+            String rewritten = cleanUrlsInText(text.toString());
+            CharSequence item = rewritten != null ? rewritten : text;
+            if (cleaned == null) {
+                CharSequence label = clip.getDescription() != null
+                        && clip.getDescription().getLabel() != null
+                        ? clip.getDescription().getLabel()
+                        : "Link";
+                cleaned = ClipData.newPlainText(label, item);
+            } else {
+                cleaned.addItem(new ClipData.Item(item));
+            }
+            if (rewritten != null) {
+                changed = true;
+            }
+        }
+        if (!changed || cleaned == null) {
+            return;
+        }
+        suppressClipboardClean = true;
+        clipboard.setPrimaryClip(cleaned);
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> suppressClipboardClean = false,
+                500
+        );
+        Toast.makeText(this, "Link cleaned", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * Cleans every http(s) URL in {@code text}. Returns the rewritten text,
+     * or null when nothing changed.
+     */
+    private static String cleanUrlsInText(String text) {
+        StringBuilder rebuilt = null;
+        int cursor = 0;
+        for (int index = 0; index < text.length(); index++) {
+            int start = urlStartAt(text, index);
+            if (start < 0) {
+                continue;
+            }
+            int end = start;
+            while (end < text.length()
+                    && !Character.isWhitespace(text.charAt(end))) {
+                end++;
+            }
+            String original = text.substring(start, end);
+            String cleaned = LinkCleaner.clean(original);
+            if (cleaned == null || cleaned.equals(original)) {
+                continue;
+            }
+            if (rebuilt == null) {
+                rebuilt = new StringBuilder(text.length());
+            }
+            rebuilt.append(text, cursor, start).append(cleaned);
+            cursor = end;
+            index = end - 1;
+        }
+        if (rebuilt == null) {
+            return null;
+        }
+        rebuilt.append(text, cursor, text.length());
+        return rebuilt.toString();
+    }
+
+    private static int urlStartAt(String text, int index) {
+        if (text.startsWith("https://", index) || text.startsWith("http://", index)) {
+            return index;
+        }
+        return -1;
+    }
+
     @Override
     protected void onPause() {
         activityResumed = false;
@@ -5069,6 +5180,12 @@ public final class MainActivity extends Activity {
         chapterHandler.removeCallbacks(chapterRefreshTick);
         watchPathForeground = false;
         captureMegaBookmarkPosition(webView.getUrl());
+        if (clipboardCleaner != null) {
+            ClipboardManager clipboard =
+                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            clipboard.removePrimaryClipChangedListener(clipboardCleaner);
+        }
+        suppressClipboardClean = false;
         megaBookmarkPositionHandler.removeCallbacks(megaBookmarkPositionTick);
         watchPathHandler.removeCallbacks(watchPathTick);
         GitHubUpdateChecker.unregisterResumedActivity(this);
@@ -5108,6 +5225,7 @@ public final class MainActivity extends Activity {
         scheduleWatchPathTick();
         pictureInPictureHandler.post(pictureInPictureTick);
         immersiveHandler.post(immersiveTick);
+        registerClipboardCleaner();
         megaBookmarkPositionHandler.post(megaBookmarkPositionTick);
         scheduleChapterRefresh();
     }
