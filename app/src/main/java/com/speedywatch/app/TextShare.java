@@ -20,7 +20,10 @@ final class TextShare {
             return;
         }
 
-        String url = sourceUrl == null ? "" : sourceUrl.trim();
+        boolean cleanLinks = new SpeedyWatchSettings(activity)
+                .isCleanSharedLinksEnabled();
+        String url = LinkCleaner.cleanIf(cleanLinks,
+                sourceUrl == null ? "" : sourceUrl.trim());
         if (!SavedSummaryStore.isSupportedSourceUrl(url)) {
             Toast.makeText(activity, "Original video URL is unavailable", Toast.LENGTH_LONG).show();
             return;

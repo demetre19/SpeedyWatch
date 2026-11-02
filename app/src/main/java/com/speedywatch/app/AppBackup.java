@@ -52,6 +52,7 @@ final class AppBackup {
                 .put("savedThumbnailsEnabled", settings.areSavedThumbnailsEnabled())
                 .put("scrapedLinksBackupEnabled", settings.isScrapedLinksBackupEnabled())
                 .put("autoScrapeXLinks", settings.isAutoScrapeXLinksEnabled())
+                .put("cleanSharedLinks", settings.isCleanSharedLinksEnabled())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -433,6 +434,10 @@ final class AppBackup {
         settings.setAutoScrapeXLinksEnabled(preferences.optBoolean(
                 "autoScrapeXLinks",
                 settings.isAutoScrapeXLinksEnabled()
+        ));
+        settings.setCleanSharedLinksEnabled(preferences.optBoolean(
+                "cleanSharedLinks",
+                settings.isCleanSharedLinksEnabled()
         ));
         settings.setStartPage(preferences.optString(
                 "startPage",

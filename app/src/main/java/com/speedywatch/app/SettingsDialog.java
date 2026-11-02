@@ -127,6 +127,8 @@ final class SettingsDialog {
     private boolean scrapedLinksBackupEnabled;
     private Button autoScrapeXLinksButton;
     private boolean autoScrapeXLinksEnabled;
+    private Button cleanSharedLinksButton;
+    private boolean cleanSharedLinksEnabled;
     private Button startPageButton;
     private String startPage;
     private Button hideShortsButton;
@@ -631,6 +633,24 @@ final class SettingsDialog {
                 ),
                 matchWrap(dp(8), 0)
         );
+        cleanSharedLinksEnabled = settings.isCleanSharedLinksEnabled();
+        cleanSharedLinksButton = button("");
+        cleanSharedLinksButton.setOnClickListener(ignored -> {
+            cleanSharedLinksEnabled = !cleanSharedLinksEnabled;
+            updateCleanSharedLinksButton();
+            saveImmediateSettings();
+        });
+        updateCleanSharedLinksButton();
+        content.addView(cleanSharedLinksButton, matchWrap(0, 0));
+        content.addView(
+                text(
+                        "Strips tracking parameters from links when you share or copy them. Post links from X, Instagram, TikTok, Reddit, Threads, and Bluesky drop every parameter; YouTube and Bilibili keep the video and position fields they need.",
+                        12,
+                        MUTED
+                ),
+                matchWrap(dp(8), 0)
+        );
+
         content.addView(text("Updates", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
         TextView currentVersion = text(
                 "Current version " + installedVersionName
@@ -1968,6 +1988,14 @@ final class SettingsDialog {
         );
     }
 
+    private void updateCleanSharedLinksButton() {
+        cleanSharedLinksButton.setText(
+                cleanSharedLinksEnabled
+                        ? "Clean shared links: On"
+                        : "Clean shared links: Off"
+        );
+    }
+
     private String nextStartPage(String current) {
         if (SpeedyWatchSettings.START_PAGE_YOUTUBE.equals(current)) {
             return SpeedyWatchSettings.START_PAGE_X;
@@ -2151,6 +2179,7 @@ final class SettingsDialog {
         settings.setSavedThumbnailsEnabled(savedThumbnailsEnabled);
         settings.setScrapedLinksBackupEnabled(scrapedLinksBackupEnabled);
         settings.setAutoScrapeXLinksEnabled(autoScrapeXLinksEnabled);
+        settings.setCleanSharedLinksEnabled(cleanSharedLinksEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,

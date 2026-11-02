@@ -1287,8 +1287,13 @@ public final class MainActivity extends Activity {
                 }
                 ClipboardManager clipboard =
                         (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                List<String> cleanedUrls = new ArrayList<>(copiedUrls.size());
+                for (String copied : copiedUrls) {
+                    cleanedUrls.add(LinkCleaner.cleanIf(
+                            appSettings.isCleanSharedLinksEnabled(), copied));
+                }
                 clipboard.setPrimaryClip(ClipData.newPlainText(
-                        "Links", String.join("\n", copiedUrls)));
+                        "Links", String.join("\n", cleanedUrls)));
                 Toast.makeText(
                         MainActivity.this,
                         "Saved " + savedCount
@@ -4534,10 +4539,12 @@ public final class MainActivity extends Activity {
         if (title == null || title.trim().isEmpty()) {
             title = URI.create(pageUrl).getHost();
         }
+        String shareUrl = LinkCleaner.cleanIf(
+                appSettings.isCleanSharedLinksEnabled(), pageUrl);
         Intent share = new Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
                 .putExtra(Intent.EXTRA_SUBJECT, title)
-                .putExtra(Intent.EXTRA_TEXT, title + "\n\n" + pageUrl);
+                .putExtra(Intent.EXTRA_TEXT, title + "\n\n" + shareUrl);
         try {
             startActivity(Intent.createChooser(share, "Share with"));
         } catch (RuntimeException error) {

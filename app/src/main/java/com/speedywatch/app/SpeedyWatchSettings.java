@@ -69,6 +69,7 @@ final class SpeedyWatchSettings {
     private static final String SAVED_THUMBNAILS_ENABLED = "saved_thumbnails_enabled";
     private static final String SCRAPED_LINKS_BACKUP_ENABLED = "scraped_links_backup_enabled";
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
+    private static final String CLEAN_SHARED_LINKS = "clean_shared_links";
     private static final String START_PAGE = "start_page";
     private static final String LAST_ERROR_URL = "last_error_url";
     private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
@@ -784,6 +785,14 @@ final class SpeedyWatchSettings {
 
     void setAutoScrapeXLinksEnabled(boolean enabled) {
         preferences.edit().putBoolean(AUTO_SCRAPE_X_LINKS, enabled).apply();
+    }
+
+    boolean isCleanSharedLinksEnabled() {
+        return preferences.getBoolean(CLEAN_SHARED_LINKS, false);
+    }
+
+    void setCleanSharedLinksEnabled(boolean enabled) {
+        preferences.edit().putBoolean(CLEAN_SHARED_LINKS, enabled).apply();
     }
 
     boolean areSpeedControlsCollapsed() {

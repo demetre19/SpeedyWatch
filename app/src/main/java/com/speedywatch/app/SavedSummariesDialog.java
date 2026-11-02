@@ -950,7 +950,10 @@ final class SavedSummariesDialog {
                     (android.content.ClipboardManager)
                             activity.getSystemService(Activity.CLIPBOARD_SERVICE);
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
-                    "Link", link.url));
+                    "Link", LinkCleaner.cleanIf(
+                            new SpeedyWatchSettings(activity)
+                                    .isCleanSharedLinksEnabled(),
+                            link.url)));
             Toast.makeText(activity, "Link copied", Toast.LENGTH_SHORT).show();
         });
         actions.addView(copy, detailActionParams(true));
