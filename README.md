@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.63**, debug-signed |
+| Current public APK: **v0.65**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -65,7 +65,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.47.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.65.
 
 ### Browse the web with SpeedyWatch controls
 
@@ -133,7 +133,7 @@ Search saved summaries and quizzes by title, creator, type, heading, or full tex
 The **Bookmark** action—on the toolbar or the Omnibutton—saves the page you're reading into this library with an automatic Summary One digest and a preview image, so every saved page explains itself. The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
 Cleaning up is fast too: **long-press any link** to multi-select, use **Same domain** or the **Domain list** (every domain with counts) to grab a whole site's links at once, and delete them all with one confirmation.
 
-Turn on **Clean shared links** in Settings to strip tracking parameters from links whenever you share or copy them: X, Instagram, TikTok, Reddit, Threads, and Bluesky post links drop every parameter, while YouTube, Bilibili, and SoundCloud keep the video and position fields a link needs to work.
+Turn on **Clean shared links** in Settings to strip tracking parameters from links whenever you share or copy them: X, Instagram, TikTok, Reddit, Threads, and Bluesky post links drop every parameter, while YouTube, Bilibili, and SoundCloud keep the video and position fields a link needs to work. Links copied by a page's own button — like X's Copy link — are cleaned in the clipboard too while SpeedyWatch is open, so the paste is already clean.
 
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
@@ -181,7 +181,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.47 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.65 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -197,16 +197,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.63
-Version code: 63
+Version: 0.65
+Version code: 65
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 107,331,727 bytes
-SHA-256: c2b86ea81306e594f5c2bb84f99ba81ba9429618d5dd03daf5d48275b01ba40c
+APK size: 106,639,395 bytes
+SHA-256: dec8a4cfb4be3587c62b62bc62151a531d733d5698376a53bd13a0183e3562b8
 Signing: Android debug signing key
 ```
 
-This public v0.63 APK is debug-signed with APK Signature Scheme v2. It fixes X video fullscreen flicker (fullscreen detection now uses hysteresis so hiding system bars cannot oscillate the chrome), adds normal file uploads to any page — attach photos or camera shots to X posts and other sites — and adds the Settings **Clean shared links** toggle that strips tracker parameters from shared and copied URLs while keeping the fields a link needs to work. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
+This public v0.65 APK is debug-signed with APK Signature Scheme v2. It builds on v0.63's X fullscreen flicker fix, page file uploads, and **Clean shared links** toggle by also cleaning links a page copies to the clipboard itself — X's in-post Copy link now pastes without tracking parameters while SpeedyWatch is open. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
 
 ## iOS source
 
