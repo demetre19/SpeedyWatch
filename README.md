@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.61**, debug-signed |
+| Current public APK: **v0.63**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -69,7 +69,7 @@ Reach the useful part sooner. Keep the pace that works for you.
 
 ### Browse the web with SpeedyWatch controls
 
-Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Bookmark, Saved, Settings, and screen lock stay available on regular pages, and every page supports pinch zoom—the **Links** icon saves every link currently visible on your screen into Saved. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
+Open or share any public HTTPS page in SpeedyWatch, or set SpeedyWatch as your **default browser** in Android Settings so links you tap in other apps open directly inside it. Choose the **Web** globe above YouTube in the site picker to enter any URL or search words; regular pages switch to the Web icon automatically, while recognized YouTube, X, Vimeo, Facebook, Bilibili, Instagram, SoundCloud, and MEGA links retain their specialized behavior. Back, Forward, Reload, Search, Share, Links, Bookmark, Saved, Settings, and screen lock stay available on regular pages, and every page supports pinch zoom—the **Links** icon saves every link currently visible on your screen into Saved. File pickers work like a normal browser: attach photos and videos from the gallery or camera to posts on X or any site. When a page or embedded HTTPS frame exposes an HTML5 video or audio element, SpeedyWatch can apply Play/Pause, bounded seeking, 0.25x–4x speed controls, and Android Picture-in-Picture where the player permits it. http links are automatically upgraded to https before loading.
 
 Choose where SpeedyWatch starts with **Settings → Startup**: resume where you left off, or open straight to YouTube or X. A page that failed to load is never restored as your start page.
 
@@ -133,6 +133,8 @@ Search saved summaries and quizzes by title, creator, type, heading, or full tex
 The **Bookmark** action—on the toolbar or the Omnibutton—saves the page you're reading into this library with an automatic Summary One digest and a preview image, so every saved page explains itself. The **Links** action—on the toolbar or the Omnibutton—saves the HTTPS links currently visible on your screen, from X threads, articles, or any public site, into this same searchable library. Link details can include a compact preview image fetched without cookies; **Refresh** keeps it current (YouTube links use the video's own thumbnail), and previews ride along in backups when saved links are included. Inside any saved summary, the search icon opens a find bar that highlights every match, counts them, and jumps between them with wrap-around arrows.
 Cleaning up is fast too: **long-press any link** to multi-select, use **Same domain** or the **Domain list** (every domain with counts) to grab a whole site's links at once, and delete them all with one confirmation.
 
+Turn on **Clean shared links** in Settings to strip tracking parameters from links whenever you share or copy them: X, Instagram, TikTok, Reddit, Threads, and Bluesky post links drop every parameter, while YouTube, Bilibili, and SoundCloud keep the video and position fields a link needs to work.
+
 <p align="center">
   <img src="screenshots/saved-library.png" width="360" alt="SpeedyWatch saved-content library with creator filtering, search, dates, and video summaries">
 </p>
@@ -195,16 +197,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.61
-Version code: 61
+Version: 0.63
+Version code: 63
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,592,915 bytes
-SHA-256: f359e2a2775c7cdf16446ee803d7de6d4722d0ac4d1a3c400f439b3fbf7085ef
+APK size: 107,331,727 bytes
+SHA-256: c2b86ea81306e594f5c2bb84f99ba81ba9429618d5dd03daf5d48275b01ba40c
 Signing: Android debug signing key
 ```
 
-This public v0.61 APK is debug-signed with APK Signature Scheme v2. It makes Cloudflare's free Workers AI the default summary engine — connected with just an Account ID and an API token, no Worker to deploy — with a built-in setup guide, a green connected confirmation, and one-tap regeneration for bookmarks that were saved without a summary. Closing Settings now also writes an automatic backup to `Downloads/SpeedyWatch/backups/`. Fullscreen video on any supported site clears every control except the Omnibutton. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
+This public v0.63 APK is debug-signed with APK Signature Scheme v2. It fixes X video fullscreen flicker (fullscreen detection now uses hysteresis so hiding system bars cannot oscillate the chrome), adds normal file uploads to any page — attach photos or camera shots to X posts and other sites — and adds the Settings **Clean shared links** toggle that strips tracker parameters from shared and copied URLs while keeping the fields a link needs to work. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
 
 ## iOS source
 
