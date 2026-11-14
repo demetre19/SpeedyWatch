@@ -174,6 +174,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 - Keep your OpenRouter API key in platform-protected storage and out of exports.
 - Back up saved content without copying private keys.
 - Install Android updates with confidence after SpeedyWatch checks the APK size and SHA-256.
+- Switch between a light and dark app theme in Settings; both preserve the same controls and saved data.
 
 <p align="center">
   <img src="screenshots/settings.png" width="360" alt="SpeedyWatch Android settings showing playback profile, adaptive speed, SponsorBlock, default speed, screen lock, and Picture-in-Picture controls">
