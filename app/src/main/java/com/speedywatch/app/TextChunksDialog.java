@@ -27,12 +27,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 final class TextChunksDialog {
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
-    private static final int DONE = Color.rgb(46, 160, 67);
+    private static final int DONE = UiTheme.rgb(46, 160, 67);
 
     private static final String SPLIT_SYSTEM_PROMPT =
             "You split the user's text into a sequence of chunks that each fit a "
@@ -96,11 +91,11 @@ final class TextChunksDialog {
     private View buildContent() {
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BACKGROUND);
+        root.setBackgroundColor(UiTheme.background());
         root.setPadding(dp(12), dp(10), dp(12), dp(10));
 
         LinearLayout header = horizontalLayout();
-        TextView title = text("Text chunks", 20, Color.WHITE);
+        TextView title = text("Text chunks", 20, UiTheme.white());
         header.addView(title, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         ImageButton close = new ImageButton(activity);
@@ -112,13 +107,13 @@ final class TextChunksDialog {
         header.addView(close);
         root.addView(header);
 
-        status = text("", 12, MUTED);
+        status = text("", 12, UiTheme.muted());
         root.addView(status, params(0, dp(4), 0, dp(4)));
 
         input = new EditText(activity);
         input.setHint("Paste the text to split…");
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(MUTED);
+        input.setTextColor(UiTheme.white());
+        input.setHintTextColor(UiTheme.muted());
         input.setTextSize(14);
         input.setMinLines(3);
         input.setMaxLines(6);
@@ -126,7 +121,7 @@ final class TextChunksDialog {
         input.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        input.setBackground(outlinedBackground(PANEL, Color.rgb(105, 105, 105), 1));
+        input.setBackground(outlinedBackground(UiTheme.panel(), UiTheme.rgb(105, 105, 105), 1));
         input.setPadding(dp(10), dp(8), dp(10), dp(8));
         root.addView(input, params(0, 0, 0, dp(8)));
 
@@ -151,18 +146,18 @@ final class TextChunksDialog {
         root.addView(toggles, params(0, 0, 0, dp(8)));
 
         LinearLayout controls = horizontalLayout();
-        TextView limitLabel = text("Limit", 13, MUTED);
+        TextView limitLabel = text("Limit", 13, UiTheme.muted());
         controls.addView(limitLabel);
         limitInput = new EditText(activity);
         limitInput.setSingleLine(true);
         limitInput.setText(String.valueOf(settings.getChunkLimit()));
-        limitInput.setTextColor(Color.WHITE);
-        limitInput.setHintTextColor(MUTED);
+        limitInput.setTextColor(UiTheme.white());
+        limitInput.setHintTextColor(UiTheme.muted());
         limitInput.setTextSize(14);
         limitInput.setGravity(Gravity.CENTER);
         limitInput.setSelectAllOnFocus(true);
         limitInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        limitInput.setBackground(outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1));
+        limitInput.setBackground(outlinedBackground(UiTheme.button(), UiTheme.rgb(105, 105, 105), 1));
         LinearLayout.LayoutParams limitParams =
                 new LinearLayout.LayoutParams(dp(96), dp(40));
         limitParams.setMargins(dp(6), 0, dp(6), 0);
@@ -171,7 +166,8 @@ final class TextChunksDialog {
         controls.addView(spacer, new LinearLayout.LayoutParams(
                 0, dp(1), 1f));
         splitButton = button("Split", ignored -> split());
-        splitButton.setBackground(outlinedBackground(ACTIVE, ACTIVE, 1));
+        splitButton.setBackground(outlinedBackground(UiTheme.active(), UiTheme.active(), 1));
+        splitButton.setTextColor(UiTheme.onAccent());
         controls.addView(splitButton);
         root.addView(controls, params(0, 0, 0, dp(8)));
 
@@ -455,13 +451,13 @@ final class TextChunksDialog {
                 row = new LinearLayout(activity);
                 row.setOrientation(LinearLayout.VERTICAL);
                 row.setPadding(dp(10), dp(8), dp(10), dp(8));
-                row.setBackground(outlinedBackground(PANEL, Color.rgb(80, 80, 80), 1));
+                row.setBackground(outlinedBackground(UiTheme.panel(), UiTheme.rgb(80, 80, 80), 1));
                 metaView = new TextView(activity);
                 metaView.setTextSize(12);
                 row.addView(metaView);
                 bodyView = new TextView(activity);
                 bodyView.setTextSize(14);
-                bodyView.setTextColor(Color.WHITE);
+                bodyView.setTextColor(UiTheme.white());
                 bodyView.setPadding(0, dp(4), 0, 0);
                 row.addView(bodyView);
             } else {
@@ -475,7 +471,7 @@ final class TextChunksDialog {
                     + (position == nextIndex ? "  ·  next" : ""));
             metaView.setTextColor(position < nextIndex
                     ? DONE
-                    : position == nextIndex ? ACTIVE : MUTED);
+                    : position == nextIndex ? UiTheme.active() : UiTheme.muted());
             bodyView.setText(body);
             return row;
         }
@@ -509,9 +505,9 @@ final class TextChunksDialog {
         Button button = new Button(activity);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
-        button.setBackground(outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1));
+        button.setBackground(outlinedBackground(UiTheme.button(), UiTheme.rgb(105, 105, 105), 1));
         button.setOnClickListener(listener);
         return button;
     }

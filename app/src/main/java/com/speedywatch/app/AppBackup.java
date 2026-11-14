@@ -53,6 +53,7 @@ final class AppBackup {
                 .put("scrapedLinksBackupEnabled", settings.isScrapedLinksBackupEnabled())
                 .put("autoScrapeXLinks", settings.isAutoScrapeXLinksEnabled())
                 .put("cleanSharedLinks", settings.isCleanSharedLinksEnabled())
+                .put("lightTheme", settings.isLightThemeEnabled())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -438,6 +439,10 @@ final class AppBackup {
         settings.setCleanSharedLinksEnabled(preferences.optBoolean(
                 "cleanSharedLinks",
                 settings.isCleanSharedLinksEnabled()
+        ));
+        settings.setLightThemeEnabled(preferences.optBoolean(
+                "lightTheme",
+                settings.isLightThemeEnabled()
         ));
         settings.setStartPage(preferences.optString(
                 "startPage",

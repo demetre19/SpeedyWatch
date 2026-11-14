@@ -23,11 +23,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 final class VideoQuizDialog {
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
     private static final int[] QUESTION_COUNTS = {6, 10, 12, 20};
 
     private final Activity activity;
@@ -88,22 +83,22 @@ final class VideoQuizDialog {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = new LinearLayout(activity);
         headerText.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("Video Quiz Prep", 21, Color.WHITE);
+        TextView title = text("Video Quiz Prep", 21, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         headerText.addView(title);
-        status = text("Loading subtitles...", 12, MUTED);
+        status = text("Loading subtitles...", 12, UiTheme.muted());
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close Video Quiz");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -113,7 +108,7 @@ final class VideoQuizDialog {
         TextView guidance = text(
                 "Choose how many important questions you want to know before watching.",
                 14,
-                Color.WHITE
+                UiTheme.white()
         );
         guidance.setPadding(0, dp(12), 0, dp(8));
         content.addView(guidance);
@@ -135,7 +130,8 @@ final class VideoQuizDialog {
 
         createButton = button("Create 10 questions");
         createButton.setEnabled(false);
-        createButton.setBackground(panelBackground(ACTIVE, ACTIVE));
+        createButton.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        createButton.setTextColor(UiTheme.onAccent());
         createButton.setOnClickListener(ignored -> createQuiz());
         LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -144,12 +140,12 @@ final class VideoQuizDialog {
         createParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(createButton, createParams);
 
-        output = text("Your pre-watch questions will appear here.", 15, Color.WHITE);
+        output = text("Your pre-watch questions will appear here.", 15, UiTheme.white());
         output.setTextIsSelectable(true);
         output.setLineSpacing(0, 1.2f);
         output.setPadding(dp(10), dp(10), dp(10), dp(10));
         ScrollView outputScroll = new ScrollView(activity);
-        outputScroll.setBackground(panelBackground(PANEL, Color.rgb(55, 55, 55)));
+        outputScroll.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(55, 55, 55)));
         outputScroll.addView(output);
         content.addView(outputScroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -223,7 +219,7 @@ final class VideoQuizDialog {
     private void updateCountButtons() {
         for (Button button : countButtons) {
             boolean selected = (int) button.getTag() == questionCount;
-            button.setBackground(panelBackground(selected ? ACTIVE : BUTTON, selected ? ACTIVE : BUTTON));
+            button.setBackground(panelBackground(selected ? UiTheme.active() : UiTheme.button(), selected ? UiTheme.active() : UiTheme.button()));
         }
     }
 
@@ -367,13 +363,13 @@ final class VideoQuizDialog {
     private Button button(String value) {
         Button button = new Button(activity);
         button.setText(value);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setPadding(dp(10), 0, dp(10), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 

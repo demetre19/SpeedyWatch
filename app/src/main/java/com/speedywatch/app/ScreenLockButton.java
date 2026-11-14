@@ -23,7 +23,6 @@ final class ScreenLockButton extends View {
     }
 
     private static final long UNLOCK_HOLD_MILLIS = 1_200L;
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final float HOLD_SCALE = 2f;
     private static final long HOLD_SCALE_MILLIS = 120L;
 
@@ -50,15 +49,15 @@ final class ScreenLockButton extends View {
         holdTranslationX = -18f * density;
         holdTranslationY = -18f * density;
 
-        backgroundPaint.setColor(Color.argb(150, 15, 15, 15));
+        backgroundPaint.setColor(UiTheme.argb(150, 15, 15, 15));
         backgroundPaint.setStyle(Paint.Style.FILL);
 
-        trackPaint.setColor(Color.argb(105, 255, 255, 255));
+        trackPaint.setColor(UiTheme.argb(105, 255, 255, 255));
         trackPaint.setStyle(Paint.Style.STROKE);
         trackPaint.setStrokeWidth(2f * density);
         trackPaint.setStrokeCap(Paint.Cap.ROUND);
 
-        progressPaint.setColor(ACTIVE);
+        progressPaint.setColor(UiTheme.active());
         progressPaint.setStyle(Paint.Style.STROKE);
         progressPaint.setStrokeWidth(2.5f * density);
         progressPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -233,7 +232,7 @@ final class ScreenLockButton extends View {
             throw new IllegalStateException("Missing screen lock icon");
         }
         drawable = drawable.mutate();
-        drawable.setTint(Color.WHITE);
+        drawable.setTint(UiTheme.white());
         return drawable;
     }
 

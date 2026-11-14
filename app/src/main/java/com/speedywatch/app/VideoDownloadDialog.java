@@ -25,11 +25,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.List;
 
 final class VideoDownloadDialog {
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
     private final Activity activity;
     private final ExecutorService executor;
     private final SpeedyWatchSettings settings;
@@ -107,12 +102,12 @@ final class VideoDownloadDialog {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout heading = new LinearLayout(activity);
         heading.setOrientation(LinearLayout.VERTICAL);
-        title = text(soundCloud ? "Download audio" : "Download video", 21, Color.WHITE);
+        title = text(soundCloud ? "Download audio" : "Download video", 21, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         heading.addView(title);
         status = text(
@@ -120,7 +115,7 @@ final class VideoDownloadDialog {
                         ? (soundCloud ? "Checking clipboard track..." : "Checking clipboard video...")
                         : (soundCloud ? "Checking this track..." : "Checking this video..."),
                 12,
-                MUTED
+                UiTheme.muted()
         );
         heading.addView(status);
         header.addView(heading, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -129,7 +124,7 @@ final class VideoDownloadDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close downloads");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -142,7 +137,7 @@ final class VideoDownloadDialog {
                 android.R.attr.progressBarStyleHorizontal
         );
         checkingProgress.setIndeterminate(true);
-        checkingProgress.setIndeterminateTintList(ColorStateList.valueOf(ACTIVE));
+        checkingProgress.setIndeterminateTintList(ColorStateList.valueOf(UiTheme.active()));
         checkingProgress.setContentDescription(soundCloud ? "Checking audio" : "Checking video formats");
         LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -156,7 +151,7 @@ final class VideoDownloadDialog {
                         ? "Choose an MP3 quality."
                         : "Choose an MP3 quality or the maximum MP4 resolution you want.",
                 14,
-                Color.WHITE
+                UiTheme.white()
         );
         guidance.setPadding(0, dp(14), 0, dp(10));
         content.addView(guidance);
@@ -166,7 +161,7 @@ final class VideoDownloadDialog {
 
         ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
-        scroll.setBackground(panelBackground(PANEL, Color.rgb(55, 55, 55)));
+        scroll.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(55, 55, 55)));
         scroll.addView(choices);
         content.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -179,7 +174,7 @@ final class VideoDownloadDialog {
                         ? "Saves by artist in Downloads/SpeedyWatch/SoundCloud."
                         : "Downloads continue in notifications and save to Downloads/SpeedyWatch.",
                 12,
-                MUTED
+                UiTheme.muted()
         );
         content.addView(destination);
         return content;
@@ -311,7 +306,7 @@ final class VideoDownloadDialog {
                         ? "Format check failed, but a video stream was detected on the page currently open. These options download that page's video."
                         : "SpeedyWatch could not confirm the available formats for this URL.",
                 14,
-                MUTED
+                UiTheme.muted()
         );
         choices.addView(error, choiceParams(true));
         if (capturedAvailable) {
@@ -390,12 +385,12 @@ final class VideoDownloadDialog {
     private Button choiceButton(String label) {
         Button button = new Button(activity);
         button.setText(label);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(15);
         button.setAllCaps(false);
         button.setGravity(Gravity.CENTER_VERTICAL);
         button.setPadding(dp(14), 0, dp(14), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 

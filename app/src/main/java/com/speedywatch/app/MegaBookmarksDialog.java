@@ -46,11 +46,6 @@ final class MegaBookmarksDialog {
         void openMegaUrl(String url, double positionSeconds);
     }
 
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
 
     private final Activity activity;
     private final MegaBookmarkStore store;
@@ -94,14 +89,14 @@ final class MegaBookmarksDialog {
     private View buildContent() {
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = verticalLayout();
-        TextView title = text("MEGA bookmarks", 21, Color.WHITE);
+        TextView title = text("MEGA bookmarks", 21, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         headerText.addView(title);
-        status = text("Saved securely on this phone", 12, MUTED);
+        status = text("Saved securely on this phone", 12, UiTheme.muted());
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(
                 0,
@@ -113,7 +108,7 @@ final class MegaBookmarksDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close MEGA bookmarks");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(44), dp(44));
         closeParams.setMarginStart(dp(8));
@@ -123,13 +118,13 @@ final class MegaBookmarksDialog {
         urlInput = new EditText(activity);
         urlInput.setSingleLine(true);
         urlInput.setHint("Complete MEGA folder or file link");
-        urlInput.setTextColor(Color.WHITE);
-        urlInput.setHintTextColor(MUTED);
+        urlInput.setTextColor(UiTheme.white());
+        urlInput.setHintTextColor(UiTheme.muted());
         urlInput.setTextSize(14);
         urlInput.setPadding(dp(10), 0, dp(10), 0);
         urlInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         urlInput.setImeOptions(EditorInfo.IME_ACTION_GO);
-        urlInput.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        urlInput.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         if (initialUrl != null) {
             urlInput.setText(initialUrl);
             urlInput.setSelection(urlInput.length());
@@ -143,7 +138,8 @@ final class MegaBookmarksDialog {
 
         LinearLayout actions = horizontalLayout();
         Button open = button("Open link");
-        open.setBackground(panelBackground(ACTIVE, ACTIVE));
+        open.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        open.setTextColor(UiTheme.onAccent());
         open.setOnClickListener(ignored -> openEnteredUrl(urlInput));
         actions.addView(open, new LinearLayout.LayoutParams(0, dp(44), 1f));
 
@@ -166,7 +162,7 @@ final class MegaBookmarksDialog {
         actionParams.setMargins(0, 0, 0, dp(8));
         content.addView(actions, actionParams);
 
-        TextView section = text("Saved folders", 14, Color.WHITE);
+        TextView section = text("Saved folders", 14, UiTheme.white());
         section.setTypeface(section.getTypeface(), Typeface.BOLD);
         section.setPadding(0, dp(4), 0, dp(8));
         content.addView(section);
@@ -178,7 +174,7 @@ final class MegaBookmarksDialog {
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) ->
                 openBookmark(adapter.getItem(position)));
-        TextView empty = text("Bookmark a MEGA folder while viewing it to return here later.", 14, MUTED);
+        TextView empty = text("Bookmark a MEGA folder while viewing it to return here later.", 14, UiTheme.muted());
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(dp(28), dp(28), dp(28), dp(28));
         content.addView(list, new LinearLayout.LayoutParams(
@@ -268,8 +264,8 @@ final class MegaBookmarksDialog {
         nameInput.setSingleLine(true);
         nameInput.setText(MegaBookmarkStore.suggestedName(folderName));
         nameInput.setSelectAllOnFocus(true);
-        nameInput.setTextColor(Color.WHITE);
-        nameInput.setHintTextColor(MUTED);
+        nameInput.setTextColor(UiTheme.white());
+        nameInput.setHintTextColor(UiTheme.muted());
         FrameNameInput container = new FrameNameInput(activity, nameInput, dp(20), dp(8));
         AlertDialog prompt = new AlertDialog.Builder(activity)
                 .setTitle("Bookmark this MEGA folder")
@@ -354,14 +350,14 @@ final class MegaBookmarksDialog {
             MegaBookmarkStore.Entry entry = getItem(position);
             LinearLayout row = horizontalLayout();
             row.setPadding(dp(10), dp(6), dp(6), dp(6));
-            row.setBackground(panelBackground(PANEL, Color.rgb(58, 58, 58)));
+            row.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(58, 58, 58)));
 
             LinearLayout labels = verticalLayout();
-            TextView name = text(entry.name, 15, Color.WHITE);
+            TextView name = text(entry.name, 15, UiTheme.white());
             name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
             labels.addView(name);
-            TextView resume = text(MegaBookmarkStore.resumeLabel(entry.positionSeconds), 12, MUTED);
+            TextView resume = text(MegaBookmarkStore.resumeLabel(entry.positionSeconds), 12, UiTheme.muted());
             labels.addView(resume);
             row.addView(labels, new LinearLayout.LayoutParams(
                     0,
@@ -372,7 +368,7 @@ final class MegaBookmarksDialog {
             ImageButton open = iconButton(
                     R.drawable.ic_open_external,
                     "Open " + entry.name,
-                    Color.WHITE
+                    UiTheme.white()
             );
             open.setOnClickListener(ignored -> openBookmark(entry));
             LinearLayout.LayoutParams openParams = new LinearLayout.LayoutParams(dp(44), dp(44));
@@ -382,7 +378,7 @@ final class MegaBookmarksDialog {
             ImageButton delete = iconButton(
                     R.drawable.ic_close,
                     "Delete " + entry.name,
-                    ACTIVE
+                    UiTheme.active()
             );
             delete.setOnClickListener(ignored -> confirmDelete(entry));
             LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(44), dp(44));
@@ -414,13 +410,13 @@ final class MegaBookmarksDialog {
     private Button button(String label) {
         Button button = new Button(activity);
         button.setText(label);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setPadding(dp(8), 0, dp(8), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 
@@ -430,7 +426,7 @@ final class MegaBookmarksDialog {
         button.setColorFilter(tint);
         button.setContentDescription(description);
         button.setPadding(dp(10), dp(10), dp(10), dp(10));
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 

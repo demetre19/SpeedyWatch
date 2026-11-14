@@ -59,11 +59,6 @@ final class SavedSummariesDialog {
         void regenerateBookmark(SavedSummaryStore.Entry entry, RegenerateCallback callback);
     }
 
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
 
     private final Activity activity;
     private final SavedSummaryStore store;
@@ -126,14 +121,14 @@ final class SavedSummariesDialog {
     private View buildContent() {
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = verticalLayout();
-        TextView title = text("Saved", 21, Color.WHITE);
+        TextView title = text("Saved", 21, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         headerText.addView(title);
-        status = text("Loading saved items...", 12, MUTED);
+        status = text("Loading saved items...", 12, UiTheme.muted());
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -141,7 +136,7 @@ final class SavedSummariesDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close saved items");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -151,12 +146,12 @@ final class SavedSummariesDialog {
         search = new EditText(activity);
         search.setSingleLine(true);
         search.setHint("Search saved content or creator...");
-        search.setTextColor(Color.WHITE);
-        search.setHintTextColor(Color.rgb(175, 175, 175));
+        search.setTextColor(UiTheme.white());
+        search.setHintTextColor(UiTheme.rgb(175, 175, 175));
         search.setTextSize(14);
         search.setPadding(dp(10), 0, dp(10), 0);
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        search.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        search.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -198,14 +193,14 @@ final class SavedSummariesDialog {
         selectionBar = verticalLayout();
         selectionBar.setVisibility(View.GONE);
         LinearLayout selectionActions = horizontalLayout();
-        selectionCount = text("0 selected", 13, Color.WHITE);
+        selectionCount = text("0 selected", 13, UiTheme.white());
         selectionActions.addView(selectionCount, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
         Button deleteSelected = button("Delete");
-        deleteSelected.setTextColor(ACTIVE);
+        deleteSelected.setTextColor(UiTheme.active());
         deleteSelected.setOnClickListener(ignored -> confirmDeleteSelected());
         LinearLayout.LayoutParams deleteSelectedParams =
                 new LinearLayout.LayoutParams(0, dp(44), 1f);
@@ -274,7 +269,7 @@ final class SavedSummariesDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        TextView empty = text("Saved summaries, quizzes, and links appear here.", 14, MUTED);
+        TextView empty = text("Saved summaries, quizzes, and links appear here.", 14, UiTheme.muted());
         empty.setGravity(Gravity.CENTER);
         empty.setPadding(dp(28), dp(28), dp(28), dp(28));
         body.addView(empty, new FrameLayout.LayoutParams(
@@ -507,10 +502,10 @@ final class SavedSummariesDialog {
 
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
-        TextView title = text("Choose creator", 20, Color.WHITE);
+        TextView title = text("Choose creator", 20, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(
                 0,
@@ -521,7 +516,7 @@ final class SavedSummariesDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close creator picker");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> picker.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -531,14 +526,14 @@ final class SavedSummariesDialog {
         EditText creatorSearch = new EditText(activity);
         creatorSearch.setSingleLine(true);
         creatorSearch.setHint("Search creators...");
-        creatorSearch.setTextColor(Color.WHITE);
-        creatorSearch.setHintTextColor(Color.rgb(175, 175, 175));
+        creatorSearch.setTextColor(UiTheme.white());
+        creatorSearch.setHintTextColor(UiTheme.rgb(175, 175, 175));
         creatorSearch.setTextSize(14);
         creatorSearch.setPadding(dp(10), 0, dp(10), 0);
         creatorSearch.setInputType(
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
         );
-        creatorSearch.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        creatorSearch.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         LinearLayout.LayoutParams creatorSearchParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -590,16 +585,16 @@ final class SavedSummariesDialog {
 
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = verticalLayout();
-        TextView title = text(entry.videoTitle, 20, Color.WHITE);
+        TextView title = text(entry.videoTitle, 20, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         headerText.addView(title);
-        TextView metadata = text(detailMetadata(entry), 12, MUTED);
+        TextView metadata = text(detailMetadata(entry), 12, UiTheme.muted());
         headerText.addView(metadata);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -607,7 +602,7 @@ final class SavedSummariesDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close saved item");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> detail.dismiss());
         LinearLayout.LayoutParams detailCloseParams =
                 new LinearLayout.LayoutParams(dp(42), dp(42));
@@ -618,7 +613,7 @@ final class SavedSummariesDialog {
                 && SavedThumbnail.urlFor(entry.sourceUrl) != null;
         ImageView thumbnailPreview = new ImageView(activity);
         thumbnailPreview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        thumbnailPreview.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+        thumbnailPreview.setBackground(panelBackground(Color.BLACK, UiTheme.rgb(70, 70, 70)));
         thumbnailPreview.setClipToOutline(true);
         thumbnailPreview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         Bitmap detailBitmap = decodeThumbnail(entry.thumbnail);
@@ -637,7 +632,7 @@ final class SavedSummariesDialog {
         }
 
 
-        TextView sourceLabel = text("Original video URL", 12, MUTED);
+        TextView sourceLabel = text("Original video URL", 12, UiTheme.muted());
         LinearLayout.LayoutParams sourceLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -645,12 +640,12 @@ final class SavedSummariesDialog {
         sourceLabelParams.setMargins(0, dp(12), 0, dp(8));
         content.addView(sourceLabel, sourceLabelParams);
 
-        TextView sourceUrl = text(entry.sourceUrl, 13, Color.rgb(90, 180, 255));
+        TextView sourceUrl = text(entry.sourceUrl, 13, UiTheme.rgb(90, 180, 255));
         sourceUrl.setTextIsSelectable(true);
         sourceUrl.setMaxLines(2);
         sourceUrl.setEllipsize(TextUtils.TruncateAt.END);
         sourceUrl.setPadding(dp(10), dp(8), dp(10), dp(8));
-        sourceUrl.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+        sourceUrl.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(70, 70, 70)));
         sourceUrl.setOnClickListener(ignored -> openVideo(entry, detail));
         content.addView(sourceUrl);
 
@@ -662,10 +657,10 @@ final class SavedSummariesDialog {
         topChrome.add(sourceLabel);
         topChrome.add(sourceUrl);
 
-        TextView summary = text("", 14, Color.WHITE);
+        TextView summary = text("", 14, UiTheme.white());
         summary.setTextIsSelectable(true);
         summary.setMovementMethod(LinkMovementMethod.getInstance());
-        summary.setLinkTextColor(Color.rgb(90, 180, 255));
+        summary.setLinkTextColor(UiTheme.rgb(90, 180, 255));
         summary.setLineSpacing(0, 1.18f);
         summary.setPadding(dp(10), dp(8), dp(10), dp(10));
         summary.setText(MarkdownRenderer.render(
@@ -678,10 +673,10 @@ final class SavedSummariesDialog {
         if (SavedSummaryStore.isSummaryUnavailable(entry.summaryText)) {
             Button regenerate = new Button(activity);
             regenerate.setText("Regenerate summary");
-            regenerate.setTextColor(Color.WHITE);
+            regenerate.setTextColor(UiTheme.onAccent());
             regenerate.setTextSize(14);
             regenerate.setAllCaps(false);
-            regenerate.setBackground(panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+            regenerate.setBackground(panelBackground(UiTheme.rgb(30, 132, 73), UiTheme.rgb(30, 132, 73)));
             regenerate.setOnClickListener(ignored -> {
                 regenerate.setEnabled(false);
                 regenerate.setText("Regenerating…");
@@ -703,7 +698,7 @@ final class SavedSummariesDialog {
                         }
                         regenerate.setText("✓ Regenerated");
                         regenerate.setBackground(panelBackground(
-                                Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+                                UiTheme.rgb(30, 132, 73), UiTheme.rgb(30, 132, 73)));
                     } else {
                         regenerate.setText("Regenerate summary");
                         if (failureReason != null && !failureReason.isEmpty()) {
@@ -726,7 +721,8 @@ final class SavedSummariesDialog {
         LinearLayout actions = horizontalLayout();
         ImageButton openVideo = detailIconButton(
                 R.drawable.ic_open_external, "Open original video");
-        openVideo.setBackground(panelBackground(ACTIVE, ACTIVE));
+        openVideo.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        openVideo.setColorFilter(UiTheme.onAccent());
         openVideo.setOnClickListener(ignored -> openVideo(entry, detail));
         actions.addView(openVideo, detailActionParams(false));
 
@@ -772,9 +768,9 @@ final class SavedSummariesDialog {
         findInput.setSingleLine(true);
         findInput.setHint("Find in summary");
         findInput.setTextSize(13);
-        findInput.setTextColor(Color.WHITE);
-        findInput.setHintTextColor(MUTED);
-        findInput.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+        findInput.setTextColor(UiTheme.white());
+        findInput.setHintTextColor(UiTheme.muted());
+        findInput.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(70, 70, 70)));
         findInput.setPadding(dp(10), dp(8), dp(10), dp(8));
         LinearLayout.LayoutParams findInputParams = new LinearLayout.LayoutParams(
                 0,
@@ -782,7 +778,7 @@ final class SavedSummariesDialog {
                 1f
         );
         findBar.addView(findInput, findInputParams);
-        TextView findCount = text("", 12, MUTED);
+        TextView findCount = text("", 12, UiTheme.muted());
         findCount.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams findCountParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -878,19 +874,19 @@ final class SavedSummariesDialog {
 
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = verticalLayout();
         TextView title = text(link.displayText.isEmpty() ? link.url : link.displayText,
-                20, Color.WHITE);
+                20, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         headerText.addView(title);
         String poster = link.posterName.isEmpty() ? "" : " | " + link.posterName;
         headerText.addView(text(
-                "Link" + poster + " | " + formatDate(link.datedAt()), 12, MUTED));
+                "Link" + poster + " | " + formatDate(link.datedAt()), 12, UiTheme.muted()));
         header.addView(headerText, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -900,7 +896,7 @@ final class SavedSummariesDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close link");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> detail.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -909,7 +905,7 @@ final class SavedSummariesDialog {
 
         ImageView preview = new ImageView(activity);
         preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        preview.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+        preview.setBackground(panelBackground(Color.BLACK, UiTheme.rgb(70, 70, 70)));
         preview.setClipToOutline(true);
         preview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         Bitmap linkBitmap = decodePreview(link.preview);
@@ -922,26 +918,27 @@ final class SavedSummariesDialog {
             content.addView(preview, previewParams);
         }
 
-        TextView sourceLabel = text("Link URL", 12, MUTED);
+        TextView sourceLabel = text("Link URL", 12, UiTheme.muted());
         LinearLayout.LayoutParams sourceLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         sourceLabelParams.setMargins(0, dp(12), 0, dp(8));
         content.addView(sourceLabel, sourceLabelParams);
-        TextView urlView = text(link.url, 13, Color.rgb(90, 180, 255));
+        TextView urlView = text(link.url, 13, UiTheme.rgb(90, 180, 255));
         urlView.setTextIsSelectable(true);
         urlView.setMaxLines(4);
         urlView.setEllipsize(TextUtils.TruncateAt.END);
         urlView.setPadding(dp(10), dp(8), dp(10), dp(8));
-        urlView.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+        urlView.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(70, 70, 70)));
         urlView.setOnClickListener(ignored -> host.openLink(link.url));
         content.addView(urlView);
 
         LinearLayout actions = horizontalLayout();
         ImageButton open = detailIconButton(R.drawable.ic_open_external, "Open link");
-        open.setBackground(panelBackground(ACTIVE, ACTIVE));
+        open.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
         open.setOnClickListener(ignored -> host.openLink(link.url));
+        open.setColorFilter(UiTheme.onAccent());
         actions.addView(open, detailActionParams(false));
 
         ImageButton copy = detailIconButton(R.drawable.ic_copy, "Copy link");
@@ -1183,13 +1180,13 @@ final class SavedSummariesDialog {
     private Button button(String value) {
         Button button = new Button(activity);
         button.setText(value);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setPadding(dp(8), 0, dp(8), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
     private LinearLayout.LayoutParams detailActionParams(boolean hasLeadingGap) {
@@ -1202,10 +1199,13 @@ final class SavedSummariesDialog {
     private ImageButton detailIconButton(int icon, String description) {
         ImageButton action = new ImageButton(activity);
         action.setImageResource(icon);
+        if (icon != R.drawable.ic_close) {
+            action.setColorFilter(UiTheme.icon());
+        }
         action.setContentDescription(description);
         action.setScaleType(ImageButton.ScaleType.CENTER_INSIDE);
         action.setPadding(dp(10), dp(10), dp(10), dp(10));
-        action.setBackground(panelBackground(BUTTON, BUTTON));
+        action.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return action;
     }
 
@@ -1259,8 +1259,8 @@ final class SavedSummariesDialog {
      * match, reports "current of total", and jumps between matches with wrap-around.
      */
     private final class SummaryFinder {
-        private static final int MATCH_COLOR = Color.rgb(255, 213, 0);
-        private static final int CURRENT_COLOR = Color.rgb(255, 112, 0);
+        private static final int MATCH_COLOR = UiTheme.rgb(255, 213, 0);
+        private static final int CURRENT_COLOR = UiTheme.rgb(255, 112, 0);
 
         private final TextView summaryView;
         private final ScrollView scroller;
@@ -1381,9 +1381,9 @@ final class SavedSummariesDialog {
         LinearLayout divider = horizontalLayout();
         divider.setPadding(dp(10), dp(8), dp(10), dp(4));
         View leadingLine = new View(activity);
-        leadingLine.setBackgroundColor(Color.rgb(70, 70, 70));
+        leadingLine.setBackgroundColor(UiTheme.rgb(70, 70, 70));
         divider.addView(leadingLine, new LinearLayout.LayoutParams(0, dp(1), 1f));
-        TextView label = text("", 10, MUTED);
+        TextView label = text("", 10, UiTheme.muted());
         label.setGravity(Gravity.CENTER);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
@@ -1393,7 +1393,7 @@ final class SavedSummariesDialog {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
         View trailingLine = new View(activity);
-        trailingLine.setBackgroundColor(Color.rgb(70, 70, 70));
+        trailingLine.setBackgroundColor(UiTheme.rgb(70, 70, 70));
         divider.addView(trailingLine, new LinearLayout.LayoutParams(0, dp(1), 1f));
         return divider;
     }
@@ -1560,25 +1560,25 @@ final class SavedSummariesDialog {
                 item.setPadding(dp(10), dp(8), dp(10), dp(10));
                 thumbnail = new ImageView(activity);
                 thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                thumbnail.setBackground(panelBackground(Color.BLACK, Color.rgb(70, 70, 70)));
+                thumbnail.setBackground(panelBackground(Color.BLACK, UiTheme.rgb(70, 70, 70)));
                 thumbnail.setClipToOutline(true);
                 thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 item.addView(thumbnail, new LinearLayout.LayoutParams(dp(112), dp(63)));
 
                 copy = verticalLayout();
-                title = text("", 15, Color.WHITE);
+                title = text("", 15, UiTheme.white());
                 title.setTypeface(title.getTypeface(), Typeface.BOLD);
                 title.setMaxLines(2);
                 title.setEllipsize(TextUtils.TruncateAt.END);
                 copy.addView(title);
-                metadata = text("", 12, MUTED);
+                metadata = text("", 12, UiTheme.muted());
                 LinearLayout.LayoutParams metadataParams = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                 );
                 metadataParams.setMargins(0, dp(2), 0, dp(5));
                 copy.addView(metadata, metadataParams);
-                excerpt = text("", 13, Color.rgb(225, 225, 225));
+                excerpt = text("", 13, UiTheme.rgb(225, 225, 225));
                 excerpt.setMaxLines(3);
                 excerpt.setEllipsize(TextUtils.TruncateAt.END);
                 excerpt.setLineSpacing(0, 1.1f);
@@ -1629,8 +1629,8 @@ final class SavedSummariesDialog {
             row.setBackgroundColor(
                     selecting && rowItem.isLink
                             && selectedLinkIds.contains(rowItem.link.id)
-                            ? Color.rgb(72, 32, 32)
-                            : BACKGROUND);
+                            ? UiTheme.rgb(72, 32, 32)
+                            : UiTheme.background());
             return row;
         }
 
@@ -1706,7 +1706,7 @@ final class SavedSummariesDialog {
         public View getView(int position, View convertView, ViewGroup parent) {
             TextView row = convertView instanceof TextView existing
                     ? existing
-                    : text("", 14, Color.WHITE);
+                    : text("", 14, UiTheme.white());
             SavedListOrder.CreatorCount creator = getItem(position);
             boolean selected = selectedCreator == null
                     ? creator.channelName == null
@@ -1723,8 +1723,8 @@ final class SavedSummariesDialog {
             row.setMinHeight(dp(44));
             row.setPadding(dp(10), 0, dp(10), 0);
             row.setBackground(selected
-                    ? panelBackground(PANEL, ACTIVE)
-                    : panelBackground(BACKGROUND, BACKGROUND));
+                    ? panelBackground(UiTheme.panel(), UiTheme.active())
+                    : panelBackground(UiTheme.background(), UiTheme.background()));
             return row;
         }
     }

@@ -50,11 +50,6 @@ import java.util.function.IntConsumer;
 import java.util.concurrent.ExecutorService;
 
 final class SettingsDialog {
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(180, 180, 180);
     private static final String SEO_TIME_MACHINES_URL = "https://seotimemachines.com";
     private static final String CLOUDFLARE_SIGNUP_URL =
             "https://dash.cloudflare.com/sign-up/workers-and-pages";
@@ -131,6 +126,8 @@ final class SettingsDialog {
     private boolean cleanSharedLinksEnabled;
     private Button startPageButton;
     private String startPage;
+    private Button lightThemeButton;
+    private boolean lightThemeEnabled;
     private Button hideShortsButton;
     private boolean hideShortsEnabled;
     private List<SupportedSite> siteOrder = new ArrayList<>();
@@ -266,17 +263,17 @@ final class SettingsDialog {
     private View buildContent() {
         LinearLayout root = verticalLayout();
         root.setPadding(dp(18), dp(14), dp(18), dp(14));
-        root.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        root.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
-        TextView title = text("Settings", 22, Color.WHITE);
+        TextView title = text("Settings", 22, UiTheme.white());
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f
         ));
-        autoSaveStatus = text("Saved", 12, MUTED);
+        autoSaveStatus = text("Saved", 12, UiTheme.muted());
         autoSaveStatus.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         autoSaveStatus.setVisibility(View.INVISIBLE);
         autoSaveStatus.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
@@ -290,7 +287,7 @@ final class SettingsDialog {
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close Settings");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -298,7 +295,27 @@ final class SettingsDialog {
         root.addView(header);
 
         LinearLayout content = verticalLayout();
-        content.addView(text("Startup", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        LinearLayout appearance = verticalLayout();
+        appearance.addView(text("Appearance", 15, UiTheme.white()), matchWrap(dp(2), dp(12)));
+        lightThemeEnabled = settings.isLightThemeEnabled();
+        lightThemeButton = button("");
+        lightThemeButton.setOnClickListener(ignored -> {
+            lightThemeEnabled = !lightThemeEnabled;
+            updateLightThemeButton();
+            saveImmediateSettings();
+        });
+        updateLightThemeButton();
+        appearance.addView(lightThemeButton, matchWrap(0, dp(6)));
+        appearance.addView(
+                text(
+                        "Light theme gives the app white surfaces and dark text. The browser rebuilds itself to apply the change.",
+                        12,
+                        UiTheme.muted()
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+        content.addView(appearance);
+        content.addView(text("Startup", 15, UiTheme.white()), matchWrap(dp(2), dp(12)));
         startPage = settings.getStartPage();
         startPageButton = button("");
         startPageButton.setOnClickListener(ignored -> {
@@ -312,12 +329,12 @@ final class SettingsDialog {
                 text(
                         "Choose where SpeedyWatch opens. Resume last page keeps your place; a site always starts fresh. Pages that failed to load never reopen.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(2), dp(10))
         );
 
-        content.addView(text("Sites", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        content.addView(text("Sites", 15, UiTheme.white()), matchWrap(dp(2), dp(12)));
         siteOrder = new ArrayList<>(settings.orderedSites());
         siteHidden = new LinkedHashSet<>(settings.hiddenSiteIds());
         siteListContainer = verticalLayout();
@@ -327,12 +344,12 @@ final class SettingsDialog {
                 text(
                         "Rearrange the site picker or hide sites with the eye. Hidden sites stay out of the picker until you show them again.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(2), dp(10))
         );
 
-        content.addView(text("Playback", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        content.addView(text("Playback", 15, UiTheme.white()), matchWrap(dp(2), dp(12)));
         playbackProfile = settings.getPlaybackProfile();
 
         playbackProfileButton = button("");
@@ -354,7 +371,7 @@ final class SettingsDialog {
         });
         content.addView(adaptiveSpeedButton, matchWrap(0, dp(6)));
         content.addView(
-                text("Adaptive speed adds 0.5x only during caption gaps, then returns to your chosen rate.", 12, MUTED),
+                text("Adaptive speed adds 0.5x only during caption gaps, then returns to your chosen rate.", 12, UiTheme.muted()),
                 matchWrap(dp(2), dp(10))
         );
         sponsorBlockEnabled = settings.isSponsorBlockEnabled();
@@ -377,7 +394,7 @@ final class SettingsDialog {
         content.addView(selfPromotionCategoryButton, matchWrap(0, dp(6)));
         content.addView(interactionCategoryButton, matchWrap(0, dp(6)));
         content.addView(
-                text("Optional community-submitted segments from SponsorBlock. Lookup uses only a four-character video-ID hash prefix.", 12, MUTED),
+                text("Optional community-submitted segments from SponsorBlock. Lookup uses only a four-character video-ID hash prefix.", 12, UiTheme.muted()),
                 matchWrap(dp(2), dp(10))
         );
         updateSponsorBlockButtons();
@@ -394,7 +411,7 @@ final class SettingsDialog {
                 text(
                         "YouTube Shorts open in the regular player instead of the Shorts feed, so speed controls, captions, summaries, and downloads work on them.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(2), dp(10))
         );
@@ -411,7 +428,7 @@ final class SettingsDialog {
                 text(
                         "Removes Shorts shelves, thumbnails, and tab entries from YouTube pages. Shorts links still open in the regular player.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(2), dp(10))
         );
@@ -449,7 +466,7 @@ final class SettingsDialog {
         updateLockIconButton();
         content.addView(lockIconToggleButton, matchWrap(0, 0));
         content.addView(
-                text("Shown bottom-right above the speed controls unless Omnibutton is on.", 12, MUTED),
+                text("Shown bottom-right above the speed controls unless Omnibutton is on.", 12, UiTheme.muted()),
                 matchWrap(dp(8), 0)
         );
         pictureInPictureControl = settings.getPictureInPictureControl();
@@ -469,11 +486,11 @@ final class SettingsDialog {
                 text(
                         "Choose the draggable button or pinch inward with two fingers over an active video.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), dp(12))
         );
-        content.addView(text("Omnibutton", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
+        content.addView(text("Omnibutton", 15, UiTheme.white()), matchWrap(dp(8), dp(8)));
         omniButtonEnabled = settings.isOmniButtonEnabled();
         loadOmniButtonBindings();
         omniButtonToggleButton = button("");
@@ -486,7 +503,7 @@ final class SettingsDialog {
         omniButtonConfigureButton = button("Configure 8 gestures");
         omniButtonConfigureButton.setOnClickListener(ignored -> showOmniButtonEditor());
         content.addView(omniButtonConfigureButton, matchWrap(0, 0));
-        omniButtonSummary = text("", 12, MUTED);
+        omniButtonSummary = text("", 12, UiTheme.muted());
         content.addView(omniButtonSummary, matchWrap(dp(8), 0));
         omniButtonColor = settings.getOmniButtonColor();
         omniIconColor = settings.getOmniIconColor();
@@ -556,13 +573,13 @@ final class SettingsDialog {
                 text(
                         "Swipe in any of eight directions. Hold for 350 ms before dragging; triple-tap still locks the screen.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), dp(12))
         );
         updateOmniButtonToggle();
 
-        content.addView(text("Downloads", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
+        content.addView(text("Downloads", 15, UiTheme.white()), matchWrap(dp(2), dp(8)));
         defaultMp3Quality = settings.getDefaultMp3Quality();
         defaultMp3QualityButton = button("");
         defaultMp3QualityButton.setOnClickListener(ignored -> {
@@ -576,12 +593,12 @@ final class SettingsDialog {
                 text(
                         "Used first in the Download dialog; each queued MP3 keeps the quality you chose.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(2), 0)
         );
 
-        content.addView(text("Saved", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
+        content.addView(text("Saved", 15, UiTheme.white()), matchWrap(dp(8), dp(8)));
         savedThumbnailsEnabled = settings.areSavedThumbnailsEnabled();
         savedThumbnailsButton = button("");
         savedThumbnailsButton.setOnClickListener(ignored -> {
@@ -595,7 +612,7 @@ final class SettingsDialog {
                 text(
                         "Adds a small YouTube preview to newly saved summaries and quizzes. Existing items are unchanged.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), 0)
         );
@@ -612,7 +629,7 @@ final class SettingsDialog {
                 text(
                         "Includes saved page links and their optional previews in JSON backups. Off by default because X threads and chats can be private.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), 0)
         );
@@ -629,7 +646,7 @@ final class SettingsDialog {
                 text(
                         "While you browse X, automatically saves links from whatever is on your screen into Saved. Off means links are saved only when you run Links from the Omnibutton.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), 0)
         );
@@ -646,17 +663,17 @@ final class SettingsDialog {
                 text(
                         "Strips tracking parameters from links when you share or copy them. Post links from X, Instagram, TikTok, Reddit, Threads, and Bluesky drop every parameter; YouTube and Bilibili keep the video and position fields they need.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(8), 0)
         );
 
-        content.addView(text("Updates", 15, Color.WHITE), matchWrap(dp(8), dp(8)));
+        content.addView(text("Updates", 15, UiTheme.white()), matchWrap(dp(8), dp(8)));
         TextView currentVersion = text(
                 "Current version " + installedVersionName
                         + " (version code " + installedVersionCode + ")",
                 13,
-                Color.WHITE
+                UiTheme.white()
         );
         content.addView(currentVersion, matchWrap(0, dp(8)));
         SharedPreferences updatePreferences = updatePreferences();
@@ -666,7 +683,7 @@ final class SettingsDialog {
                         "Not checked yet"
                 ),
                 12,
-                MUTED
+                UiTheme.muted()
         );
         content.addView(updateStatus);
         LinearLayout updateActions = horizontalLayout();
@@ -684,12 +701,12 @@ final class SettingsDialog {
         updateActions.addView(downloadUpdateButton, downloadParams);
         content.addView(updateActions, matchWrap(dp(8), dp(14)));
 
-        content.addView(text("Backup", 15, Color.WHITE), matchWrap(dp(2), dp(8)));
+        content.addView(text("Backup", 15, UiTheme.white()), matchWrap(dp(2), dp(8)));
         content.addView(
                 text(
                         "Exports settings and saved summaries or quizzes. AI access keys and MEGA material are never included.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(0, dp(8))
         );
@@ -703,7 +720,7 @@ final class SettingsDialog {
         content.addView(text(
                 "Saves to Downloads/SpeedyWatch/backups automatically on close. "
                         + "Restore picks a file from that folder.",
-                12, MUTED
+                12, UiTheme.muted()
         ), matchWrap(dp(8), dp(8)));
 
         LinearLayout backupActions = horizontalLayout();
@@ -728,7 +745,7 @@ final class SettingsDialog {
         backupActions.addView(importBackup, importParams);
         content.addView(backupActions, matchWrap(0, dp(14)));
 
-        content.addView(text("AI", 15, Color.WHITE), matchWrap(dp(2), dp(12)));
+        content.addView(text("AI", 15, UiTheme.white()), matchWrap(dp(2), dp(12)));
 
         aiProvider = settings.getAiProvider();
         aiProviderButton = button(aiProviderLabel(aiProvider));
@@ -737,7 +754,7 @@ final class SettingsDialog {
         content.addView(text(
                 "Cloudflare uses the free Workers AI allocation from your own "
                         + "Cloudflare account — no Worker to deploy.",
-                12, MUTED
+                12, UiTheme.muted()
         ), matchWrap(dp(8), dp(10)));
 
         cloudflareRows = new LinearLayout(activity);
@@ -773,9 +790,10 @@ final class SettingsDialog {
         cloudflareTokenRow.addView(cloudflareTokenInput, new LinearLayout.LayoutParams(0, dp(48), 1f));
         cloudflareTokenVisibilityButton = new ImageButton(activity);
         cloudflareTokenVisibilityButton.setImageResource(R.drawable.ic_visibility);
+        cloudflareTokenVisibilityButton.setColorFilter(UiTheme.icon());
         cloudflareTokenVisibilityButton.setContentDescription("Show access token");
         cloudflareTokenVisibilityButton.setPadding(dp(10), dp(10), dp(10), dp(10));
-        cloudflareTokenVisibilityButton.setBackground(panelBackground(BUTTON, BUTTON));
+        cloudflareTokenVisibilityButton.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         cloudflareTokenVisibilityButton.setOnClickListener(ignored -> toggleCloudflareTokenVisibility());
         LinearLayout.LayoutParams cloudflareVisibilityParams =
                 new LinearLayout.LayoutParams(dp(48), dp(48));
@@ -783,7 +801,7 @@ final class SettingsDialog {
         cloudflareTokenRow.addView(cloudflareTokenVisibilityButton, cloudflareVisibilityParams);
         cloudflareRows.addView(cloudflareTokenRow, matchWrap(dp(8), 0));
 
-        cloudflareTokenPreview = text("", 12, MUTED);
+        cloudflareTokenPreview = text("", 12, UiTheme.muted());
         cloudflareRows.addView(cloudflareTokenPreview, matchWrap(dp(8), dp(10)));
         updateCloudflareTokenPreview();
 
@@ -814,16 +832,17 @@ final class SettingsDialog {
         apiKeyRow.addView(apiKeyInput, new LinearLayout.LayoutParams(0, dp(48), 1f));
         apiKeyVisibilityButton = new ImageButton(activity);
         apiKeyVisibilityButton.setImageResource(R.drawable.ic_visibility);
+        apiKeyVisibilityButton.setColorFilter(UiTheme.icon());
         apiKeyVisibilityButton.setContentDescription("Show API key");
         apiKeyVisibilityButton.setPadding(dp(10), dp(10), dp(10), dp(10));
-        apiKeyVisibilityButton.setBackground(panelBackground(BUTTON, BUTTON));
+        apiKeyVisibilityButton.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         apiKeyVisibilityButton.setOnClickListener(ignored -> toggleApiKeyVisibility());
         LinearLayout.LayoutParams visibilityParams = new LinearLayout.LayoutParams(dp(48), dp(48));
         visibilityParams.setMarginStart(dp(8));
         apiKeyRow.addView(apiKeyVisibilityButton, visibilityParams);
         openRouterRows.addView(apiKeyRow, matchWrap(dp(8), 0));
 
-        apiKeyPreview = text("", 12, MUTED);
+        apiKeyPreview = text("", 12, UiTheme.muted());
         openRouterRows.addView(apiKeyPreview, matchWrap(dp(8), dp(10)));
         apiKeyInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -847,7 +866,7 @@ final class SettingsDialog {
         Button refresh = button("Refresh models");
         refresh.setOnClickListener(ignored -> refreshModels());
         modelActions.addView(refresh, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        modelStatus = text("Live model catalog", 12, MUTED);
+        modelStatus = text("Live model catalog", 12, UiTheme.muted());
         modelStatus.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams modelStatusParams =
                 new LinearLayout.LayoutParams(0, dp(42), 1f);
@@ -906,12 +925,12 @@ final class SettingsDialog {
 
             @Override
             public void updateDrawState(TextPaint drawState) {
-                drawState.setColor(Color.rgb(90, 180, 255));
+                drawState.setColor(UiTheme.rgb(90, 180, 255));
                 drawState.setUnderlineText(true);
                 drawState.setTypeface(Typeface.DEFAULT_BOLD);
             }
         }, attributionPrefix.length(), attributionText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView attribution = text("", 13, Color.WHITE);
+        TextView attribution = text("", 13, UiTheme.white());
         attribution.setText(attributionText);
         attribution.setGravity(Gravity.CENTER);
         attribution.setMinHeight(dp(44));
@@ -1150,15 +1169,15 @@ final class SettingsDialog {
 
         LinearLayout content = verticalLayout();
         content.setPadding(dp(16), dp(14), dp(16), dp(14));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
-        TextView title = text("Cloudflare AI setup", 20, Color.WHITE);
+        TextView title = text("Cloudflare AI setup", 20, UiTheme.white());
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         content.addView(title, matchWrap(0, dp(10)));
 
         content.addView(text(
                 "Three clicks, two pastes. All on your phone.",
-                13, Color.WHITE
+                13, UiTheme.white()
         ), matchWrap(0, dp(12)));
 
         content.addView(guideStep(1, "Click here → create free account. ",
@@ -1187,7 +1206,7 @@ final class SettingsDialog {
         content.addView(text(
                 "Free plan: about 10,000 AI credits per day for this account, "
                         + "resetting daily. Each summary or quiz uses only a small amount.",
-                12, MUTED
+                12, UiTheme.muted()
         ), matchWrap(0, dp(12)));
 
         Button close = button("Close");
@@ -1217,13 +1236,13 @@ final class SettingsDialog {
 
             @Override
             public void updateDrawState(TextPaint drawState) {
-                drawState.setColor(Color.rgb(90, 180, 255));
+                drawState.setColor(UiTheme.rgb(90, 180, 255));
                 drawState.setUnderlineText(true);
                 drawState.setTypeface(Typeface.DEFAULT_BOLD);
             }
         }, (number + ". " + plainText).length(), text.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView view = text("", 13, Color.WHITE);
+        TextView view = text("", 13, UiTheme.white());
         view.setText(text);
         view.setMovementMethod(LinkMovementMethod.getInstance());
         view.setHighlightColor(Color.TRANSPARENT);
@@ -1232,7 +1251,7 @@ final class SettingsDialog {
     }
 
     private TextView guideStep(int number, String plainText) {
-        TextView view = text(number + ". " + plainText, 13, Color.WHITE);
+        TextView view = text(number + ". " + plainText, 13, UiTheme.white());
         view.setPadding(dp(4), dp(6), dp(4), dp(6));
         return view;
     }
@@ -1311,10 +1330,12 @@ final class SettingsDialog {
         if (connected) {
             cloudflareCheckButton.setText("✓ Connected");
             cloudflareCheckButton.setBackground(
-                    panelBackground(Color.rgb(30, 132, 73), Color.rgb(30, 132, 73)));
+                    panelBackground(UiTheme.rgb(30, 132, 73), UiTheme.rgb(30, 132, 73)));
+            cloudflareCheckButton.setTextColor(UiTheme.onAccent());
         } else {
             cloudflareCheckButton.setText("Check connection");
-            cloudflareCheckButton.setBackground(panelBackground(BUTTON, BUTTON));
+            cloudflareCheckButton.setTextColor(UiTheme.white());
+            cloudflareCheckButton.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         }
     }
 
@@ -1461,8 +1482,8 @@ final class SettingsDialog {
 
         LinearLayout content = verticalLayout();
         content.setPadding(dp(14), dp(14), dp(14), dp(14));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
-        TextView title = text("Choose AI model", 19, Color.WHITE);
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
+        TextView title = text("Choose AI model", 19, UiTheme.white());
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         content.addView(title);
         EditText search = input(false, 1);
@@ -1480,7 +1501,7 @@ final class SettingsDialog {
         ModelAdapter adapter = new ModelAdapter(models);
         filter.setTag(adapter);
         ListView list = new ListView(activity);
-        list.setDivider(new ColorDrawable(Color.rgb(55, 55, 55)));
+        list.setDivider(new ColorDrawable(UiTheme.rgb(55, 55, 55)));
         list.setDividerHeight(dp(1));
         list.setAdapter(adapter);
         list.setOnItemClickListener((parent, view, position, id) -> {
@@ -1606,16 +1627,16 @@ final class SettingsDialog {
         omniEditorDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout root = verticalLayout();
         root.setPadding(dp(18), dp(14), dp(18), dp(14));
-        root.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        root.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
-        TextView title = text("Omnibutton gestures", 20, Color.WHITE);
+        TextView title = text("Omnibutton gestures", 20, UiTheme.white());
         title.setTypeface(title.getTypeface(), Typeface.BOLD);
         root.addView(title);
         root.addView(
                 text(
                         "Assign any SpeedyWatch action to each swipe direction. Amount fields appear only where needed.",
                         12,
-                        MUTED
+                        UiTheme.muted()
                 ),
                 matchWrap(dp(6), dp(8))
         );
@@ -1699,7 +1720,8 @@ final class SettingsDialog {
         });
         actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(44), 1f));
         Button done = button("Done");
-        done.setBackground(panelBackground(ACTIVE, ACTIVE));
+        done.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        done.setTextColor(UiTheme.onAccent());
         done.setOnClickListener(ignored -> {
             if (!readOmniButtonAmounts(true)) {
                 return;
@@ -1807,7 +1829,7 @@ final class SettingsDialog {
                 String amountLabel = action.amountType == OmniButtonAction.AmountType.SPEED
                         ? "Amount (x)"
                         : "Seconds";
-                TextView label = text(amountLabel, 12, MUTED);
+                TextView label = text(amountLabel, 12, UiTheme.muted());
                 label.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                 amountRow.addView(label, new LinearLayout.LayoutParams(0, dp(44), 1f));
                 EditText input = input(false, 1);
@@ -2057,7 +2079,7 @@ final class SettingsDialog {
                 row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
             }
             TextView label = text(site.label, 15,
-                    hidden ? MUTED : Color.WHITE);
+                    hidden ? UiTheme.muted() : UiTheme.white());
             LinearLayout.LayoutParams labelParams =
                     new LinearLayout.LayoutParams(0, dp(44), 1f);
             labelParams.setMargins(dp(10), 0, 0, 0);
@@ -2089,9 +2111,10 @@ final class SettingsDialog {
     private ImageButton siteIconButton(int drawable, String description) {
         ImageButton button = new ImageButton(activity);
         button.setImageResource(drawable);
+        button.setColorFilter(UiTheme.icon());
         button.setContentDescription(description);
         button.setPadding(dp(8), dp(8), dp(8), dp(8));
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 
@@ -2180,6 +2203,7 @@ final class SettingsDialog {
         settings.setScrapedLinksBackupEnabled(scrapedLinksBackupEnabled);
         settings.setAutoScrapeXLinksEnabled(autoScrapeXLinksEnabled);
         settings.setCleanSharedLinksEnabled(cleanSharedLinksEnabled);
+        settings.setLightThemeEnabled(lightThemeEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,
@@ -2189,6 +2213,14 @@ final class SettingsDialog {
         );
         onSettingsSaved.run();
         showAutoSaved();
+        if (UiTheme.isLight() != lightThemeEnabled) {
+            activity.applyThemeAndRecreate();
+        }
+    }
+
+    private void updateLightThemeButton() {
+        lightThemeButton.setText(
+                lightThemeEnabled ? "Light theme: On" : "Light theme: Off");
     }
 
     private static final int[] OMNI_COLOR_PRESETS = {
@@ -2198,13 +2230,13 @@ final class SettingsDialog {
     private EditText hexColorInput(String hint) {
         EditText input = new EditText(activity);
         input.setHint(hint);
-        input.setHintTextColor(MUTED);
-        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(UiTheme.muted());
+        input.setTextColor(UiTheme.white());
         input.setTextSize(14);
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         input.setPadding(dp(12), 0, dp(12), 0);
-        input.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        input.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         input.setMinHeight(dp(44));
         return input;
     }
@@ -2239,7 +2271,7 @@ final class SettingsDialog {
             GradientDrawable shape = new GradientDrawable();
             shape.setShape(GradientDrawable.OVAL);
             shape.setColor(color);
-            shape.setStroke(dp(2), color == selected ? ACTIVE : Color.rgb(90, 90, 90));
+            shape.setStroke(dp(2), color == selected ? UiTheme.active() : UiTheme.rgb(90, 90, 90));
             swatch.setBackground(shape);
             swatch.setContentDescription("Color " + formatHexColor(color));
             swatch.setOnClickListener(ignored -> onPick.accept(color));
@@ -2440,11 +2472,11 @@ final class SettingsDialog {
 
     private EditText input(boolean multiline, int lines) {
         EditText input = new EditText(activity);
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.rgb(130, 130, 130));
+        input.setTextColor(UiTheme.white());
+        input.setHintTextColor(UiTheme.rgb(130, 130, 130));
         input.setTextSize(14);
         input.setPadding(dp(10), dp(8), dp(10), dp(8));
-        input.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        input.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         input.setSingleLine(!multiline);
         if (multiline) {
             input.setGravity(Gravity.TOP | Gravity.START);
@@ -2455,7 +2487,7 @@ final class SettingsDialog {
     }
 
     private TextView label(String value) {
-        TextView label = text(value, 13, Color.WHITE);
+        TextView label = text(value, 13, UiTheme.white());
         label.setTypeface(label.getTypeface(), android.graphics.Typeface.BOLD);
         return label;
     }
@@ -2463,13 +2495,13 @@ final class SettingsDialog {
     private Button button(String value) {
         Button button = new Button(activity);
         button.setText(value);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setPadding(dp(12), 0, dp(12), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 
@@ -2591,15 +2623,15 @@ final class SettingsDialog {
             } else {
                 row = verticalLayout();
                 row.setPadding(dp(12), dp(9), dp(12), dp(9));
-                name = text("", 14, Color.WHITE);
-                id = text("", 11, MUTED);
+                name = text("", 14, UiTheme.white());
+                id = text("", 11, UiTheme.muted());
                 row.addView(name);
                 row.addView(id);
             }
             OpenRouterClient.Model model = getItem(position);
             name.setText(model.name);
             id.setText(model.id + "\n" + model.guidance());
-            row.setBackgroundColor(model.id.equals(selectedModelId) ? Color.rgb(52, 25, 31) : BACKGROUND);
+            row.setBackgroundColor(model.id.equals(selectedModelId) ? UiTheme.rgb(52, 25, 31) : UiTheme.background());
             return row;
         }
     }

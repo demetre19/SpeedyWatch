@@ -84,11 +84,6 @@ final class YouTubeSubsDialog {
         void onError(String message);
     }
 
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
-    private static final int MUTED = Color.rgb(185, 185, 185);
     private static final int[] WATCH_PATH_BUDGETS = {5, 10, 20};
 
     private final Activity activity;
@@ -192,22 +187,22 @@ final class YouTubeSubsDialog {
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(14), dp(12), dp(14), dp(12));
-        content.setBackground(panelBackground(BACKGROUND, Color.rgb(70, 70, 70)));
+        content.setBackground(panelBackground(UiTheme.background(), UiTheme.rgb(70, 70, 70)));
 
         LinearLayout header = horizontalLayout();
         LinearLayout headerText = new LinearLayout(activity);
         headerText.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("Video Subs", 21, Color.WHITE);
+        TextView title = text("Video Subs", 21, UiTheme.white());
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         headerText.addView(title);
-        status = text("Loading subtitles...", 12, MUTED);
+        status = text("Loading subtitles...", 12, UiTheme.muted());
         headerText.addView(status);
         header.addView(headerText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         ImageButton close = new ImageButton(activity);
         close.setImageResource(R.drawable.ic_close);
         close.setContentDescription("Close Video Subs");
         close.setPadding(dp(9), dp(9), dp(9), dp(9));
-        close.setBackground(panelBackground(PANEL, BUTTON));
+        close.setBackground(panelBackground(UiTheme.panel(), UiTheme.button()));
         close.setOnClickListener(ignored -> dialog.dismiss());
         LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(dp(42), dp(42));
         closeParams.setMarginStart(dp(8));
@@ -236,12 +231,12 @@ final class YouTubeSubsDialog {
         search = new EditText(activity);
         search.setSingleLine(true);
         search.setHint("Search subtitles...");
-        search.setTextColor(Color.WHITE);
-        search.setHintTextColor(Color.rgb(130, 130, 130));
+        search.setTextColor(UiTheme.white());
+        search.setHintTextColor(UiTheme.rgb(130, 130, 130));
         search.setTextSize(14);
         search.setPadding(dp(10), 0, dp(10), 0);
         search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        search.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        search.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(44)
@@ -327,7 +322,7 @@ final class YouTubeSubsDialog {
 
         FrameLayout body = new FrameLayout(activity);
         transcriptList = new ListView(activity);
-        transcriptList.setDivider(new ColorDrawable(Color.rgb(50, 50, 50)));
+        transcriptList.setDivider(new ColorDrawable(UiTheme.rgb(50, 50, 50)));
         transcriptList.setDividerHeight(dp(1));
         transcriptAdapter = new TranscriptAdapter();
         transcriptList.setAdapter(transcriptAdapter);
@@ -349,10 +344,10 @@ final class YouTubeSubsDialog {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        summaryOutput = text("", Math.round(SummaryTextZoom.MIN_SP), Color.WHITE);
+        summaryOutput = text("", Math.round(SummaryTextZoom.MIN_SP), UiTheme.white());
         summaryOutput.setTextIsSelectable(true);
         summaryOutput.setMovementMethod(LinkMovementMethod.getInstance());
-        summaryOutput.setLinkTextColor(Color.rgb(90, 180, 255));
+        summaryOutput.setLinkTextColor(UiTheme.rgb(90, 180, 255));
         summaryOutput.setLineSpacing(0, 1.18f);
         summaryOutput.setPadding(dp(10), dp(10), dp(10), dp(10));
         configureSummaryText(summaryOutput);
@@ -392,7 +387,7 @@ final class YouTubeSubsDialog {
         );
         bodyParams.setMargins(0, dp(8), 0, dp(8));
         content.addView(body, bodyParams);
-        chatTitle = text("Continue with a question", 13, Color.WHITE);
+        chatTitle = text("Continue with a question", 13, UiTheme.white());
         chatTitle.setTypeface(chatTitle.getTypeface(), android.graphics.Typeface.BOLD);
         chatTitle.setPadding(0, 0, 0, dp(8));
         chatTitle.setVisibility(View.GONE);
@@ -401,13 +396,13 @@ final class YouTubeSubsDialog {
         chatInput = new EditText(activity);
         chatInput.setSingleLine(true);
         chatInput.setHint("Ask about this video...");
-        chatInput.setTextColor(Color.WHITE);
-        chatInput.setHintTextColor(Color.rgb(175, 175, 175));
+        chatInput.setTextColor(UiTheme.white());
+        chatInput.setHintTextColor(UiTheme.rgb(175, 175, 175));
         chatInput.setTextSize(14);
         chatInput.setPadding(dp(10), 0, dp(10), 0);
         chatInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(2000)});
         chatInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        chatInput.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        chatInput.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         chatInput.setOnEditorActionListener((view, actionId, event) -> {
             askFollowUp();
             return true;
@@ -454,11 +449,11 @@ final class YouTubeSubsDialog {
         TextView intro = text(
                 "Choose what you need from this video and how long you have.",
                 13,
-                MUTED
+                UiTheme.muted()
         );
         content.addView(intro);
 
-        TextView goalLabel = text("Goal", 14, Color.WHITE);
+        TextView goalLabel = text("Goal", 14, UiTheme.white());
         goalLabel.setTypeface(goalLabel.getTypeface(), android.graphics.Typeface.BOLD);
         LinearLayout.LayoutParams goalLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -470,14 +465,14 @@ final class YouTubeSubsDialog {
         watchPathGoal = new EditText(activity);
         watchPathGoal.setSingleLine(true);
         watchPathGoal.setHint("Example: Show me the implementation steps");
-        watchPathGoal.setTextColor(Color.WHITE);
-        watchPathGoal.setHintTextColor(Color.rgb(175, 175, 175));
+        watchPathGoal.setTextColor(UiTheme.white());
+        watchPathGoal.setHintTextColor(UiTheme.rgb(175, 175, 175));
         watchPathGoal.setTextSize(14);
         watchPathGoal.setPadding(dp(10), 0, dp(10), 0);
         watchPathGoal.setFilters(new InputFilter[]{new InputFilter.LengthFilter(500)});
         watchPathGoal.setInputType(
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        watchPathGoal.setBackground(panelBackground(PANEL, Color.rgb(85, 85, 85)));
+        watchPathGoal.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(85, 85, 85)));
         watchPathGoal.setOnEditorActionListener((view, actionId, event) -> {
             generateWatchPath();
             return true;
@@ -487,7 +482,7 @@ final class YouTubeSubsDialog {
                 dp(44)
         ));
 
-        TextView budgetLabel = text("Time", 14, Color.WHITE);
+        TextView budgetLabel = text("Time", 14, UiTheme.white());
         budgetLabel.setTypeface(budgetLabel.getTypeface(), android.graphics.Typeface.BOLD);
         LinearLayout.LayoutParams budgetLabelParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -512,7 +507,8 @@ final class YouTubeSubsDialog {
         content.addView(budgets);
 
         createWatchPathButton = button("Create WatchPath");
-        createWatchPathButton.setBackground(panelBackground(ACTIVE, ACTIVE));
+        createWatchPathButton.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        createWatchPathButton.setTextColor(UiTheme.onAccent());
         createWatchPathButton.setOnClickListener(ignored -> generateWatchPath());
         LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -537,8 +533,8 @@ final class YouTubeSubsDialog {
             int budget = WATCH_PATH_BUDGETS[index];
             boolean selected = budget == selectedWatchPathBudget;
             watchPathBudgetButtons.get(index).setBackground(panelBackground(
-                    selected ? ACTIVE : BUTTON,
-                    selected ? ACTIVE : Color.rgb(85, 85, 85)
+                    selected ? UiTheme.active() : UiTheme.button(),
+                    selected ? UiTheme.active() : UiTheme.rgb(85, 85, 85)
             ));
         }
     }
@@ -547,12 +543,12 @@ final class YouTubeSubsDialog {
         boolean transcriptSelected = selectedMode == 0;
         boolean watchPathSelected = selectedMode == 1;
         transcriptButton.setBackground(panelBackground(
-                transcriptSelected ? ACTIVE : BUTTON,
-                transcriptSelected ? ACTIVE : Color.rgb(85, 85, 85)
+                transcriptSelected ? UiTheme.active() : UiTheme.button(),
+                transcriptSelected ? UiTheme.active() : UiTheme.rgb(85, 85, 85)
         ));
         watchPathButton.setBackground(panelBackground(
-                watchPathSelected ? ACTIVE : BUTTON,
-                watchPathSelected ? ACTIVE : Color.rgb(85, 85, 85)
+                watchPathSelected ? UiTheme.active() : UiTheme.button(),
+                watchPathSelected ? UiTheme.active() : UiTheme.rgb(85, 85, 85)
         ));
     }
 
@@ -706,7 +702,7 @@ final class YouTubeSubsDialog {
                         + WatchPathPlan.timestamp(plan.selectedDurationSeconds())
                         + " total",
                 16,
-                Color.WHITE
+                UiTheme.white()
         );
         routeTitle.setTypeface(routeTitle.getTypeface(), android.graphics.Typeface.BOLD);
         watchPathResults.addView(routeTitle);
@@ -714,7 +710,7 @@ final class YouTubeSubsDialog {
         for (WatchPathPlan.Segment segment : plan.segments) {
             LinearLayout row = horizontalLayout();
             row.setPadding(dp(8), dp(8), dp(8), dp(8));
-            row.setBackground(panelBackground(PANEL, Color.rgb(70, 70, 70)));
+            row.setBackground(panelBackground(UiTheme.panel(), UiTheme.rgb(70, 70, 70)));
 
             LinearLayout details = new LinearLayout(activity);
             details.setOrientation(LinearLayout.VERTICAL);
@@ -725,11 +721,11 @@ final class YouTubeSubsDialog {
                             + "  "
                             + segment.title,
                     14,
-                    Color.WHITE
+                    UiTheme.white()
             );
             heading.setTypeface(heading.getTypeface(), android.graphics.Typeface.BOLD);
             details.addView(heading);
-            TextView reason = text(segment.reason, 12, MUTED);
+            TextView reason = text(segment.reason, 12, UiTheme.muted());
             reason.setPadding(0, dp(4), 0, 0);
             details.addView(reason);
             row.addView(details, new LinearLayout.LayoutParams(
@@ -761,7 +757,8 @@ final class YouTubeSubsDialog {
         skipped.setOnClickListener(ignored -> showSkippedWatchPathRanges());
         addWeighted(actions, skipped, 1f, 0);
         Button start = button("Start WatchPath");
-        start.setBackground(panelBackground(ACTIVE, ACTIVE));
+        start.setBackground(panelBackground(UiTheme.active(), UiTheme.active()));
+        start.setTextColor(UiTheme.onAccent());
         start.setOnClickListener(ignored -> {
             if (currentWatchPath == null) {
                 return;
@@ -1094,16 +1091,16 @@ final class YouTubeSubsDialog {
             summaryContent.removeViews(1, summaryContent.getChildCount() - 1);
         }
         for (SavedSummaryChat.Turn turn : chatTurns) {
-            TextView userMessage = text("", Math.round(summaryTextSizeSp), Color.WHITE);
+            TextView userMessage = text("", Math.round(summaryTextSizeSp), UiTheme.onAccent());
             userMessage.setTextIsSelectable(true);
             userMessage.setMovementMethod(LinkMovementMethod.getInstance());
-            userMessage.setLinkTextColor(Color.rgb(90, 180, 255));
+            userMessage.setLinkTextColor(UiTheme.rgb(90, 180, 255));
             userMessage.setLineSpacing(0, 1.18f);
             userMessage.setPadding(dp(8), dp(8), dp(8), dp(8));
             configureSummaryText(userMessage);
             userMessage.setBackground(panelBackground(
-                    Color.rgb(58, 18, 28),
-                    Color.rgb(96, 35, 50)
+                    UiTheme.rgb(58, 18, 28),
+                    UiTheme.rgb(96, 35, 50)
             ));
             userMessage.setText(MarkdownRenderer.render(
                     "**You**\n\n" + turn.question,
@@ -1116,10 +1113,10 @@ final class YouTubeSubsDialog {
             userParams.setMargins(dp(10), dp(10), dp(10), dp(4));
             summaryContent.addView(userMessage, userParams);
 
-            TextView aiMessage = text("", Math.round(summaryTextSizeSp), Color.WHITE);
+            TextView aiMessage = text("", Math.round(summaryTextSizeSp), UiTheme.white());
             aiMessage.setTextIsSelectable(true);
             aiMessage.setMovementMethod(LinkMovementMethod.getInstance());
-            aiMessage.setLinkTextColor(Color.rgb(90, 180, 255));
+            aiMessage.setLinkTextColor(UiTheme.rgb(90, 180, 255));
             aiMessage.setLineSpacing(0, 1.18f);
             aiMessage.setPadding(dp(8), dp(4), dp(8), dp(4));
             configureSummaryText(aiMessage);
@@ -1429,13 +1426,13 @@ final class YouTubeSubsDialog {
     private Button button(String value) {
         Button button = new Button(activity);
         button.setText(value);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(12);
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setPadding(dp(8), 0, dp(8), 0);
-        button.setBackground(panelBackground(BUTTON, BUTTON));
+        button.setBackground(panelBackground(UiTheme.button(), UiTheme.button()));
         return button;
     }
 
@@ -1603,10 +1600,10 @@ final class YouTubeSubsDialog {
                 row = horizontalLayout();
                 row.setGravity(Gravity.TOP);
                 row.setPadding(dp(8), dp(9), dp(8), dp(9));
-                timestamp = text("", 12, ACTIVE);
+                timestamp = text("", 12, UiTheme.active());
                 timestamp.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
                 row.addView(timestamp, new LinearLayout.LayoutParams(dp(62), ViewGroup.LayoutParams.WRAP_CONTENT));
-                line = text("", 14, Color.rgb(225, 225, 225));
+                line = text("", 14, UiTheme.rgb(225, 225, 225));
                 line.setLineSpacing(0, 1.1f);
                 row.addView(line, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             }
@@ -1614,7 +1611,7 @@ final class YouTubeSubsDialog {
             timestamp.setText(entry.timestamp());
             line.setText(entry.text);
             row.setBackgroundColor(position == activePosition(currentPlaybackTime)
-                    ? Color.rgb(58, 24, 31) : BACKGROUND);
+                    ? UiTheme.rgb(58, 24, 31) : UiTheme.background());
             return row;
         }
     }

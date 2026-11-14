@@ -41,6 +41,7 @@ import android.view.View;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.view.ViewConfiguration;
+import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -103,10 +104,6 @@ public final class MainActivity extends Activity {
             "https://www.youtube.com/feed/history";
     private static final String YOUTUBE_WATCH_LATER_URL =
             "https://www.youtube.com/playlist?list=WL";
-    private static final int BACKGROUND = Color.rgb(15, 15, 15);
-    private static final int PANEL = Color.rgb(30, 30, 30);
-    private static final int BUTTON = Color.rgb(48, 48, 48);
-    private static final int ACTIVE = Color.rgb(255, 0, 51);
     private static final long OMNI_DRAG_HOLD_MILLIS = 350L;
     private static final long IMMERSIVE_POLL_MILLIS = 750;
     private static final int IMMERSIVE_TRANSITION_COUNT = 2;
@@ -249,6 +246,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         appSettings = new SpeedyWatchSettings(this);
+        UiTheme.setLight(appSettings.isLightThemeEnabled());
         selectedSpeed = appSettings.getDefaultPlaybackSpeed();
         savedSummaryStore = new SavedSummaryStore(this);
         megaBookmarkStore = new MegaBookmarkStore(this);
@@ -258,6 +256,7 @@ public final class MainActivity extends Activity {
         chineseTranslatorScript = readAsset("chinese_translate.js");
         appRoot = buildUi();
         setContentView(appRoot);
+        applyThemeFromSettings();
         applySystemBarInsets(appRoot);
         initializeScreenLockOverlay();
         initializeMediaGestures();
@@ -719,7 +718,7 @@ public final class MainActivity extends Activity {
     private LinearLayout buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(BACKGROUND);
+        root.setBackgroundColor(UiTheme.background());
 
         LinearLayout navigation = horizontalRow();
         navigation.addView(makeIconButton(
@@ -803,7 +802,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
         webView = new WebView(this);
-        webView.setBackgroundColor(BACKGROUND);
+        webView.setBackgroundColor(UiTheme.background());
         root.addView(webView, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -820,7 +819,7 @@ public final class MainActivity extends Activity {
         speedControls = new LinearLayout(this);
         speedControls.setOrientation(LinearLayout.VERTICAL);
         speedControls.setPadding(dp(8), dp(6), dp(8), dp(8));
-        speedControls.setBackgroundColor(PANEL);
+        speedControls.setBackgroundColor(UiTheme.panel());
 
         LinearLayout speedContent = new LinearLayout(this);
         speedContent.setOrientation(LinearLayout.VERTICAL);
@@ -838,8 +837,8 @@ public final class MainActivity extends Activity {
         customSpeedInput.setSingleLine(true);
         customSpeedInput.setText(formatSpeedValue(selectedSpeed));
         customSpeedInput.setHint("2.7");
-        customSpeedInput.setTextColor(Color.WHITE);
-        customSpeedInput.setHintTextColor(Color.rgb(180, 180, 180));
+        customSpeedInput.setTextColor(UiTheme.white());
+        customSpeedInput.setHintTextColor(UiTheme.rgb(180, 180, 180));
         customSpeedInput.setTextSize(14);
         customSpeedInput.setSelectAllOnFocus(true);
         customSpeedInput.setGravity(Gravity.CENTER);
@@ -849,7 +848,7 @@ public final class MainActivity extends Activity {
         );
         customSpeedInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         customSpeedInput.setBackground(
-                outlinedBackground(BUTTON, Color.rgb(105, 105, 105), 1)
+                outlinedBackground(UiTheme.button(), UiTheme.rgb(105, 105, 105), 1)
         );
         LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(dp(72), dp(44));
         inputParams.setMargins(dp(6), 0, dp(3), 0);
@@ -873,11 +872,11 @@ public final class MainActivity extends Activity {
         actions.addView(makeButton("-0.1", ignored -> setSpeed(selectedSpeed - 0.1)));
 
         statusText = new TextView(this);
-        statusText.setTextColor(Color.WHITE);
+        statusText.setTextColor(UiTheme.white());
         statusText.setTextSize(15);
         statusText.setGravity(Gravity.CENTER);
         statusText.setPadding(dp(8), 0, dp(8), 0);
-        statusText.setBackground(outlinedBackground(PANEL, ACTIVE, 1));
+        statusText.setBackground(outlinedBackground(UiTheme.panel(), UiTheme.active(), 1));
         statusText.setText(statusLabel());
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
         statusParams.setMargins(dp(3), 0, dp(3), 0);
@@ -916,10 +915,10 @@ public final class MainActivity extends Activity {
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(8), dp(6), dp(8), dp(6));
-        controls.setBackground(outlinedBackground(PANEL, ACTIVE, 1));
+        controls.setBackground(outlinedBackground(UiTheme.panel(), UiTheme.active(), 1));
 
         watchPathStatus = new TextView(this);
-        watchPathStatus.setTextColor(Color.WHITE);
+        watchPathStatus.setTextColor(UiTheme.white());
         watchPathStatus.setTextSize(13);
         watchPathStatus.setSingleLine(true);
         watchPathStatus.setPadding(dp(6), 0, dp(6), dp(4));
@@ -989,7 +988,7 @@ public final class MainActivity extends Activity {
     private Button makeButton(String label, View.OnClickListener listener) {
         Button button = new Button(this);
         button.setText(label);
-        button.setTextColor(Color.WHITE);
+        button.setTextColor(UiTheme.white());
         button.setTextSize(13);
         button.setAllCaps(false);
         button.setMinWidth(0);
@@ -997,7 +996,7 @@ public final class MainActivity extends Activity {
         button.setMinHeight(0);
         button.setMinimumHeight(0);
         button.setPadding(dp(12), 0, dp(12), 0);
-        setButtonBackground(button, BUTTON, BUTTON, 0);
+        setButtonBackground(button, UiTheme.button(), UiTheme.button(), 0);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(44)
@@ -1028,12 +1027,15 @@ public final class MainActivity extends Activity {
     ) {
         ImageButton button = new ImageButton(this);
         button.setImageResource(drawableResource);
+        if (drawableResource != R.drawable.ic_close) {
+            button.setColorFilter(UiTheme.icon());
+        }
         button.setContentDescription(description);
         button.setScaleType(ImageButton.ScaleType.CENTER);
         button.setPadding(dp(10), dp(10), dp(10), dp(10));
-        GradientDrawable shape = outlinedBackground(BUTTON, BUTTON, 0);
+        GradientDrawable shape = outlinedBackground(UiTheme.button(), UiTheme.button(), 0);
         button.setBackground(new RippleDrawable(
-                ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
+                ColorStateList.valueOf(UiTheme.argb(55, 255, 255, 255)),
                 shape,
                 null
         ));
@@ -1048,7 +1050,7 @@ public final class MainActivity extends Activity {
     private void setButtonBackground(View button, int fill, int stroke, int strokeWidthDp) {
         GradientDrawable shape = outlinedBackground(fill, stroke, strokeWidthDp);
         button.setBackground(new RippleDrawable(
-                ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
+                ColorStateList.valueOf(UiTheme.argb(55, 255, 255, 255)),
                 shape,
                 null
         ));
@@ -1069,8 +1071,8 @@ public final class MainActivity extends Activity {
             boolean selected = Math.abs(entry.getKey() - selectedSpeed) < 0.001;
             setButtonBackground(
                     entry.getValue(),
-                    selected ? Color.rgb(38, 38, 38) : BUTTON,
-                    selected ? ACTIVE : BUTTON,
+                    selected ? UiTheme.rgb(38, 38, 38) : UiTheme.button(),
+                    selected ? UiTheme.active() : UiTheme.button(),
                     selected ? 2 : 0
             );
         }
@@ -1114,7 +1116,7 @@ public final class MainActivity extends Activity {
                 dp(collapsed ? 4 : 8),
                 dp(collapsed ? 2 : 8)
         );
-        speedControls.setBackgroundColor(collapsed ? Color.TRANSPARENT : PANEL);
+        speedControls.setBackgroundColor(collapsed ? Color.TRANSPARENT : UiTheme.panel());
         if (persist) {
             appSettings.setSpeedControlsCollapsed(collapsed);
         }
@@ -2010,8 +2012,9 @@ public final class MainActivity extends Activity {
         }
 
         button.setImageResource(selectedSite.iconResource);
+        button.setColorFilter(UiTheme.onAccent());
         button.setContentDescription("Current site: " + selectedSite.label + ". Choose site");
-        setButtonBackground(button, ACTIVE, ACTIVE, 0);
+        setButtonBackground(button, UiTheme.active(), UiTheme.active(), 0);
     }
 
     private void updateSelectedSiteForUrl(String url) {
@@ -2091,8 +2094,8 @@ public final class MainActivity extends Activity {
         input.setHint(supportsKeywordSearch
                 ? selectedSite.label + " URL or keywords"
                 : "Complete " + selectedSite.label + " link");
-        input.setTextColor(Color.WHITE);
-        input.setHintTextColor(Color.rgb(180, 180, 180));
+        input.setTextColor(UiTheme.white());
+        input.setHintTextColor(UiTheme.rgb(180, 180, 180));
         input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setImeOptions(supportsKeywordSearch
                 ? EditorInfo.IME_ACTION_SEARCH
@@ -2546,6 +2549,10 @@ public final class MainActivity extends Activity {
                 }
                 AppBackup.restore(json, appSettings, savedSummaryStore, scrapedLinkStore);
                 runOnUiThread(() -> {
+                    if (UiTheme.isLight() != appSettings.isLightThemeEnabled()) {
+                        applyThemeAndRecreate();
+                        return;
+                    }
                     setSpeed(appSettings.getDefaultPlaybackSpeed());
                     applyScreenLockSettings();
                     lastSponsorLookupKey = "";
@@ -5012,6 +5019,39 @@ public final class MainActivity extends Activity {
             }
             return insets;
         });
+    }
+
+    private void applyThemeFromSettings() {
+        UiTheme.setLight(appSettings.isLightThemeEnabled());
+        Window window = getWindow();
+        window.setStatusBarColor(UiTheme.background());
+        window.setNavigationBarColor(UiTheme.background());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsAppearance(
+                        UiTheme.isLight() ? WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS : 0,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                );
+            }
+        } else {
+            View decor = window.getDecorView();
+            int flags = decor.getSystemUiVisibility();
+            if (UiTheme.isLight()) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            }
+            decor.setSystemUiVisibility(flags);
+        }
+    }
+
+    void applyThemeAndRecreate() {
+        applyThemeFromSettings();
+        recreate();
     }
 
     private int dp(int value) {
