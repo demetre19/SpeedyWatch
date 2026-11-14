@@ -70,6 +70,7 @@ import android.webkit.WebResourceResponse;
 
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
 import org.json.JSONArray;
@@ -5046,6 +5047,14 @@ public final class MainActivity extends Activity {
                 flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             }
             decor.setSystemUiVisibility(flags);
+        }
+        if (webView != null
+                && WebViewFeature.isFeatureSupported(
+                        WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(
+                    webView.getSettings(),
+                    !UiTheme.isLight()
+            );
         }
     }
 
