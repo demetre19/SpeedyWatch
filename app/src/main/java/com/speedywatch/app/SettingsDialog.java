@@ -128,6 +128,10 @@ final class SettingsDialog {
     private String startPage;
     private Button lightThemeButton;
     private boolean lightThemeEnabled;
+    private Button translateTargetButton;
+    private String translateTarget;
+    private Button translateAutoButton;
+    private boolean translateAutoEnabled;
     private Button hideShortsButton;
     private boolean hideShortsEnabled;
     private List<SupportedSite> siteOrder = new ArrayList<>();
@@ -309,6 +313,28 @@ final class SettingsDialog {
         appearance.addView(
                 text(
                         "Light theme gives the app white surfaces and dark text. The browser rebuilds itself to apply the change.",
+                        12,
+                        UiTheme.muted()
+                ),
+                matchWrap(dp(2), dp(10))
+        );
+        translateTarget = settings.getTranslateTarget();
+        translateTargetButton = button("");
+        translateTargetButton.setOnClickListener(ignored -> showTranslateTargetPicker());
+        updateTranslateTargetButton();
+        appearance.addView(translateTargetButton, matchWrap(0, dp(6)));
+        translateAutoEnabled = settings.isTranslateAutoEnabled();
+        translateAutoButton = button("");
+        translateAutoButton.setOnClickListener(ignored -> {
+            translateAutoEnabled = !translateAutoEnabled;
+            updateTranslateAutoButton();
+            saveImmediateSettings();
+        });
+        updateTranslateAutoButton();
+        appearance.addView(translateAutoButton, matchWrap(0, dp(6)));
+        appearance.addView(
+                text(
+                        "Translates page text into the chosen language. Automatic translates foreign pages as they load; the toolbar and Omnibutton actions translate on demand.",
                         12,
                         UiTheme.muted()
                 ),
@@ -2204,6 +2230,8 @@ final class SettingsDialog {
         settings.setAutoScrapeXLinksEnabled(autoScrapeXLinksEnabled);
         settings.setCleanSharedLinksEnabled(cleanSharedLinksEnabled);
         settings.setLightThemeEnabled(lightThemeEnabled);
+        settings.setTranslateTarget(translateTarget);
+        settings.setTranslateAutoEnabled(translateAutoEnabled);
         settings.setPlaybackPreferences(playbackProfile, adaptiveSpeedEnabled, 0.5);
         settings.setSponsorBlockPreferences(
                 sponsorBlockEnabled,
@@ -2221,6 +2249,58 @@ final class SettingsDialog {
     private void updateLightThemeButton() {
         lightThemeButton.setText(
                 lightThemeEnabled ? "Light theme: On" : "Light theme: Off");
+    }
+
+    private static final String[] TRANSLATE_LANGUAGE_CODES = {
+            "en", "ar", "bg", "bn", "cs", "da", "de", "el", "es", "et",
+            "fa", "fi", "fr", "he", "hi", "hr", "hu", "id", "it", "ja",
+            "ko", "lt", "lv", "ms", "nl", "no", "pl", "pt", "ro", "ru",
+            "sk", "sl", "sr", "sv", "sw", "th", "tr", "uk", "vi", "zh-CN", "zh-TW"
+    };
+
+    private void updateTranslateTargetButton() {
+        translateTargetButton.setText("Translate to: " + translateLabel(translateTarget));
+    }
+
+    private void updateTranslateAutoButton() {
+        translateAutoButton.setText(
+                translateAutoEnabled
+                        ? "Automatic translation: On"
+                        : "Automatic translation: Off");
+    }
+
+    private String translateLabel(String code) {
+        String tag = code == null ? "en" : code.replace('_', '-');
+        if ("zh-CN".equals(tag)) {
+            return "Chinese (Simplified)";
+        }
+        if ("zh-TW".equals(tag)) {
+            return "Chinese (Traditional)";
+        }
+        Locale locale = Locale.forLanguageTag(tag);
+        String label = locale.getDisplayLanguage(Locale.ENGLISH);
+        return label.isEmpty() || label.equals(tag) ? tag : label;
+    }
+
+    private void showTranslateTargetPicker() {
+        String[] labels = new String[TRANSLATE_LANGUAGE_CODES.length];
+        int selected = 0;
+        for (int index = 0; index < TRANSLATE_LANGUAGE_CODES.length; index++) {
+            labels[index] = translateLabel(TRANSLATE_LANGUAGE_CODES[index]);
+            if (TRANSLATE_LANGUAGE_CODES[index].equals(translateTarget)) {
+                selected = index;
+            }
+        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Translate pages to")
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    translateTarget = TRANSLATE_LANGUAGE_CODES[which];
+                    updateTranslateTargetButton();
+                    saveImmediateSettings();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private static final int[] OMNI_COLOR_PRESETS = {

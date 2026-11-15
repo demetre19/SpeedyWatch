@@ -71,6 +71,8 @@ final class SpeedyWatchSettings {
     private static final String AUTO_SCRAPE_X_LINKS = "auto_scrape_x_links";
     private static final String CLEAN_SHARED_LINKS = "clean_shared_links";
     private static final String LIGHT_THEME = "light_theme";
+    private static final String TRANSLATE_TARGET = "translate_target";
+    private static final String TRANSLATE_AUTO = "translate_auto";
     private static final String START_PAGE = "start_page";
     private static final String LAST_ERROR_URL = "last_error_url";
     private static final String YOUTUBE_SHORTS_AS_VIDEOS = "youtube_shorts_as_videos";
@@ -802,6 +804,22 @@ final class SpeedyWatchSettings {
 
     void setLightThemeEnabled(boolean enabled) {
         preferences.edit().putBoolean(LIGHT_THEME, enabled).apply();
+    }
+
+    String getTranslateTarget() {
+        return preferences.getString(TRANSLATE_TARGET, "en");
+    }
+
+    void setTranslateTarget(String code) {
+        preferences.edit().putString(TRANSLATE_TARGET, code).apply();
+    }
+
+    boolean isTranslateAutoEnabled() {
+        return preferences.getBoolean(TRANSLATE_AUTO, false);
+    }
+
+    void setTranslateAutoEnabled(boolean enabled) {
+        preferences.edit().putBoolean(TRANSLATE_AUTO, enabled).apply();
     }
 
     boolean areSpeedControlsCollapsed() {

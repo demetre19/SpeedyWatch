@@ -40,7 +40,8 @@ enum OmniButtonAction {
     LOCK_SCREEN("lock_screen", "Lock screen", AmountType.NONE, Double.NaN),
     SAVE_LINKS("save_links", "Links", AmountType.NONE, Double.NaN),
     BOOKMARK("bookmark", "Bookmark page", AmountType.NONE, Double.NaN),
-    SPLIT_TEXT("split_text", "Text chunks", AmountType.NONE, Double.NaN);
+    SPLIT_TEXT("split_text", "Text chunks", AmountType.NONE, Double.NaN),
+    TRANSLATE_PAGE("translate_page", "Translate page", AmountType.NONE, Double.NaN);
 
     enum AmountType {
         NONE,

@@ -124,7 +124,7 @@ public final class MainActivity extends Activity {
 
     private TextView statusText;
     private String controllerScript;
-    private String chineseTranslatorScript;
+    private String pageTranslatorScript;
     private String frameControllerScript;
     private boolean frameControllerEnabled;
     private double selectedSpeed = 1.0;
@@ -254,7 +254,7 @@ public final class MainActivity extends Activity {
         scrapedLinkStore = new ScrapedLinkStore(this);
         controllerScript = readAsset("speedywatch.js");
         frameControllerScript = readAsset("speedywatch-frame.js");
-        chineseTranslatorScript = readAsset("chinese_translate.js");
+        pageTranslatorScript = readAsset("translate.js");
         appRoot = buildUi();
         setContentView(appRoot);
         applyThemeFromSettings();
@@ -793,6 +793,11 @@ public final class MainActivity extends Activity {
                 ignored -> showSavedSummaries()
         ));
         navigation.addView(makeIconButton(
+                R.drawable.ic_translate,
+                "Translate this page",
+                ignored -> translateCurrentPage()
+        ));
+        navigation.addView(makeIconButton(
                 R.drawable.ic_settings,
                 "Settings",
                 ignored -> showSettings()
@@ -1148,20 +1153,52 @@ public final class MainActivity extends Activity {
             applyControllerState();
             scheduleChapterRefresh();
             refreshSponsorSegments(webView.getUrl());
-            injectChineseTranslator();
+            injectPageTranslator(false);
             attemptPendingMegaResume();
             collectXThreadLinks();
         });
     }
 
-    private void injectChineseTranslator() {
+    private void injectPageTranslator(boolean forceScan) {
         String currentUrl = webView.getUrl();
-        if (!SupportedSite.isInAppNavigationUrl(currentUrl)
-                || SupportedSite.forUrl(currentUrl) != SupportedSite.BILIBILI) {
+        if (!SupportedSite.isInAppNavigationUrl(currentUrl)) {
             return;
         }
-        webView.evaluateJavascript(chineseTranslatorScript, ignored -> {
+        webView.evaluateJavascript(pageTranslatorScript, ignored -> {
+            String command = "window.__speedyWatchPageTranslator "
+                    + "&& window.__speedyWatchPageTranslator.configure({"
+                    + "target: \"" + appSettings.getTranslateTarget() + "\""
+                    + "});"
+                    + "window.__speedyWatchPageTranslator "
+                    + (forceScan
+                            ? "&& window.__speedyWatchPageTranslator.translate()"
+                            : "&& window.__speedyWatchPageTranslator.setAuto("
+                                    + appSettings.isTranslateAutoEnabled()
+                                    + "), window.__speedyWatchPageTranslator."
+                                    + (appSettings.isTranslateAutoEnabled()
+                                            ? "translate()" : "status()"));
+            webView.evaluateJavascript(command, ignored2 -> {
+            });
         });
+    }
+
+    private void translateCurrentPage() {
+        if (!SupportedSite.isInAppNavigationUrl(webView.getUrl())) {
+            Toast.makeText(this, "No page to translate", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        injectPageTranslator(true);
+        Toast.makeText(
+                this,
+                "Translating page to " + languageLabel(appSettings.getTranslateTarget()),
+                Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private String languageLabel(String code) {
+        Locale locale = Locale.forLanguageTag(code == null ? "en" : code);
+        String label = locale.getDisplayLanguage(Locale.ENGLISH);
+        return label.isEmpty() ? code : label;
     }
 
     private void collectXThreadLinks() {
@@ -2416,6 +2453,7 @@ public final class MainActivity extends Activity {
                     applyScreenLockSettings();
                     lastSponsorLookupKey = "";
                     refreshSponsorSegments(webView.getUrl());
+                    injectPageTranslator(appSettings.isTranslateAutoEnabled());
                 },
                 () -> setSpeed(appSettings.getDefaultPlaybackSpeed()),
                 this::chooseBackupDestination,
@@ -4433,6 +4471,9 @@ public final class MainActivity extends Activity {
                 break;
             case SPLIT_TEXT:
                 showTextChunks();
+                break;
+            case TRANSLATE_PAGE:
+                translateCurrentPage();
                 break;
             default:
                 break;

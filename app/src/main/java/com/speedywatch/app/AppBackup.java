@@ -54,6 +54,8 @@ final class AppBackup {
                 .put("autoScrapeXLinks", settings.isAutoScrapeXLinksEnabled())
                 .put("cleanSharedLinks", settings.isCleanSharedLinksEnabled())
                 .put("lightTheme", settings.isLightThemeEnabled())
+                .put("translateTarget", settings.getTranslateTarget())
+                .put("translateAuto", settings.isTranslateAutoEnabled())
                 .put("sponsorBlockEnabled", settings.isSponsorBlockEnabled())
                 .put("sponsorCategoryEnabled", settings.skipsSponsorSegments())
                 .put("selfPromotionCategoryEnabled", settings.skipsSelfPromotionSegments())
@@ -443,6 +445,14 @@ final class AppBackup {
         settings.setLightThemeEnabled(preferences.optBoolean(
                 "lightTheme",
                 settings.isLightThemeEnabled()
+        ));
+        if (preferences.has("translateTarget")) {
+            settings.setTranslateTarget(
+                    boundedString(preferences, "translateTarget", 16, false));
+        }
+        settings.setTranslateAutoEnabled(preferences.optBoolean(
+                "translateAuto",
+                settings.isTranslateAutoEnabled()
         ));
         settings.setStartPage(preferences.optString(
                 "startPage",
