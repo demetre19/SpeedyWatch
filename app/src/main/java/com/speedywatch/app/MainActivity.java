@@ -1242,8 +1242,8 @@ public final class MainActivity extends Activity {
         pendingTranslateIds.add(id);
         ioExecutor.execute(() -> {
             try {
-                String result = fetchTranslation(translateTarget, text);
-                deliverTranslateResult(id, result);
+                deliverTranslateResult(
+                        id, fetchTranslation(translateTarget, text));
             } catch (Exception ignored) {
                 deliverTranslateResult(id, null);
             }
@@ -1263,6 +1263,9 @@ public final class MainActivity extends Activity {
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(15000);
             connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 "
+                            + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
                 return null;

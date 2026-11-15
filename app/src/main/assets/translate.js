@@ -107,8 +107,10 @@
         }
     };
 
+    let pumpDelay = 200;
+
     const pump = () => {
-        while (activeRequests < 3 && queue.length > 0) {
+        while (activeRequests < 2 && queue.length > 0) {
             const item = queue.shift();
             queuedNodes.delete(item.node);
             if (!item.node.isConnected || isExcluded(item.node)) {
@@ -140,14 +142,24 @@
                     if (translation && translation !== item.text) {
                         cache.set(key, translation);
                         applyTranslation(item, translation);
+                        pumpDelay = 200;
                     } else {
                         failed.add(key);
                     }
                 })
-                .catch(() => failed.add(key))
+                .catch(() => {
+                    item.retries = (item.retries || 0) + 1;
+                    if (item.retries <= 4) {
+                        queuedNodes.add(item.node);
+                        queue.push(item);
+                        pumpDelay = Math.min(3000, pumpDelay * 2);
+                    } else {
+                        failed.add(key);
+                    }
+                })
                 .finally(() => {
                     activeRequests -= 1;
-                    window.setTimeout(pump, 120);
+                    window.setTimeout(pump, pumpDelay);
                 });
         }
     };
@@ -231,15 +243,11 @@
             pump();
         };
         if (pageCheckDone) {
-            if (!pageIsTarget) {
-                walk();
-            }
+            walk();
             return;
         }
-        detectPageLanguage((foreign) => {
-            if (foreign) {
-                walk();
-            }
+        detectPageLanguage(() => {
+            walk();
         });
     };
 

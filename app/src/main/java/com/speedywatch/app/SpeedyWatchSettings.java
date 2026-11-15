@@ -815,7 +815,7 @@ final class SpeedyWatchSettings {
     }
 
     boolean isTranslateAutoEnabled() {
-        return preferences.getBoolean(TRANSLATE_AUTO, false);
+        return preferences.getBoolean(TRANSLATE_AUTO, true);
     }
 
     void setTranslateAutoEnabled(boolean enabled) {
