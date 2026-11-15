@@ -42,7 +42,7 @@ The app includes a background download engine powered by yt-dlp and FFmpeg, supp
 | --- |
 | **Android 10 and newer** |
 | [**Download the installable Android APK**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk) |
-| Current public APK: **v0.65**, debug-signed |
+| Current public APK: **v0.71**, debug-signed |
 
 ### Samsung Galaxy: install the APK
 
@@ -65,7 +65,7 @@ If Android says **App not installed**, cannot update the existing app, or instal
 
 Reach the useful part sooner. Keep the pace that works for you.
 
-> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.65.
+> Screenshots below are authentic captures from the Android v0.28 device build. The current public APK is v0.71.
 
 ### Browse the web with SpeedyWatch controls
 
@@ -175,6 +175,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 - Back up saved content without copying private keys.
 - Install Android updates with confidence after SpeedyWatch checks the APK size and SHA-256.
 - Switch between a light and dark app theme in Settings; both preserve the same controls and saved data.
+- Translate any foreign-language page into your language automatically on load, or on demand from the toolbar or Omnibutton — Settings → Appearance picks the target language (English by default) and can turn automatic translation off.
 
 <p align="center">
   <img src="screenshots/settings.png" width="360" alt="SpeedyWatch Android settings showing playback profile, adaptive speed, SponsorBlock, default speed, screen lock, and Picture-in-Picture controls">
@@ -182,7 +183,7 @@ Saved MEGA items return to the playback time where you stopped. Complete links s
 
 ## Ready to get your watch time back?
 
-**Android 10 or newer:** download the current public v0.65 APK and start with your next video.
+**Android 10 or newer:** download the current public v0.71 APK and start with your next video.
 
 [**Download the current SpeedyWatch APK for Android**](https://github.com/demetre19/SpeedyWatch/releases/latest/download/SpeedyWatch.apk)
 
@@ -198,16 +199,16 @@ Current public build:
 
 ```text
 Package: com.speedywatch.app
-Version: 0.65
-Version code: 65
+Version: 0.71
+Version code: 71
 Minimum Android version: Android 10 (API 29)
 Supported device ABIs: arm64-v8a and armeabi-v7a
-APK size: 106,639,395 bytes
-SHA-256: dec8a4cfb4be3587c62b62bc62151a531d733d5698376a53bd13a0183e3562b8
+APK size: 106,656,094 bytes
+SHA-256: 90ec6362369e77fd24be181b60b0bcd1a62d23fbcbf9548cd64fbbe98746a3be
 Signing: Android debug signing key
 ```
 
-This public v0.65 APK is debug-signed with APK Signature Scheme v2. It builds on v0.63's X fullscreen flicker fix, page file uploads, and **Clean shared links** toggle by also cleaning links a page copies to the clipboard itself — X's in-post Copy link now pastes without tracking parameters while SpeedyWatch is open. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
+This public v0.71 APK is debug-signed with APK Signature Scheme v2. It builds on v0.65's link cleaning by adding a full **Light theme** (Settings → Appearance, with dark mode inverting page colors while preserving images) and **automatic page translation** — foreign-language pages translate into your chosen language on load or on demand, working around strict site policies that block normal page translation. It also carries the v0.47 yt-dlp `2026.08.19` download-engine update.
 
 ## iOS source
 
@@ -256,6 +257,7 @@ Caption and readable-text availability depends on what the page exposes. Generic
 - SpeedyWatch does not add analytics or advertising SDKs.
 - Android loads any validated public HTTPS page and available captions over HTTPS, while service-specific downloads, cookies, and network caption requests remain restricted to their explicit service allowlists. Approved media CDN hosts remain resource-only and cannot become browsable destinations from intercepted requests.
 - Android media downloads are processed on the device and written to the public `Downloads/SpeedyWatch` folder. SpeedyWatch does not upload downloaded media to its own service.
+- Page translation sends the page's visible text to Google's free `translate.googleapis.com` endpoint over HTTPS when automatic translation runs or you request it manually; no API key or account is involved, and nothing is sent while translation is idle.
 - Optional SponsorBlock lookups go directly to `https://sponsor.ajay.app` over HTTPS. SpeedyWatch sends the recommended four-character SHA-256 prefix of the YouTube video ID rather than the full ID, then accepts only the matching video from the response.
 - Your Cloudflare Account ID stays in plain app settings; your Cloudflare API token and OpenRouter API key remain in Android Keystore-encrypted app storage.
 - Transcript text, a WatchPath goal and time budget, and any follow-up question you submit are sent to the selected AI provider (Cloudflare or OpenRouter) only when you request a summary, WatchPath route, follow-up answer, or quiz. Regenerating a bookmark fetches that one page's description metadata without cookies first (falling back to the page's own session cookies) and sends it to the selected provider.
