@@ -64,6 +64,43 @@
         translatedCount += 1;
     };
 
+    let requestSeq = 0;
+    const pendingRequests = new Map();
+
+    // Page fetch cannot reach the translate endpoint on sites with a strict
+    // connect-src CSP (github.com blocks it), so requests go through the
+    // console channel which CSP does not cover; native answers via
+    // __swTranslateDeliver.
+    const requestTranslation = (text) => new Promise((resolve, reject) => {
+        const id = ++requestSeq;
+        const timer = window.setTimeout(() => {
+            pendingRequests.delete(id);
+            reject();
+        }, 20000);
+        pendingRequests.set(id, {resolve, timer});
+        try {
+            console.log("SWTL|" + id + "|" + targetLanguage + "|" + text);
+        } catch (error) {
+            window.clearTimeout(timer);
+            pendingRequests.delete(id);
+            reject();
+        }
+    });
+
+    window.__swTranslateDeliver = (id, body) => {
+        const entry = pendingRequests.get(id);
+        if (!entry) {
+            return;
+        }
+        pendingRequests.delete(id);
+        window.clearTimeout(entry.timer);
+        try {
+            entry.resolve(typeof body === "string" ? JSON.parse(body) : null);
+        } catch (error) {
+            entry.resolve(null);
+        }
+    };
+
     const pump = () => {
         while (activeRequests < 3 && queue.length > 0) {
             const item = queue.shift();
@@ -82,17 +119,11 @@
             }
 
             activeRequests += 1;
-            const endpoint = "https://translate.googleapis.com/translate_a/single" +
-                "?client=gtx&sl=auto&tl=" + encodeURIComponent(targetLanguage) +
-                "&dt=t&q=" + encodeURIComponent(item.text);
-            fetch(endpoint, {
-                method: "GET",
-                credentials: "omit",
-                referrerPolicy: "no-referrer",
-                cache: "force-cache"
-            })
-                .then((response) => response.ok ? response.json() : Promise.reject())
+            requestTranslation(item.text)
                 .then((data) => {
+                    if (!Array.isArray(data)) {
+                        return Promise.reject();
+                    }
                     const detected = normalized(
                         typeof data[2] === "string" ? data[2] : "");
                     if (detected === normalized(targetLanguage)) {
@@ -156,16 +187,11 @@
             pageCheckDone = true;
             return proceed(false);
         }
-        const endpoint = "https://translate.googleapis.com/translate_a/single" +
-            "?client=gtx&sl=auto&tl=" + encodeURIComponent(targetLanguage) +
-            "&dt=t&q=" + encodeURIComponent(sample.join(" ").slice(0, SAMPLE_LIMIT));
-        fetch(endpoint, {
-            method: "GET",
-            credentials: "omit",
-            referrerPolicy: "no-referrer"
-        })
-            .then((response) => response.ok ? response.json() : Promise.reject())
+        requestTranslation(sample.join(" ").slice(0, SAMPLE_LIMIT))
             .then((data) => {
+                if (!Array.isArray(data)) {
+                    return Promise.reject();
+                }
                 pageCheckDone = true;
                 pageIsTarget = normalized(
                     typeof data[2] === "string" ? data[2] : "")

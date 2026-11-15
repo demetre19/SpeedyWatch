@@ -48,6 +48,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
+import android.webkit.ConsoleMessage;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -86,6 +87,7 @@ import java.nio.charset.StandardCharsets;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
@@ -310,6 +312,12 @@ public final class MainActivity extends Activity {
                     FileChooserParams params
             ) {
                 return openWebFileChooser(callback, params);
+            }
+
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                return handleTranslateConsoleMessage(message)
+                        || super.onConsoleMessage(message);
             }
         });
         webView.setWebViewClient(new WebViewClient() {
@@ -1199,6 +1207,91 @@ public final class MainActivity extends Activity {
         Locale locale = Locale.forLanguageTag(code == null ? "en" : code);
         String label = locale.getDisplayLanguage(Locale.ENGLISH);
         return label.isEmpty() ? code : label;
+    }
+
+    private static final String TRANSLATE_PREFIX = "SWTL|";
+    private static final int MAX_TRANSLATE_TEXT = 4096;
+    private static final int MAX_PENDING_TRANSLATES = 64;
+    private final Set<Integer> pendingTranslateIds =
+            Collections.synchronizedSet(new HashSet<>());
+
+    private boolean handleTranslateConsoleMessage(ConsoleMessage message) {
+        if (message == null || message.message() == null
+                || !message.message().startsWith(TRANSLATE_PREFIX)) {
+            return false;
+        }
+        String[] parts = message.message().split("\\|", 4);
+        if (parts.length != 4) {
+            return true;
+        }
+        final int id;
+        try {
+            id = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException ignored) {
+            return true;
+        }
+        String target = parts[2].trim();
+        final String text = parts[3];
+        if (text.length() > MAX_TRANSLATE_TEXT
+                || !target.matches("[A-Za-z]{2,3}(-[A-Za-z]{2,8})?")
+                || pendingTranslateIds.size() >= MAX_PENDING_TRANSLATES) {
+            deliverTranslateResult(id, null);
+            return true;
+        }
+        final String translateTarget = target;
+        pendingTranslateIds.add(id);
+        ioExecutor.execute(() -> {
+            try {
+                String result = fetchTranslation(translateTarget, text);
+                deliverTranslateResult(id, result);
+            } catch (Exception ignored) {
+                deliverTranslateResult(id, null);
+            }
+        });
+        return true;
+    }
+
+    private String fetchTranslation(String target, String text) throws IOException {
+        String endpoint = "https://translate.googleapis.com/translate_a/single"
+                + "?client=gtx&sl=auto&tl="
+                + URLEncoder.encode(target, StandardCharsets.UTF_8)
+                + "&dt=t&q="
+                + URLEncoder.encode(text, StandardCharsets.UTF_8);
+        HttpURLConnection connection =
+                (HttpURLConnection) new URL(endpoint).openConnection();
+        try {
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(15000);
+            connection.setUseCaches(false);
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                return null;
+            }
+            try (InputStream input = connection.getInputStream();
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int total = 0;
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 256 * 1024) {
+                        return null;
+                    }
+                    output.write(buffer, 0, count);
+                }
+                return new String(output.toByteArray(), StandardCharsets.UTF_8);
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private void deliverTranslateResult(int id, String body) {
+        pendingTranslateIds.remove(id);
+        String command = "window.__swTranslateDeliver && window.__swTranslateDeliver("
+                + id + ", " + (body == null ? "null" : JSONObject.quote(body)) + ")";
+        webView.post(() -> webView.evaluateJavascript(command, ignored -> {
+        }));
     }
 
     private void collectXThreadLinks() {
