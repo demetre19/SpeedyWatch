@@ -22,6 +22,12 @@
     let pageCheckDone = false;
     let pageIsTarget = false;
 
+    const NONLATIN_TARGETS = new Set(
+        ["ar", "bg", "bn", "el", "fa", "he", "hi", "ja", "ko",
+         "ru", "th", "uk", "zh"]);
+    const NONLATIN_LETTER = /(?!\p{Script=Latin})\p{L}/u;
+    const targetIsLatin = () => !NONLATIN_TARGETS.has(normalized(targetLanguage));
+
     const normalized = (code) => (code || "").toLowerCase().split("-")[0];
 
     const isExcluded = (node) => {
@@ -161,6 +167,14 @@
         const cached = cache.get(key);
         if (cached) {
             applyTranslation({node, text}, cached);
+            return;
+        }
+        // Mixed pages: even when the page-level verdict says "already target",
+        // nodes written in a different script (Chinese on github.com) are
+        // never the target language and always enter.
+        const foreignScript = NONLATIN_LETTER.test(text);
+        if (!foreignScript && pageCheckDone && pageIsTarget && targetIsLatin()) {
+            sameLanguage.add(key);
             return;
         }
         queuedNodes.add(node);
